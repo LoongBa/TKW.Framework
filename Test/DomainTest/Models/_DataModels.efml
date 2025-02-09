@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<efcore namespace="DomainTest" p1:name="DomainTest" p1:Guid="3a224e51-3d89-435d-83e8-f45cd44a8f3e" p1:EntityBase="IEntityModel" xmlns:p1="http://devart.com/schemas/EntityDeveloper/1.0">
+  <class name="Department" entity-set="Departments" table="Department" schema="dbo" p1:modifier="Internal" p1:Guid="bbc5afb4-dc6f-4897-a489-7d3c8f7bc501" p1:GenerateDTO="False">
+    <id name="Uid" type="Guid" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="b3a793bc-618d-4292-b666-8cd62a12a6b7">
+      <column name="Uid" default="newid()" not-null="True" sql-type="uniqueidentifier" p1:unicode="False" />
+    </id>
+    <property name="Id" type="Int32" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="624ff711-989b-4021-a654-bdbb3ce90442">
+      <column name="Id" not-null="True" precision="10" scale="0" sql-type="int" p1:unicode="False" />
+    </property>
+    <property name="Name" type="String" p1:inheritance-modifier="None" p1:ValidateMaxLength="20" p1:ValidateRequired="true" p1:Guid="689fefd5-4b90-4f9f-800a-1a94d214ce7d">
+      <column name="Name" not-null="True" length="20" sql-type="nvarchar" p1:unicode="True" />
+    </property>
+    <property name="IsRoot" type="Boolean" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="9762d1f1-86ae-4800-8193-6fae17461b23">
+      <column name="IsRoot" default="0" not-null="True" sql-type="bit" p1:unicode="False" />
+    </property>
+    <property name="ParentDeptUid" type="Guid" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="f69e6c68-d09e-452a-ad6c-4e0e70550f82">
+      <column name="ParentDeptUid" not-null="True" sql-type="uniqueidentifier" p1:unicode="False" />
+    </property>
+    <property name="DateTimeCreated" type="DateTime" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="e818e4db-d830-4cf1-bd93-3f53a5d053df">
+      <column name="DateTimeCreated" default="getdate()" not-null="True" sql-type="datetime" p1:unicode="False" />
+    </property>
+  </class>
+  <class name="Staff" entity-set="Staffs" table="Staff" schema="dbo" p1:Guid="af9c15ba-7712-4037-acbc-27294940c993">
+    <id name="Uid" type="Guid" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="d505acb7-1e17-4c7d-a16e-b24e2ddfdaa6">
+      <column name="Uid" default="newid()" not-null="True" sql-type="uniqueidentifier" p1:unicode="False" />
+    </id>
+    <property name="Id" type="Int32" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="374a21d6-bd8f-41a7-8d34-3ba0379faf90">
+      <column name="Id" not-null="True" precision="10" scale="0" sql-type="int" p1:unicode="False" />
+    </property>
+    <property name="Name" type="String" p1:inheritance-modifier="None" p1:ValidateMaxLength="20" p1:ValidateRequired="true" p1:Guid="9e9d95ac-c51a-44f3-bea6-f0e0b7e54b0e">
+      <column name="Name" not-null="True" length="20" sql-type="nvarchar" p1:unicode="True" />
+    </property>
+    <property name="PasswordHashed" type="String" p1:inheritance-modifier="None" p1:ValidateMaxLength="64" p1:ValidateRequired="true" p1:Guid="2f1b39c2-9405-4768-8f03-38dad5e247ea">
+      <column name="PasswordHashed" not-null="True" length="64" sql-type="varchar" p1:unicode="False" />
+    </property>
+    <property name="Birthday" type="DateTime" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="f70742ee-ad81-4c04-8e3a-f0d611f03057">
+      <column name="Birthday" not-null="True" sql-type="datetime2" p1:unicode="False" />
+    </property>
+    <property name="Gender" type="Int32" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="4cc9cd41-9fce-4a19-bbfa-be79ed98b47d">
+      <column name="Gender" not-null="True" precision="10" scale="0" sql-type="int" p1:unicode="False" />
+    </property>
+    <property name="DepartmentUid" type="Guid" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="544751d6-acb2-4fdd-bd80-be3870a83c83">
+      <column name="DepartmentUid" not-null="True" sql-type="uniqueidentifier" p1:unicode="False" />
+    </property>
+    <property name="DateTimeCreated" type="DateTime" p1:inheritance-modifier="None" value-generated="OnAdd" p1:ValidateRequired="true" p1:Guid="82e2b3a2-2e8f-408d-b482-69ba1c1e0df8">
+      <column name="DateTimeCreated" default="getdate()" not-null="True" sql-type="datetime" p1:unicode="False" />
+    </property>
+  </class>
+  <class name="VStaff" entity-set="VStaffs" table="VStaff" schema="dbo" query-type="True" p1:modifier="Internal" p1:Guid="fe424bbc-d3a3-4066-9278-3aac1e6b2cc5">
+    <property name="Uid" type="Guid" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="d147ff2d-5ac7-4bac-bf2e-c521c735d04a">
+      <column name="Uid" not-null="True" sql-type="uniqueidentifier" p1:unicode="False" />
+    </property>
+    <property name="Name" type="String" p1:inheritance-modifier="None" p1:ValidateMaxLength="20" p1:ValidateRequired="true" p1:Guid="d48e73ce-cbab-419e-9335-2e9bbcfb5dd2">
+      <column name="Name" not-null="True" length="20" sql-type="nvarchar" p1:unicode="True" />
+    </property>
+    <property name="Birthday" type="DateTime" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="fd0ef4b8-0250-4e31-b2ef-2634a519be99">
+      <column name="Birthday" not-null="True" sql-type="datetime2" p1:unicode="False" />
+    </property>
+    <property name="Gender" type="Int32" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="6d87bfc5-af4b-4af5-89d9-fc47d939887b">
+      <column name="Gender" not-null="True" precision="10" scale="0" sql-type="int" p1:unicode="False" />
+    </property>
+    <property name="DeptName" type="String" p1:inheritance-modifier="None" p1:ValidateMaxLength="20" p1:ValidateRequired="true" p1:Guid="6d03b496-8efe-489e-8314-fbbac45b50cc">
+      <column name="DeptName" not-null="True" length="20" sql-type="nvarchar" p1:unicode="True" />
+    </property>
+    <property name="DateTimeCreated" type="DateTime" p1:inheritance-modifier="None" p1:ValidateRequired="true" p1:Guid="0b34b09b-72b8-4adc-bce7-2e83673dc35c">
+      <column name="DateTimeCreated" not-null="True" sql-type="datetime" p1:unicode="False" />
+    </property>
+  </class>
+  <associations>
+    <association name="Department_Department" cardinality="OneToMany" p1:Guid="610ca090-53b8-493c-a63a-6b62a64475fe">
+      <end1 multiplicity="One" name="ParentDept" class="Department" relation-class="Department" constrained="True" lazy="False" p1:inheritance-modifier="None" p1:Guid="da4c9c1b-2576-487b-8644-c2267564947c">
+        <property name="Uid" />
+      </end1>
+      <end2 multiplicity="Many" name="SubDepts" class="Department" relation-class="Department" lazy="False" p1:inheritance-modifier="None" p1:Guid="977f2888-148e-46cf-8178-a0b81104aecf">
+        <property name="ParentDeptUid" />
+      </end2>
+    </association>
+    <association name="Department_Staff" cardinality="OneToMany" p1:Guid="72068b06-c577-4cf7-b304-545f68b2a924">
+      <end1 multiplicity="One" name="Department" class="Staff" relation-class="Department" constrained="True" lazy="False" p1:inheritance-modifier="None" p1:Guid="1223135f-ada3-459e-9ea9-f30931d81df0">
+        <property name="Uid" />
+      </end1>
+      <end2 multiplicity="Many" name="Staffs" class="Department" relation-class="Staff" lazy="False" p1:inheritance-modifier="None" p1:Guid="1d217110-2412-412b-9d7f-a35023cfe45d">
+        <property name="DepartmentUid" />
+      </end2>
+    </association>
+  </associations>
+</efcore>

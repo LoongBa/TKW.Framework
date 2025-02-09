@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup Label="Globals">
+    <SccProjectName>SAK</SccProjectName>
+    <SccProvider>SAK</SccProvider>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccLocalPath>SAK</SccLocalPath>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>TKW.Framework.EntityFramework</RootNamespace>
+    <AssemblyName>TKW.Framework.EntityFramework</AssemblyName>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="DAC\EntityTableDAC_EFMSSql.cs" />
+    <Compile Remove="DAC\EntityViewDAC_EFMSSql.cs" />
+    <Compile Remove="DbSetWrapper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="DAC\EntityTableDAC_EFMSSql.cs" />
+    <Content Include="DAC\EntityViewDAC_EFMSSql.cs" />
+    <Content Include="DbSetWrapper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Common.Entity.Validation\TKWF.Common.Entity.Validation.csproj" />
+    <ProjectReference Include="..\Common\TKWF.Common.csproj" />
+  </ItemGroup>
+
+</Project>
