@@ -3,13 +3,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace TKW.Framework.Web.Middlewares
 {
-    public abstract class AbstractMiddleware
+    public abstract class AbstractMiddleware(RequestDelegate next)
     {
-        protected RequestDelegate Next { get; set; }
-        protected AbstractMiddleware(RequestDelegate next)
-        {
-            Next = next;
-        }
+        protected RequestDelegate Next { get; set; } = next;
 
         /// <summary>
         /// 需要进行的操作：注意 use 中间件的顺序

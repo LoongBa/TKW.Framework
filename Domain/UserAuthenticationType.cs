@@ -3,13 +3,14 @@ namespace TKW.Framework.Domain
     public enum UserAuthenticationType
     {
         Unset,
+        Guest,
         MobileWeb,
-        DesktopWeb,
+        PCWeb,
         WechatApp,
         WechatWeb,
         AliPayApp,
         Customized,
-        Tester,
         ELinkApp,
+        Tester,
     }
 }

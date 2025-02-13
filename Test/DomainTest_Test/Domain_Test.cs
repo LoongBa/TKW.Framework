@@ -30,10 +30,10 @@ namespace DomainTest_Test
         [TestInitialize]
         public void Init()
         {
-            DomainHost.Initial<ProjectDomainUser, SessionHelper>(ConfigureServices, null);
+            DomainHost.Initial<ProjectUser, SessionHelper>(ConfigureServices, null);
         }
 
-        private SessionHelperBase<ProjectDomainUser> ConfigureServices(ContainerBuilder containerBuilder, IServiceCollection services,
+        private DomainHelperBase<ProjectUser> ConfigureServices(ContainerBuilder containerBuilder, IServiceCollection services,
             ConfigurationBuilder configurationBuilder, IServiceCollection upLevelServices)
         {
             #region 1. 基础准备工作
@@ -82,27 +82,23 @@ namespace DomainTest_Test
 
             #region 2. 领域相关准备工作
             // 注册会话Manager
-            containerBuilder.UseSessionManager(new SessionManager<ProjectDomainUser>());
-            //containerBuilder.UseSessionManager<ProjectDomainUser>();
-
-            // 2.1 注册若干 DomainManager
-            containerBuilder.AddDomainManager<DomainTestDataAccessHelper, UserManager>();
-            containerBuilder.AddDomainManager<DomainTestDataAccessHelper, DepartmentManager>();
+            containerBuilder.UseSessionManager(new SessionManager<ProjectUser>());
+            //containerBuilder.UseSessionManager<ProjectUser>();
 
             // 2.2 注册若干 DomainService（注：控制器受到 AOP 框架约束）
             //注册不受拦截的控制器
-            containerBuilder.AddDomainService<DepartmentService>();
-            containerBuilder.AddDomainService<VStaffService>();
+            containerBuilder.AddController<DepartmentService>();
+            containerBuilder.AddController<VStaffService>();
 
             //注册受拦截的控制器（需指定接口方能生效）
-            containerBuilder.AddDomainServiceIntercepted<IUserServiceContract, UserService>();
+            containerBuilder.AddDomainController<IUserControllerContract, UserController>();
 
             //注册若干全局 Filters
             //containerBuilder.AddAction<AuthorityActionFilterAttribute>();
             #endregion
 
             //3. 返回 SessionHelper（可改为返回多个 SessionHelper，支持多用户类型）
-            var sessionHelper = new SessionHelper(() => DomainHost.Root);
+            var sessionHelper = new DomainHelpere<ProjectUser>(() => DomainHost.Root);
             upLevelServices?.AddSingleton(sessionHelper); //用于 GraphQL 的 XXXXXXQuery 的构造器
             return sessionHelper;
         }
@@ -113,10 +109,10 @@ namespace DomainTest_Test
             var user = UserLogin();
 
             //执行领域业务：通过对应领域控制器
-            var userController = user.Use<IUserServiceContract>();
+            var userController = user.Use<IUserControllerContract>();
             userController.ListAllUsers1();
 
-            var userController2 = user.Use<UserService>();
+            var userController2 = user.Use<UserController>();
             userController2.ListAllUsers1();
         }
 
@@ -147,9 +143,9 @@ namespace DomainTest_Test
         }
 
 
-        private static ProjectDomainUser UserLogin()
+        private static ProjectUser UserLogin()
         {
-            var userHelper = DomainHost.Root.UserHelper<ProjectDomainUser, SessionHelper>();
+            var userHelper = DomainHost.Root.UserHelper<ProjectUser, SessionHelper>();
 
             //游客
             var session = userHelper.NewGuestSession();

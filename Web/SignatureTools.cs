@@ -86,10 +86,10 @@ public static class SignatureTools
     }
 
     /// <summary>
-    ///     随机生成 Noncestr
+    ///     随机生成 NonceString
     /// </summary>
     /// <returns></returns>
-    public static string GetNoncestr(Encoding encodingType = null)
+    public static string GetNonceString(Encoding encodingType = null)
     {
         var random = new Random();
         return GetMd5(random.Next(1000).ToString(), encodingType);

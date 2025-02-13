@@ -13,7 +13,7 @@ namespace WebAPITest.Controllers;
 [ApiController]
 public class VStaffsController : ODataController
 {
-    private readonly ProjectDomainUser _User;
+    private readonly ProjectUser _User;
     private readonly VStaffService _VStaffService;
 
     public VStaffsController(SessionHelper sessionHelper)

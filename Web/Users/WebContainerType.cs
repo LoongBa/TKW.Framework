@@ -40,7 +40,7 @@ namespace TKW.Framework.Web.Users
         /// <summary>
         /// 工行融e联
         /// </summary>
-        ICBCELink = 0x80,
+        ICBC_Elink = 0x80,
         /// <summary>
         /// 未知
         /// </summary>

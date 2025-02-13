@@ -7,7 +7,7 @@ using TKW.Framework.Domain.Interception.Filters;
 namespace DomainTest.Services.Contracts
 {
     [AuthorityActionFilter]
-    public interface IUserServiceContract : IDomainServiceContract
+    public interface IUserControllerContract : IDomainControllerContract
     {
         User GetUserByUid(Guid uid);
         //[EntityHistoryActionFilter]

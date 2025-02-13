@@ -52,7 +52,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 //初始化领域
-DomainHost.Initial<ProjectDomainUser, SessionHelper>(ConfigureServices, builder.Services);
+DomainHost.Initial<ProjectUser, SessionHelper>(ConfigureServices, builder.Services);
 
 var app = builder.Build();
 
@@ -84,7 +84,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.Run();
 
-SessionHelperBase<ProjectDomainUser> ConfigureServices(ContainerBuilder containerBuilder, IServiceCollection services,
+SessionHelperBase<ProjectUser> ConfigureServices(ContainerBuilder containerBuilder, IServiceCollection services,
     ConfigurationBuilder configurationBuilder, IServiceCollection upLevelServices)
 {
     #region 1. 基础准备工作
@@ -160,8 +160,8 @@ SessionHelperBase<ProjectDomainUser> ConfigureServices(ContainerBuilder containe
 
     #region 2. 领域相关准备工作
     // 注册会话Manager
-    containerBuilder.UseSessionManager(new SessionManager<ProjectDomainUser>());
-    //containerBuilder.UseSessionManager<ProjectDomainUser>();
+    containerBuilder.UseSessionManager(new SessionManager<ProjectUser>());
+    //containerBuilder.UseSessionManager<ProjectUser>();
 
     // 2.1 注册若干 DomainManager
     containerBuilder.AddDomainManager<DomainTestDataAccessHelper, UserManager>();
@@ -173,7 +173,7 @@ SessionHelperBase<ProjectDomainUser> ConfigureServices(ContainerBuilder containe
     containerBuilder.AddDomainService<VStaffService>();
 
     //注册受拦截的控制器（需指定接口方能生效）
-    containerBuilder.AddDomainServiceIntercepted<IUserServiceContract, UserService>();
+    containerBuilder.AddDomainServiceIntercepted<IUserControllerContract, UserController>();
 
     //注册若干全局 Filters
     //containerBuilder.AddAction<AuthorityActionFilterAttribute>();
@@ -182,7 +182,7 @@ SessionHelperBase<ProjectDomainUser> ConfigureServices(ContainerBuilder containe
     //3. 返回 SessionHelper（可改为返回多个 SessionHelper，支持多用户类型）
     var sessionHelper = new SessionHelper(() => DomainHost.Root);
     //用于 Controller、GraphQL 的 XXXXXXQuery 等的构造器
-    upLevelServices.AddDomainSessionHelper<SessionHelper, ProjectDomainUser>(sessionHelper);
+    upLevelServices.AddDomainSessionHelper<SessionHelper, ProjectUser>(sessionHelper);
     return sessionHelper;
 }
 

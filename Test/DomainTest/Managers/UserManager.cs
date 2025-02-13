@@ -17,10 +17,10 @@ namespace DomainTest.Managers
 
         /// <exception cref="AuthenticationException">Condition.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Condition.</exception>
-        public User GetUserByUsername(ProjectDomainUser currentProjectDomainUser, string username)
+        public User GetUserByUsername(ProjectUser currentProjectUser, string username)
         {
-            if (!currentProjectDomainUser.AssertNotNull().Identity.Name!.Equals("admin", StringComparison.OrdinalIgnoreCase))
-                throw new AuthenticationException($"用户 '{currentProjectDomainUser.Identity.Name}' 没有此项操作权限。");
+            if (!currentProjectUser.AssertNotNull().Identity.Name!.Equals("admin", StringComparison.OrdinalIgnoreCase))
+                throw new AuthenticationException($"用户 '{currentProjectUser.Identity.Name}' 没有此项操作权限。");
 
             var user = _Users.FirstOrDefault(u => u.Value.UserName.Equals(username.EnsureHasValue(), StringComparison.OrdinalIgnoreCase)).Value;
             if (user == null) throw new ArgumentOutOfRangeException($"用户名为 '{username}' 的用户不存在。");
@@ -45,7 +45,7 @@ namespace DomainTest.Managers
         {
             return _Users.Select(pair => pair.Value).ToList();
         }
-        public List<User> ListAllUsers(ProjectDomainUser projectDomainUser)
+        public List<User> ListAllUsers(ProjectUser projectUser)
         {
             return _Users.Select(pair => pair.Value).ToList();
         }
@@ -65,9 +65,9 @@ namespace DomainTest.Managers
             _Users.Add(user.Uid, user);
             return user;
         }
-        public void DelUser(ProjectDomainUser currentProjectDomainUser, string userName)
+        public void DelUser(ProjectUser currentProjectUser, string userName)
         {
-            var user = GetUserByUsername(currentProjectDomainUser, userName);
+            var user = GetUserByUsername(currentProjectUser, userName);
             _Users.Remove(user.Uid);
         }
         public void DelUser(Guid uid)

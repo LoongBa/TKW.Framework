@@ -26,9 +26,8 @@ namespace TKW.Framework.Web.Filters
             //ºöÂÔ×Ó Action
             //if (filterContext.IsChildAction) return;
             //ºöÂÔ·Ç IWebUser
-            if (!(filterContext.HttpContext.User is IWebUser)) return;
+            if (!(filterContext.HttpContext.User is IWebUser user)) return;
 
-            var user = filterContext.HttpContext.User as IWebUser;
             var type = typeof(ContainerSupportActionFilterAttribute);
             if (!filterContext.ActionDescriptor.GetType().IsDefined(type, false)) return;
 

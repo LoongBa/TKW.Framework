@@ -4,7 +4,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
 using TKW.Framework.Common.DataType;
-using TKW.Framework.Common.Entity.History;
 //using System.Text.Json.Serialization;
 
 namespace TKW.Framework.Common.Extensions
@@ -67,7 +66,7 @@ namespace TKW.Framework.Common.Extensions
                 if (!fromProperty.GetAccessors().Any(p => p.IsPublic)) continue;
                 if (!fromProperty.CanRead) continue;
                 //if (fromProperty.GetCustomAttributes(typeof(JsonIgnoreAttribute), false).Any()) continue;
-                if (fromProperty.GetCustomAttributes(typeof(EntityHistoryIgnoreAttribute), false).Any()) continue;
+                //if (fromProperty.GetCustomAttributes(typeof(EntityHistoryIgnoreAttribute), false).Any()) continue;
                 if (fromProperty.Name.Equals("EntityGuid", StringComparison.OrdinalIgnoreCase)) continue;
                 if (fromProperty.Name.Equals("EntityId", StringComparison.OrdinalIgnoreCase)) continue;
                 if (fromProperty.Name.Equals("EntityHistory", StringComparison.OrdinalIgnoreCase)) continue;

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using TKW.Framework.Common.Entity;
 using TKW.Framework.Common.Extensions;
 
 namespace TKW.Framework.Common.DataType
@@ -66,10 +65,10 @@ namespace TKW.Framework.Common.DataType
             return new Pager<T>(datas);
         }
 
-        public static Pager<T> ToPager<T>(this IList<T> datas, Pager pager)
+        public static Pager<T> ToPager<T>(this IList<T> datas, Pager<T> pager)
             where T : class
         {
-            return new Pager<T>(datas, (uint)pager.TotalCount, (uint)pager.PageIndex, (uint)pager.PageSize, (uint)pager.MaxPageSize);
+            return new Pager<T>(datas, pager.Total, pager.PageIndex, pager.PageSize, pager.MaxPageSize);
         }
     }
 }

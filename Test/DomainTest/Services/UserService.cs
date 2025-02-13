@@ -8,14 +8,11 @@ using TKW.Framework.Domain;
 
 namespace DomainTest.Services
 {
-    public class UserService : DomainService, IUserServiceContract
+    public class UserController(DomainUser domainUser, UserManager userManager)
+        : DomainService(domainUser), IUserControllerContract
     {
-        private readonly UserManager _UserManager;
-        public UserService(DomainUser domainUser, UserManager userManager) : base(domainUser)
-        {
-            //var userManager = new UserManager();
-            _UserManager = userManager.AssertNotNull();
-        }
+        private readonly UserManager _UserManager = userManager.AssertNotNull();
+        //var userManager = new UserManager();
 
         public List<User> ListAllUsers1()
         {
@@ -36,7 +33,7 @@ namespace DomainTest.Services
         {
             //业务方法内部判断用户权限
             //TODO: 记录访问日志
-            return _UserManager.ListAllUsers(DomainUser as ProjectDomainUser);
+            return _UserManager.ListAllUsers(DomainUser as ProjectUser);
             //TODO: 记录访问日志
         }
 
@@ -57,11 +54,12 @@ namespace DomainTest.Services
         public User GetUserByUsername(string username)
         {
             //业务方法内部判断用户权限
-            return _UserManager.GetUserByUsername(DomainUser as ProjectDomainUser, username);
+            return _UserManager.GetUserByUsername(DomainUser as ProjectUser, username);
         }
 
         public void DelUserByUid(Guid uid)
         {
+            base.DomainUser.Use<UserManager>().AddUser()
             //领域方法判断用户权限
             if (!DomainUser.Identity.Name.Equals("admin", StringComparison.OrdinalIgnoreCase))
                 throw new AuthenticationException($"用户 '{DomainUser.Identity.Name}' 没有此项操作权限。");
@@ -71,7 +69,7 @@ namespace DomainTest.Services
         public void DelUserByUsername(string username)
         {
             //业务方法内部判断用户权限
-            _UserManager.DelUser(DomainUser as ProjectDomainUser, username);
+            _UserManager.DelUser(DomainUser as ProjectUser, username);
         }
     }
 }

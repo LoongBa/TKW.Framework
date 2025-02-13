@@ -4,19 +4,15 @@ using TKW.Framework.Web.Users;
 
 namespace TKW.Framework.Web.Exceptions
 {
-    public class ContainerNotSupportedException : Exception
+    public class ContainerNotSupportedException(
+        WebContainerType supportedType,
+        WebContainerType notSupportedType)
+        : Exception($"当前操作不支持此容器类型：{notSupportedType}")
     {
-        public WebContainerType[] SupportedType { get; }
-        public WebContainerType NotSupportedType { get; }
+        public WebContainerType[] SupportedType { get; } = SupportedType2Array(supportedType);
+        public WebContainerType NotSupportedType { get; } = notSupportedType;
 
-        public ContainerNotSupportedException(
-            WebContainerType supportedType,
-            WebContainerType notSupportedType) : base($"当前操作不支持此容器类型：{notSupportedType}")
-        {
-            //展开 supportedType 文字描述，便于理解
-            SupportedType = SupportedType2Array(supportedType);
-            NotSupportedType = notSupportedType;
-        }
+        //展开 supportedType 文字描述，便于理解
 
         private static WebContainerType[] SupportedType2Array(WebContainerType type)
         {
@@ -43,8 +39,8 @@ namespace TKW.Framework.Web.Exceptions
             if ((type & WebContainerType.WechatApp) == WebContainerType.WechatApp)
                 array.Add(WebContainerType.WechatApp);
 
-            if ((type & WebContainerType.ICBCELink) == WebContainerType.ICBCELink)
-                array.Add(WebContainerType.ICBCELink);
+            if ((type & WebContainerType.ICBC_Elink) == WebContainerType.ICBC_Elink)
+                array.Add(WebContainerType.ICBC_Elink);
 
             if ((type & WebContainerType.WechatPCWebBrowser) == WebContainerType.WechatPCWebBrowser)
                 array.Add(WebContainerType.WechatPCWebBrowser);

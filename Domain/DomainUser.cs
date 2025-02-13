@@ -9,26 +9,30 @@ using TKW.Framework.Domain.Permission;
 
 namespace TKW.Framework.Domain
 {
-    public class DomainUser : ClaimsPrincipal, IPrincipal
+    public class DomainUser() : ClaimsPrincipal, IPrincipal
     {
-        public Func<DomainHost> DomainHostFactory { get; }
-        public UserAuthenticationType AuthenticationType { get; protected set; }
-        public UserPermissionSet Permissions { get; }
+        public Func<DomainHost> DomainHostFactory { get; private set; }
+        public UserAuthenticationType AuthenticationType { get; protected set; } = UserAuthenticationType.Unset;
+        public UserPermissionSet Permissions { get; } = new();
 
-        protected DomainUser(Func<DomainHost> domainHostFactory)
+        protected DomainUser(Func<DomainHost> domainHostFactory) : this()
         {
             DomainHostFactory = domainHostFactory.AssertNotNull(name: nameof(domainHostFactory));
-
-            _Identity = null;
-            UserIdString = string.Empty;
-            AuthenticationType = UserAuthenticationType.Unset;
-            SessionKey = string.Empty;
-            Permissions = new UserPermissionSet();
         }
 
-        public TDomainController Use<TDomainController>() where TDomainController : IDomainService
+        protected internal Func<DomainHost> SetDomainHostFactory(Func<DomainHost> domainHostFactory)
         {
-            return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainController>(TypedParameter.From(this)); 
+            return DomainHostFactory = domainHostFactory.AssertNotNull(name: nameof(domainHostFactory));
+        }
+
+        /// <summary>
+        /// 使用 DomainService 领域服务
+        /// </summary>
+        /// <remarks>注意：必须在 DomainHost.Initial() 中注册领域服务</remarks>
+        /// <typeparam name="TDomainService">领域服务的接口类型</typeparam>
+        public TDomainService Use<TDomainService>() where TDomainService : IDomainService
+        {
+            return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
         }
 
         #region IPrincipal 接口的方法
@@ -44,11 +48,11 @@ namespace TKW.Framework.Domain
             return RoleNameStringArray.Any(r => r.Equals(role, StringComparison.CurrentCultureIgnoreCase));
         }
 
-        public List<string> RoleNameStringArray { get; set; } = new List<string>();
+        public List<string> RoleNameStringArray { get; set; } = [];
 
         #endregion
 
-        private IIdentity _Identity;
+        private IIdentity _Identity = new CommonIdentity("", "", false);
 
         public new IIdentity Identity
         {
@@ -56,27 +60,23 @@ namespace TKW.Framework.Domain
             protected set => _Identity = value; // 允许在派生类中被改写
         }
 
-        protected IIdentity SetIdentity(string userName, UserAuthenticationType authenticationType, bool isAuthenticated)
+        protected internal IIdentity SetIdentity(string userName, string authenticationType, bool isAuthenticated)
         {
-            _Identity = new CommonIdentity(userName, authenticationType.ToString(), isAuthenticated);
-            return _Identity;
-        }
-
-        protected IIdentity CopyIdentity(IIdentity identity)
-        {
-            _Identity = new CommonIdentity(identity.Name, identity.AuthenticationType, identity.IsAuthenticated);
-            return _Identity;
+            return _Identity = new CommonIdentity(
+                userName.EnsureHasValue().TrimSelf(),
+                authenticationType.EnsureHasValue().TrimSelf(),
+                isAuthenticated);
         }
 
         protected IIdentity ToIdentity()
         {
-            return new CommonIdentity(Identity.Name, Identity.AuthenticationType, Identity.IsAuthenticated);
+            return new CommonIdentity(_Identity.Name, _Identity.AuthenticationType, _Identity.IsAuthenticated);
         }
 
         #region Implementation of IUser
 
-        public string UserIdString { get; set; }
-        public string SessionKey { get; set; }
+        public string UserIdString { get; set; } = string.Empty;
+        public string SessionKey { get; set; } = string.Empty;
 
         #endregion
     }

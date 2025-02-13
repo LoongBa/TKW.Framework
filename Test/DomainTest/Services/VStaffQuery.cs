@@ -9,7 +9,7 @@ namespace DomainTest.Services;
 
 public class VStaffQuery
 {
-    private readonly ProjectDomainUser _User;
+    private readonly ProjectUser _User;
 
     public VStaffQuery(SessionHelper sessionHelper)
     {

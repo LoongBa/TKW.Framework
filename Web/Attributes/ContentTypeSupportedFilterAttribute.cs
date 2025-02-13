@@ -9,13 +9,10 @@ namespace TKW.Framework.Web.Attributes
     /// <summary>
     /// WebApi 支持的格式限定属性
     /// </summary>
-    public class ContentTypeSupportedFilterAttribute : ActionFilterAttribute
+    public class ContentTypeSupportedFilterAttribute(ContentTypeSupportedType type = ContentTypeSupportedType.JsonOnly)
+        : ActionFilterAttribute
     {
-        public ContentTypeSupportedType Type { get; }
-        public ContentTypeSupportedFilterAttribute(ContentTypeSupportedType type = ContentTypeSupportedType.JsonOnly)
-        {
-            Type = type;
-        }
+        public ContentTypeSupportedType Type { get; } = type;
 
         #region Overrides of ActionFilterAttribute
 

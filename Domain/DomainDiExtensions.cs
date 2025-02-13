@@ -1,9 +1,9 @@
 using System;
+using System.Linq;
 using Autofac;
 using Autofac.Builder;
 using Autofac.Extras.DynamicProxy;
 using Autofac.Features.Scanning;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Extensions;
@@ -42,7 +42,7 @@ namespace TKW.Framework.Domain
 
         public static IRegistrationBuilder<ISessionCache, SimpleActivatorData, SingleRegistrationStyle>
             UseSessionManager<TDomainUser>(this ContainerBuilder left)
-        where TDomainUser : DomainUser, ICopyValues<TDomainUser>
+        where TDomainUser : DomainUser
         {
             var sessionManager = new SessionManager<TDomainUser>();
             return left.RegisterInstance(sessionManager).As<ISessionCache>();
@@ -58,8 +58,8 @@ namespace TKW.Framework.Domain
         #endregion
         public static IServiceCollection
             AddDomainSessionHelper<TSessionHelper, TUser>(this IServiceCollection services, TSessionHelper sessionHelper)
-            where TSessionHelper : SessionHelperBase<TUser>
-            where TUser : DomainUser, ICopyValues<TUser>
+            where TSessionHelper : DomainHelperBase<TUser>
+            where TUser : DomainUser, ICopyValues<TUser>, new()
         {
             return services.AddSingleton(sessionHelper);
         }
@@ -75,44 +75,28 @@ namespace TKW.Framework.Domain
         }
 
         #endregion
-        #region 多个业务 Manager
-
-        public static IRegistrationBuilder<TDomainManager, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddDomainManager<TIDomainDbContextFactory, TDomainManager>(this ContainerBuilder left)
-            where TDomainManager : AbstractDomainManager<TIDomainDbContextFactory>
-            where TIDomainDbContextFactory : IDomainDataAccessHelper
-        {
-            return left.RegisterType<TDomainManager>().SingleInstance();
-        }
-
-        public static IRegistrationBuilder<AbstractDomainManager<TIDomainDbContextFactory>, SimpleActivatorData, SingleRegistrationStyle>
-            AddDomainManager<TIDomainDbContextFactory>(this ContainerBuilder left, AbstractDomainManager<TIDomainDbContextFactory> domainManager)
-            where TIDomainDbContextFactory : IDomainDataAccessHelper
-        {
-            domainManager.AssertNotNull(name: nameof(domainManager));
-            return left.RegisterInstance(domainManager);
-        }
-        #endregion
 
         #region 控制器
 
         /// <summary>
-        /// 注册控制器（不受拦截器影响）
+        /// 注册服务（不受拦截器影响）
         /// </summary>
-        public static IRegistrationBuilder<TDomainController, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddDomainService<TDomainController>(this ContainerBuilder left)
-            where TDomainController : class, IDomainService
+        public static IRegistrationBuilder<TDomainService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            AddDomainService<TDomainService>(this ContainerBuilder left)
+            where TDomainService : class, IDomainService
         {
-            return left.RegisterType<TDomainController>();
+            return left.RegisterType<TDomainService>();
         }
 
         /// <summary>
-        /// 注册多个控制器（不受拦截器影响）
+        /// 注册多个服务（不受拦截器影响）
         /// </summary>
         public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
-            AddControllers(this ContainerBuilder left, Type[] controllers)
+            AddDomainServices<TDomainService>(this ContainerBuilder left, Type[] controllers)
+            where TDomainService : class, IDomainService
         {
-            return left.RegisterTypes(controllers);
+            var list = controllers.Where(c => c.IsAssignableFrom(typeof(TDomainService))).ToArray();
+            return left.RegisterTypes(list);
         }
 
         /// <summary>
@@ -122,8 +106,8 @@ namespace TKW.Framework.Domain
         /// <typeparam name="TDomainController"></typeparam>
         /// <param name="left"></param>
         public static IRegistrationBuilder<TDomainController, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddDomainServiceIntercepted<TContractInterface, TDomainController>(this ContainerBuilder left)
-            where TDomainController : class, IDomainService
+            AddDomainController<TContractInterface, TDomainController>(this ContainerBuilder left)
+            where TDomainController : class, IDomainControllerContract
         {
             return left.RegisterType<TDomainController>()
                        .As<TContractInterface>()

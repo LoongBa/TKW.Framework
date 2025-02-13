@@ -53,9 +53,9 @@ namespace TKW.Framework.Web.Filters
             {
                 if (_WebUserConvertor != null)
                 {
-                    var webuser = _WebUserConvertor(domainUserSession);
-                    webuser.SetContainer(context.HttpContext.Request.Headers["DomainUser-Agent"]); //TODO: Test it! @Happy
-                    context.HttpContext.User = webuser;
+                    var webUser = _WebUserConvertor(domainUserSession);
+                    webUser.SetContainer(context.HttpContext.Request.Headers["DomainUser-Agent"]); //TODO: Test it! @Happy
+                    context.HttpContext.User = webUser;
                 }
                 else
                 {

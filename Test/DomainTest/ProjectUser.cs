@@ -9,15 +9,20 @@ namespace DomainTest
     /// <summary>
     /// 可以使用 DomainUser，项目里不是必须创建新的
     /// </summary>
-    public class ProjectDomainUser : DomainUser, ICopyValues<ProjectDomainUser>
+    public class ProjectUser : DomainUser, ICopyValues<ProjectUser>
     {
-        internal ProjectDomainUser(Func<DomainHost> domainHostFactory) : base(domainHostFactory)
+        internal ProjectUser(Func<DomainHost> domainHostFactory) : base(domainHostFactory)
         {
+        }
+
+        public ProjectUser()
+        {
+            
         }
 
         #region Implementation of ICloneable
 
-        public ProjectDomainUser CopyValuesFrom(ProjectDomainUser fromObject)
+        public ProjectUser CopyValuesFrom(ProjectUser fromObject)
         {
             //TODO: copy values
             return this.CopySamePropertiesValue(fromObject);
@@ -27,7 +32,7 @@ namespace DomainTest
         /// <returns>A new object that is a copy of this instance.</returns>
         public new object Clone()
         {
-            return new ProjectDomainUser(DomainHostFactory).CopyValuesFrom(this);
+            return new ProjectUser(DomainHostFactory).CopyValuesFrom(this);
         }
 
         internal new IIdentity SetIdentity(string userName, UserAuthenticationType authenticationType = UserAuthenticationType.Unset, bool isAuthenticated = false)

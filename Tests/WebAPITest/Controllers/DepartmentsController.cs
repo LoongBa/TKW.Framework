@@ -13,7 +13,7 @@ namespace WebAPITest.Controllers;
 [ApiController]
 public class DepartmentsController : ODataController
 {
-    private readonly ProjectDomainUser _User;
+    private readonly ProjectUser _User;
     private readonly DepartmentService _DepartmentService;
 
     public DepartmentsController(SessionHelper sessionHelper)

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Tools
+namespace TKW.Framework.Common.Extensions
 {
     public static class DateTimeUtility
     {

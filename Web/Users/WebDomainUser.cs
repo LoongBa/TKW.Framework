@@ -7,9 +7,9 @@ namespace TKW.Framework.Web.Users
         protected WebDomainUser(DomainUser domainUser) : base(domainUser.DomainHostFactory)
         {
             SetIdentity(
-                domainUser.Identity.Name,
-                domainUser.AuthenticationType,
-                domainUser.Identity.IsAuthenticated);
+                domainUser.Identity?.Name,
+                domainUser.AuthenticationType.ToString(),
+                domainUser.Identity is { IsAuthenticated: true });
             AuthenticationType = domainUser.AuthenticationType;
             Container = new WebContainer { Type = WebContainerType.UnSet };
         }
@@ -41,7 +41,7 @@ namespace TKW.Framework.Web.Users
             }
             if (userAgent.ToUpper().Contains("ICBC"))
             {
-                Container.Type = WebContainerType.ICBCELink;
+                Container.Type = WebContainerType.ICBC_Elink;
                 return;
             }
             else if (userAgent.Contains("Windows Phone"))

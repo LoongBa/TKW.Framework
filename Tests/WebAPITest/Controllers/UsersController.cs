@@ -12,12 +12,12 @@ namespace WebAPITest.Controllers;
 [ApiController]
 public class UsersController : ControllerBase
 {
-    private readonly ProjectDomainUser _CurrentProjectDomainUser;
-    private readonly IUserServiceContract _UserService;
+    private readonly ProjectUser _CurrentProjectUser;
+    private readonly IUserControllerContract _UserController;
 
     public UsersController()
     {
-        var userHelper = DomainHost.Root.UserHelper<ProjectDomainUser, SessionHelper>();
+        var userHelper = DomainHost.Root.UserHelper<ProjectUser, SessionHelper>();
 
         //游客
         var session = userHelper.NewGuestSession();
@@ -30,44 +30,44 @@ public class UsersController : ControllerBase
         //session = userHelper.RetrieveAndActiveUserSession(sessionKey);
 
         //获得用户实例
-        _CurrentProjectDomainUser = session.User;
-        _UserService = _CurrentProjectDomainUser.Use<IUserServiceContract>();
+        _CurrentProjectUser = session.User;
+        _UserController = _CurrentProjectUser.Use<IUserControllerContract>();
     }
 
     // GET: api/<UsersController>
     [HttpGet("Users1")]
     public IEnumerable<User> GetUsers1()
     {
-        return _UserService.ListAllUsers1();
+        return _UserController.ListAllUsers1();
     }
     [HttpGet("Users2")]
     public IEnumerable<User> GetUsers2()
     {
-        return _UserService.ListAllUsers1();
+        return _UserController.ListAllUsers1();
     }
     [HttpGet("Users3")]
     public IEnumerable<User> GetUsers3()
     {
-        return _UserService.ListAllUsers1();
+        return _UserController.ListAllUsers1();
     }
 
     // GET api/<UsersController>/5
     [HttpGet("{uid:guid}")]
     public User Get(Guid uid)
     {
-        return _UserService.GetUserByUid(uid);
+        return _UserController.GetUserByUid(uid);
     }
 
     // DELETE api/<UsersController>/5
     [HttpDelete("{uid:guid}")]
     public void Delete(Guid uid)
     {
-        _UserService.DelUserByUid(uid);
+        _UserController.DelUserByUid(uid);
     }
 
     [HttpDelete("{username}")]
     public void Delete(string username)
     {
-        _UserService.SearchUsers(username);
+        _UserController.SearchUsers(username);
     }
 }

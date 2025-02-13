@@ -14,7 +14,6 @@ namespace TKW.Framework.Domain.Interception
     {
         private readonly DomainHost _DomainHost;
         private readonly IDomainGlobalExceptionFactory _DomainGlobalExceptionFactory;
-        private DomainContext _Context;
         private readonly ILifetimeScope _LifetimeScope;
 
         public DomainInterceptor(

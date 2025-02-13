@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using TKW.Framework.Common.Extensions;
 
-namespace TKW.Framework.Common.Validation
+namespace TKW.Framework.Common.Extensions
 {
     /// <summary>
     /// 数据验证工具类

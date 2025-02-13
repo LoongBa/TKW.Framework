@@ -3,7 +3,7 @@ using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain
 {
-    public interface IUserHelper<T> where T : DomainUser, ICopyValues<T>
+    public interface IUserHelper<T> where T : DomainUser/*, ICopyValues<T>*/
     {
         /// <summary>
         /// 会话 Key 的 KeyName
@@ -30,7 +30,7 @@ namespace TKW.Framework.Domain
         /// 用户登录
         /// </summary>
         /// <exception cref="SessionException">Condition.</exception>
-        DomainUserSession<T> UserLogin(string userName, string passWordHashed, UserAuthenticationType authType = UserAuthenticationType.DesktopWeb, string existsSessionKey = null);
+        DomainUserSession<T> UserLogin(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null);
 
     }
 }

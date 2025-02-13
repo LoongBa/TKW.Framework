@@ -6,9 +6,9 @@ namespace TKW.Framework.Domain.Session {
     /// 用于将 IDomainServer 泛型接口转换为具体类型（DomainUser）
     /// </summary>
     /// <remarks>适用于某些特殊场景如：MvcAuthorizeRequiredAttribute</remarks>
-    /// <see cref="TKW.Framework2.Web.Mvc.Attributes.MvcAuthorizeRequiredAttribute"/>
+    /// <see cref="TKW.Framework.Web.Mvc.Attributes.MvcAuthorizeRequiredAttribute"/>
     public sealed class UserSessionProvider<T> : IUserSessionProvider
-        where T : DomainUser, ICopyValues<T>
+        where T : DomainUser/*, ICopyValues<T>*/
     {
         private readonly IUserHelper<T> _UserHelper;
 

@@ -3,14 +3,10 @@ using System.Linq;
 using System.Text;
 using Microsoft.Extensions.Caching.Memory;
 using TKW.Framework.Common.Extensions;
-using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Session
 {
-    public delegate void SessionCreated<T>(string sessionKey, CommonSession<T> session) where T : ICopyValues<T>;
-    public delegate void SessionAbandon<T>(string sessionKey, CommonSession<T> session) where T : ICopyValues<T>;
-    public delegate void SessionRemoved<T>(string sessionKey, CommonSession<T> session, EvictionReason reason, object state) where T : ICopyValues<T>;
-    public class SessionManager<T> : ISessionCache where T : ICopyValues<T>
+    public class SessionManager<T> : ISessionCache where T : DomainUser /*ICopyValues<T>*/
     {
         public event SessionCreated<T> SessionCreated;
         public event SessionAbandon<T> SessionAbandon;
@@ -159,8 +155,8 @@ namespace TKW.Framework.Domain.Session
                 throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
 
             var session = (CommonSession<T>)sessionValue;
-            session.UpdateValue(value);
-            session.Active();
+            session?.UpdateValue(value);
+            session?.Active();
             return session;
         }
 
@@ -169,21 +165,21 @@ namespace TKW.Framework.Domain.Session
             OnSessionTimeout((string)key, (CommonSession<T>)value, reason, state);
         }
 
-        protected virtual void OnSessionCreated(string sessionkey, CommonSession<T> session)
+        protected virtual void OnSessionCreated(string sessionKey, CommonSession<T> session)
         {
             //TODO: 加上二级、分布式会话机制
-            SessionCreated?.Invoke(sessionkey, session);
+            SessionCreated?.Invoke(sessionKey, session);
         }
-        protected virtual void OnSessionAbandon(string sessionkey, CommonSession<T> session)
+        protected virtual void OnSessionAbandon(string sessionKey, CommonSession<T> session)
         {
             //TODO: 加上二级、分布式会话机制
-            SessionAbandon?.Invoke(sessionkey, session);
+            SessionAbandon?.Invoke(sessionKey, session);
         }
 
-        protected virtual void OnSessionTimeout(string sessionkey, CommonSession<T> session, EvictionReason reason, object state)
+        protected virtual void OnSessionTimeout(string sessionKey, CommonSession<T> session, EvictionReason reason, object state)
         {
             //TODO: 加上二级、分布式会话机制
-            SessionTimeout?.Invoke(sessionkey, session, reason, state);
+            SessionTimeout?.Invoke(sessionKey, session, reason, state);
         }
 
         /// <summary>
@@ -194,12 +190,12 @@ namespace TKW.Framework.Domain.Session
             _MemoryCache.Dispose();
         }
 
-        protected virtual string GenerateNewCacheKey(string keyOrignal)
+        protected virtual string GenerateNewCacheKey(string key)
         {
             //TODO:改进加密算法
             return string.IsNullOrWhiteSpace(_CacheKeySalt)
-                       ? GetSha1HashData(keyOrignal)
-                       : GetSha1HashData(_CacheKeySalt + keyOrignal);
+                       ? GetSha1HashData(key)
+                       : GetSha1HashData(_CacheKeySalt + key);
         }
 
         private static string GetSha1HashData(string data)

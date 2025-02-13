@@ -4,22 +4,22 @@ using TKW.Framework.Domain;
 
 namespace DomainTest
 {
-    public class SessionHelper : SessionHelperBase<ProjectDomainUser>
+    public class SessionHelper : SessionHelperBase<ProjectUser>
     {
         /// <inheritdoc />
         public SessionHelper(Func<DomainHost> hostFactory) : base(hostFactory) { }
 
-        #region Overrides of DomainServerBase<ProjectDomainUser>
+        #region Overrides of DomainServerBase<ProjectUser>
 
-        protected override ProjectDomainUser CreateUserInstance()
+        protected override ProjectUser CreateUserInstance()
         {
-            return new ProjectDomainUser(DomainHostFactory);
+            return new ProjectUser(DomainHostFactory);
         }
 
         /// <summary>
         /// 返回新的 Guest 用户
         /// </summary>
-        protected override ProjectDomainUser OnGuestUserLogin()
+        protected override ProjectUser OnGuestUserLogin()
         {
             var user = CreateUserInstance();
             user.SetIdentity("Guest", UserAuthenticationType.Tester); //匿名用户
@@ -29,7 +29,7 @@ namespace DomainTest
         /// <summary>
         /// 用户登录并返回用户
         /// </summary>
-        protected override ProjectDomainUser OnUserLogin(string userName, string passWordHashed, UserAuthenticationType authType)
+        protected override ProjectUser OnUserLogin(string userName, string passWordHashed, UserAuthenticationType authType)
         {
             var user = CreateUserInstance();
             //TODO: 替换成验证用户名密码的业务逻辑
