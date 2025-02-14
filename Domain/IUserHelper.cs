@@ -14,6 +14,10 @@ namespace TKW.Framework.Domain
         /// </summary>
         DomainUserSession<T> RetrieveAndActiveUserSession(string sessionKey);
         /// <summary>
+        /// 判断用户会话是否存在
+        /// </summary>
+        bool ContainsSession(string sessionKey);
+        /// <summary>
         /// 产生新的 Guest 用户会话
         /// </summary>
         /// <returns></returns>

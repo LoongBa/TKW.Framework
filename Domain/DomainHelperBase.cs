@@ -19,9 +19,9 @@ namespace TKW.Framework.Domain
             => _SessionManager ??= (SessionManager<TUser>)DomainHostFactory().Container.Resolve<ISessionCache>();
 
         /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
-        protected DomainHelperBase(Func<DomainHost> hostFactory)
+        protected DomainHelperBase(Func<DomainHost> hostFactory = null)
         {
-            DomainHostFactory = hostFactory.AssertNotNull(name: nameof(hostFactory));
+            DomainHostFactory = hostFactory?? DomainHost.Factory;
             // MARK: 构造函数被调用时DomainHost还未创建实例，
             //SessionManager = DomainHostFactory().Container.Resolve<SessionManager<TUser>>();
         }
@@ -79,16 +79,22 @@ namespace TKW.Framework.Domain
 
         public string SessionKey_KeyName => SessionManager.SessionKey_KeyName;
 
-        /// <exception cref="SessionException"></exception>
+        /// <exception cref="SessionException">会话异常</exception>
         public virtual DomainUserSession<TUser> NewGuestSession()
         {
             return SessionManager.CreateSession(OnGuestUserLogin()).ToUserSession<TUser>();
         }
 
-        /// <exception cref="SessionException">Condition.</exception>
+        /// <exception cref="SessionException">会话异常</exception>
         public virtual DomainUserSession<TUser> RetrieveAndActiveUserSession(string sessionKey)
         {
             return SessionManager.GetAndActiveSession(sessionKey).ToUserSession<TUser>();
+        }
+
+        /// <exception cref="SessionException">会话异常</exception>
+        public virtual bool ContainsSession(string sessionKey)
+        {
+            return SessionManager.ContainsSession(sessionKey);
         }
 
         /// <exception cref="SessionException"></exception>

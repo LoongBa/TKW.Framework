@@ -68,9 +68,7 @@ namespace TKW.Framework.Domain.Session
                 throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
 
             var session = (CommonSession<T>)sessionValue;
-            session.Active();
-            return session;
-
+            return session?.Active();
         }
 
         /// <exception cref="ArgumentException">Value cannot be null or whitespace.</exception>

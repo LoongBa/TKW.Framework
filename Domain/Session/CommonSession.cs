@@ -44,9 +44,10 @@ namespace TKW.Framework.Domain.Session
         /// </summary>
         public TimeSpan Idle => DateTime.Now - TimeLastActived;
 
-        internal void Active()
+        internal CommonSession<T> Active()
         {
             TimeLastActived = DateTime.Now;
+            return this;
         }
 
         internal void UpdateValue(T value)

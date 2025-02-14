@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
+using System.Security.Authentication;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Castle.DynamicProxy;
@@ -10,7 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TKW.Framework.Common.Extensions;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interception;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain
 {
@@ -35,7 +38,7 @@ namespace TKW.Framework.Domain
         public static DomainHost Initial<TUser, TUserHelper>(
             Func<ContainerBuilder, IServiceCollection, ConfigurationBuilder,
             IServiceCollection, DomainHelperBase<TUser>> configureServices,
-            IServiceCollection upLevelServices)
+            IServiceCollection upLevelServices = null)
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>
         {
@@ -88,8 +91,8 @@ namespace TKW.Framework.Domain
             ServicesProvider = new AutofacServiceProvider(Container);
 
             // 获取日志工厂实例，如果为空则使用NullLoggerFactory
-            LoggerFactory = Container.IsRegistered<ILoggerFactory>() 
-                ? Container.Resolve<ILoggerFactory>() 
+            LoggerFactory = Container.IsRegistered<ILoggerFactory>()
+                ? Container.Resolve<ILoggerFactory>()
                 : new NullLoggerFactory();
         }
 
@@ -135,8 +138,15 @@ namespace TKW.Framework.Domain
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>
         {
-            // 根据 SessionKey 获取领域用户
-            var user = UserHelper<TUser, TUserHelper>().RetrieveAndActiveUserSession(sessionKey.EnsureHasValue().TrimSelf()).User;
+            DomainUser user;
+            if (sessionKey.HasValue() && UserHelper<TUser, TUserHelper>().ContainsSession(sessionKey))
+                // 根据 SessionKey 获取领域用户
+                user = UserHelper<TUser, TUserHelper>()
+                    .RetrieveAndActiveUserSession(sessionKey.EnsureHasValue().TrimSelf()).User;
+            else
+                // 无效的 SessionKey
+                throw new AuthenticationException($"无效的 SessionKey，请先以游客方式登录并分配 SessionKey：{sessionKey}");
+
             // 获取控制器实例，并传递参数：领域用户
             return Container.Resolve<TDomainControllerContract>(TypedParameter.From((DomainUser)user));
         }
@@ -153,8 +163,8 @@ namespace TKW.Framework.Domain
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>
         {
-            // 获取控制器实例，并传递参数：领域用户
-            return Container.Resolve<TDomainControllerContract>(TypedParameter.From((DomainUser)user));
+            var sessionKey = user.AssertNotNull().SessionKey;
+            return UseController<TDomainControllerContract, TUser, TUserHelper>(sessionKey);
         }
 
         /// <summary>
@@ -226,7 +236,7 @@ namespace TKW.Framework.Domain
             }
             // 解析领域上下文实例
             var context = lifetimeScope.Resolve<DomainContext>(
-                TypedParameter.From(((DomainService)invocation.InvocationTarget).DomainUser),
+                TypedParameter.From(((DomainService)invocation.InvocationTarget).User),
                 TypedParameter.From(invocation),
                 TypedParameter.From(methodContract));
             return context;
