@@ -1,0 +1,391 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Reflection;
+using System.Text;
+using ExcelDataReader;
+using FluentValidation.Results;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
+
+namespace TKWF.ExcelImporter;
+
+public class ExcelImporter<T> where T : class, new()
+{
+    public readonly ExcelTemplateRegistry TemplateRegistry;
+    private readonly Encoding _ExcelEncoding;
+    private readonly IExpressionEvaluator _ExpressionEvaluator;
+    private readonly ILogger<ExcelImporter<T>>? _Logger;
+    private readonly IStringLocalizer<ExcelImporter<T>>? _Localizer;
+
+    // 属性元数据缓存（反射性能优化）
+    private static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> _propertyCache = new();
+
+    #region 事件定义
+    public event EventHandler<RowValidationErrorEventArgs<T>>? RowValidationErrorOccurred;
+    public event EventHandler<RowProcessingErrorEventArgs>? RowProcessingErrorOccurred;
+    public event EventHandler<RowProgressUpdatedEventArgs>? RowProgressUpdated;
+    #endregion
+
+    #region 构造与初始化
+    public ExcelImporter(
+        string configDirectory,
+        IExpressionEvaluator? expressionEvaluator = null,
+        ILogger<ExcelImporter<T>>? logger = null,
+        IStringLocalizer<ExcelImporter<T>>? localizer = null,
+        Encoding? excelEncoding = null)
+    {
+        ArgumentNullException.ThrowIfNull(configDirectory);
+        ArgumentNullException.ThrowIfNull(expressionEvaluator);
+
+        _ExpressionEvaluator = expressionEvaluator switch
+        {
+            null => new ExpressionEvaluator(),
+            _ => expressionEvaluator
+        };
+
+        _Logger = logger;
+        _Localizer = localizer;
+        TemplateRegistry = new ExcelTemplateRegistry(configDirectory);
+
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        _ExcelEncoding = excelEncoding ?? GetDefaultEncoding();
+    }
+
+    private static Encoding GetDefaultEncoding()
+    {
+        try { return Encoding.GetEncoding(1252); }
+        catch { return Encoding.UTF8; }
+    }
+    #endregion
+
+    #region 主导入方法
+    public async Task<ImportResult<T>> ImportWithTemplateAsync(string filename, string templateId, bool ignoreValidation = true)
+    {
+        var result = new ImportResult<T>();
+        var template = TemplateRegistry.GetTemplate(templateId);
+        var validator = new DynamicValidator<T>(template, _ExpressionEvaluator);
+
+        if (!File.Exists(filename))
+        {
+            var msg = _Localizer?["FileNotFound", filename];
+            if (msg != null) result.Errors.Add(new ImportError(msg));
+            _Logger?.LogError("文件不存在: {File}", filename);
+            return result;
+        }
+
+        _Logger?.LogInformation("开始导入文件: {File}，模板: {TemplateId}", filename, templateId);
+
+        await using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+        using var reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+            ? ExcelReaderFactory.CreateCsvReader(stream, new ExcelReaderConfiguration { FallbackEncoding = _ExcelEncoding })
+            : ExcelReaderFactory.CreateReader(stream);
+
+        try
+        {
+            #region 表头验证
+            var totalRows = reader.RowCount;
+            string[] columnNames = [];
+
+            if (template.HasHeader)
+            {
+                totalRows--;
+                if (!reader.Read())
+                {
+                    var msg = _Localizer?["HeaderReadFailed"];
+                    if (msg != null) result.Errors.Add(new ImportError(msg));
+                    _Logger?.LogError("表头行读取失败: {File}", filename);
+                    return result;
+                }
+                columnNames = Enumerable.Range(0, reader.FieldCount)
+                    .Select(i => reader.GetString(i).Trim())
+                    .ToArray();
+
+                foreach (var mapping in template.ColumnMappings.Where(m => m.IsRequired))
+                {
+                    if (!columnNames.Contains(mapping.ExcelColumnName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        var msg = _Localizer?["HeaderMissingColumn", mapping.ExcelColumnName];
+                        if (msg != null) result.Errors.Add(new ImportError(msg, mapping.ExcelColumnName));
+                        _Logger?.LogWarning("表头缺少必要列: {Column}", mapping.ExcelColumnName);
+                    }
+                }
+                if (result.Errors.Count > 0) return result;
+            }
+            #endregion
+
+            #region 逐行同步处理（避免Task.Run）
+            var rowIndex = template.HasHeader ? 1 : 0;
+            while (reader.Read())
+            {
+                result.TotalRows++;
+                try
+                {
+                    var rowData = MapToModel(reader, template.ColumnMappings, columnNames);
+
+                    if (!ignoreValidation)
+                    {
+                        var validationResult = await validator.ValidateAsync(rowData);
+                        if (!validationResult.IsValid)
+                        {
+                            AddValidationErrors(result, rowIndex, validationResult);
+                            OnRowValidationError(rowIndex, rowData, validationResult.Errors);
+                            _Logger?.LogWarning("第{Row}行校验失败: {Errors}", rowIndex, string.Join(";", validationResult.Errors.Select(e => e.ErrorMessage)));
+                            continue;
+                        }
+                    }
+                    result.Data.Add(rowData);
+                }
+                catch (FormatException ex)
+                {
+                    var msg = _Localizer?["RowFormatError", rowIndex, ex.Message];
+                    if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
+                    OnRowProcessingError(rowIndex, ex.Message);
+                    _Logger?.LogError(ex, "第{Row}行数据格式错误", rowIndex);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var msg = _Localizer?["RowMappingError", rowIndex, ex.Message];
+                    if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
+                    OnRowProcessingError(rowIndex, ex.Message);
+                    _Logger?.LogError(ex, "第{Row}行映射失败", rowIndex);
+                }
+                catch (Exception ex)
+                {
+                    var msg = _Localizer?["RowUnknownError", rowIndex, ex.Message];
+                    if (msg != null)
+                        result.Errors.Add(new ImportError(msg + "\n" + ex.StackTrace, fieldName: "",
+                            rowNumber: rowIndex));
+                    OnRowProcessingError(rowIndex, ex.Message);
+                    _Logger?.LogError(ex, "第{Row}行处理未知错误", rowIndex);
+                }
+
+                OnRowProgressUpdated(rowIndex, totalRows);
+                rowIndex++;
+            }
+            #endregion
+        }
+        catch (Exception ex)
+        {
+            var msg = _Localizer?["ImportFailed", ex.Message];
+            if (msg != null) result.Errors.Add(new ImportError(msg + "\n" + ex.StackTrace));
+            _Logger?.LogError(ex, "导入失败: {File}", filename);
+        }
+
+        _Logger?.LogInformation("导入完成: {File}，成功{Success}行，失败{Fail}行", filename, result.Data.Count, result.Errors.Count);
+        return result;
+    }
+    #endregion
+
+    #region 数据映射与转换
+    private static Dictionary<string, PropertyInfo> GetPropertyMap()
+    {
+        return _propertyCache.GetOrAdd(typeof(T), t =>
+            t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+             .ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private T MapToModel(IExcelDataReader reader, List<ColumnMapping> columnMappings, string[] columnNames)
+    {
+        var model = new T();
+        var propertyMap = GetPropertyMap();
+
+        foreach (var mapping in columnMappings)
+        {
+            if (!propertyMap.TryGetValue(mapping.TargetFieldName, out var property))
+                continue;
+
+            try
+            {
+                var columnIndex = Array.IndexOf(columnNames, mapping.ExcelColumnName);
+                if (columnIndex >= 0 && columnIndex < reader.FieldCount)
+                {
+                    var value = reader.GetValue(columnIndex);
+                    var convertedValue = ConvertValue(value, property.PropertyType, mapping.FormatPattern);
+                    property.SetValue(model, convertedValue);
+                }
+                else if (!string.IsNullOrEmpty(mapping.DefaultValue))
+                {
+                    var defaultValue = ConvertValue(mapping.DefaultValue, property.PropertyType, mapping.FormatPattern);
+                    property.SetValue(model, defaultValue);
+                }
+            }
+            catch (FormatException ex)
+            {
+                throw new FormatException(_Localizer?["FieldFormatError", mapping.TargetFieldName, ex.Message], ex);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(_Localizer?["FieldMappingError", mapping.TargetFieldName, ex.Message], ex);
+            }
+        }
+        return model;
+    }
+    #endregion
+
+    #region 类型转换相关（可扩展）
+    public interface ITypeConverter
+    {
+        object? Convert(object? value, Type targetType, string? formatPattern = null);
+    }
+
+    private static ITypeConverter? _customTypeConverter;
+
+    public static void RegisterTypeConverter(ITypeConverter converter)
+    {
+        _customTypeConverter = converter;
+    }
+
+    private static object? ConvertValue(object? value, Type? targetType = null, string? formatPattern = null)
+    {
+        if (_customTypeConverter != null)
+            return _customTypeConverter.Convert(value, targetType!, formatPattern);
+
+        if (value is DBNull || value == null)
+            return null;
+
+        if (targetType == null)
+            return value is string s ? s.Trim() : value;
+
+        if (value is IConvertible convertibleValue)
+        {
+            try
+            {
+                return Convert.ChangeType(convertibleValue, targetType, CultureInfo.InvariantCulture);
+            }
+            catch (FormatException) { throw; }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        return targetType switch
+        {
+            { } t when t == typeof(string) => value.ToString()?.Trim() ?? string.Empty,
+            { } t when t == typeof(DateTime) || t == typeof(DateTime?) => ParseDateTime(value, formatPattern),
+            { } t when t == typeof(bool) || t == typeof(bool?) => ParseBoolean(value),
+            _ => ParseFromString(value, targetType, formatPattern)
+        };
+    }
+
+    private static object? ParseDateTime(object value, string? formatPattern)
+    {
+        if (value is double excelDate)
+            return DateTime.FromOADate(excelDate);
+        if (value is int excelDateInt)
+            return DateTime.FromOADate(excelDateInt);
+
+        var str = value.ToString()?.Trim();
+        if (string.IsNullOrEmpty(str))
+            return null;
+
+        if (string.IsNullOrEmpty(formatPattern))
+        {
+            return DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var result)
+                ? result
+                : null;
+        }
+        else
+        {
+            return DateTime.TryParseExact(
+                str,
+                formatPattern,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var result)
+                ? result
+                : null;
+        }
+    }
+
+    private static object? ParseBoolean(object value)
+    {
+        if (value is bool b) return b;
+        var str = value.ToString()?.Trim().ToLowerInvariant();
+        return str switch
+        {
+            "1" or "是" or "有" or "yes" => true,
+            "0" or "否" or "无" or "no" => false,
+            _ => bool.TryParse(str, out var result) ? result : null
+        };
+    }
+
+    private static object? ParseFromString(object value, Type targetType, string? formatPattern)
+    {
+        var str = value.ToString()?.Trim();
+        if (string.IsNullOrEmpty(str))
+            return null;
+
+        return targetType switch
+        {
+            { } t when t == typeof(int) || t == typeof(int?) =>
+                int.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var intVal) ? intVal : null,
+
+            { } t when t == typeof(decimal) || t == typeof(decimal?) =>
+                decimal.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var decVal) ? decVal : null,
+
+            { } t when t == typeof(double) || t == typeof(double?) =>
+                double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var dblVal) ? dblVal : null,
+
+            { } t when t == typeof(float) || t == typeof(float?) =>
+                float.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var fltVal) ? fltVal : null,
+
+            { } t when t == typeof(long) || t == typeof(long?) =>
+                long.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var longVal) ? longVal : null,
+
+            { } t when t == typeof(DateTime) || t == typeof(DateTime?) =>
+                string.IsNullOrEmpty(formatPattern)
+                    ? (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtVal) ? dtVal : null)
+                    : (DateTime.TryParseExact(str, formatPattern, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtVal2) ? dtVal2 : null),
+
+            { } t when t == typeof(bool) || t == typeof(bool?) =>
+                str switch
+                {
+                    "1" or "是" or "有" or "yes" => true,
+                    "0" or "否" or "无" or "no" => false,
+                    _ => bool.TryParse(str, out var boolVal) ? boolVal : null
+                },
+
+            _ => TryChangeType(str, targetType)
+        };
+    }
+    private static object? TryChangeType(object value, Type targetType)
+    {
+        try
+        {
+            return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    #endregion
+
+    #region 事件触发
+    private void OnRowValidationError(int rowIndex, T rowData, List<ValidationFailure> errors)
+    {
+        RowValidationErrorOccurred?.Invoke(this, new RowValidationErrorEventArgs<T>(rowIndex, rowData, errors));
+    }
+
+    private void OnRowProcessingError(int rowNumber, string errorMessage)
+    {
+        RowProcessingErrorOccurred?.Invoke(this, new RowProcessingErrorEventArgs(rowNumber, errorMessage));
+    }
+
+    private void OnRowProgressUpdated(int processedRows, int totalRows)
+    {
+        RowProgressUpdated?.Invoke(this, new RowProgressUpdatedEventArgs(processedRows, totalRows));
+    }
+    #endregion
+
+    #region 校验错误收集
+    private void AddValidationErrors(ImportResult<T> result, int rowIndex, ValidationResult validationResult)
+    {
+        foreach (var error in validationResult.Errors)
+        {
+            result.Errors.Add(new ImportError(error.ErrorMessage, fieldName: error.PropertyName, rowNumber: rowIndex));
+        }
+    }
+    #endregion
+}

@@ -19,6 +19,14 @@ namespace TKW.Framework.Common.Extensions
                     message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
             return left;
         }
+        public static string AssertNotEmptyOrNull(this string left, string name = null, string message = null)
+        {
+            name = name.HasValue() ? name : left.GetType().Name;
+            if (left == null)
+                throw new ArgumentNullException(
+                    message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
+            return left;
+        }
         public static object AssertNotNull(this object left, string name = null, string message = null)
         {
             name = name.HasValue() ? name : left.GetType().Name;

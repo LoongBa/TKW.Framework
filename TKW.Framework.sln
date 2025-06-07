@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TKWF.Cryptography", "Crypto
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TKWF.Domain", "Domain\TKWF.Domain.csproj", "{3178BEA0-4FF1-4F1F-BE8C-D529A9E1E41B}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Framework", "Framework", "{50553A17-FEAD-4A65-B98C-2991B1CA272E}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Framework", "_Framework", "{50553A17-FEAD-4A65-B98C-2991B1CA272E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{979D51DA-54DE-40F6-9068-2B5097018A24}"
 EndProject
@@ -28,6 +28,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AdminUI-Scaffold", "AdminUI-Scaffold", "{B43195A1-E10A-49A0-960F-A19F8B8A2B9B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TKWF.Common.Entity.Validation", "Common.Entity.Validation\TKWF.Common.Entity.Validation.csproj", "{79903B7D-4890-47A9-B078-BF4147C72803}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Extensions", "_Extensions", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
