@@ -16,6 +16,7 @@ public class ExcelImporter<T> where T : class, new()
     private readonly IExpressionEvaluator _ExpressionEvaluator;
     private readonly ILogger<ExcelImporter<T>>? _Logger;
     private readonly IStringLocalizer<ExcelImporter<T>>? _Localizer;
+    private readonly int _ProgressStep = 100;   // 进度更新步长，可配置
 
     // 属性元数据缓存（反射性能优化）
     private static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> _propertyCache = new();
@@ -157,10 +158,11 @@ public class ExcelImporter<T> where T : class, new()
         string templateId)
     {
         var rowIndex = template.HasHeader ? 1 : 0;
-        int progressStep = 100; // 可配置
+        int successRows = 0, errorRows = 0, processedRows = 0;
+
         while (reader.Read())
         {
-            result.TotalRows++;
+            processedRows++;
             try
             {
                 var rowData = MapToModel(reader, template.ColumnMappings, columnNames, rowIndex, templateId);
@@ -174,17 +176,20 @@ public class ExcelImporter<T> where T : class, new()
 
                     if (!validationResult.IsValid)
                     {
+                        errorRows++;
                         _Logger?.LogWarning("第{Row}行校验失败: {Errors}", rowIndex, string.Join(";", validationResult.Errors.Select(e => e.ErrorMessage)));
                         if (!validationArgs.ContinueProcessing)
-                            break; // 终止处理
+                            break;
                         else
-                            continue; // 跳过当前行
+                            continue;
                     }
                 }
                 result.Data.Add(rowData);
+                successRows++;
             }
             catch (FormatException ex)
             {
+                errorRows++;
                 var msg = _Localizer?.GetLocalizedError("RowFormatError", rowIndex, ex.Message, templateId);
                 if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
                 OnRowProcessingError(rowIndex, ex.ToString(), ex);
@@ -192,6 +197,7 @@ public class ExcelImporter<T> where T : class, new()
             }
             catch (InvalidOperationException ex)
             {
+                errorRows++;
                 var msg = _Localizer?.GetLocalizedError("RowMappingError", rowIndex, ex.Message, templateId);
                 if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
                 OnRowProcessingError(rowIndex, ex.ToString(), ex);
@@ -199,6 +205,7 @@ public class ExcelImporter<T> where T : class, new()
             }
             catch (Exception ex)
             {
+                errorRows++;
                 var msg = _Localizer?.GetLocalizedError("RowUnknownError", rowIndex, ex.Message, templateId);
                 if (msg != null)
                     result.Errors.Add(new ImportError(msg + "\n" + ex.StackTrace, fieldName: "", rowNumber: rowIndex));
@@ -207,9 +214,9 @@ public class ExcelImporter<T> where T : class, new()
             }
 
             // 进度事件频率控制
-            if (rowIndex % progressStep == 0 || rowIndex == dataRowCount - 1)
+            if (processedRows % _ProgressStep == 0 || processedRows == dataRowCount)
             {
-                OnRowProgressUpdated(rowIndex, dataRowCount);
+                OnRowProgressUpdated(dataRowCount, successRows, errorRows, processedRows);
             }
             rowIndex++;
         }
@@ -290,6 +297,16 @@ public class ExcelImporter<T> where T : class, new()
         }
         return model;
     }
+
+    private void AddValidationErrors(ImportResult<T> result, int rowIndex, ValidationResult validationResult)
+    {
+        foreach (var error in validationResult.Errors)
+        {
+            var importError = new ImportError(error.ErrorMessage, error.PropertyName, rowIndex);
+            result.Errors.Add(importError);
+        }
+    }
+
     #endregion
 
     #region 类型转换相关（可扩展）
@@ -445,19 +462,10 @@ public class ExcelImporter<T> where T : class, new()
         // 可扩展：如有需要可将 ex 传递给事件参数
     }
 
-    private void OnRowProgressUpdated(int processedRows, int totalRows)
+    private void OnRowProgressUpdated(int totalRows, int successRows, int errorRows, int processedRows)
     {
-        RowProgressUpdated?.Invoke(this, new RowProgressUpdatedEventArgs(processedRows, totalRows));
+        RowProgressUpdated?.Invoke(this, new RowProgressUpdatedEventArgs(totalRows, processedRows, successRows, errorRows));
     }
-    #endregion
 
-    #region 校验错误收集
-    private void AddValidationErrors(ImportResult<T> result, int rowIndex, ValidationResult validationResult)
-    {
-        foreach (var error in validationResult.Errors)
-        {
-            result.Errors.Add(new ImportError(error.ErrorMessage, fieldName: error.PropertyName, rowNumber: rowIndex));
-        }
-    }
     #endregion
 }

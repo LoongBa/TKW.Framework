@@ -1,9 +1,11 @@
 namespace TKWF.ExcelImporter;
 
-public class RowProgressUpdatedEventArgs(int currentProgress, int totalRows) : EventArgs
+public class RowProgressUpdatedEventArgs(double totalRows, int processedRows, int successRows, int errorRows) : EventArgs
 {
-    public int CurrentProgress { get; } = currentProgress;
-    public int TotalRows { get; } = totalRows;
+    public int SuccessRows { get; } = successRows;
+    public int ErrorRows { get; } = errorRows;
+    public int ProcessedRows { get; } = processedRows;
+    public double TotalRows { get; } = totalRows;
     public bool ContinueProcessing { get; set; } = true;
-    public double ProgressPercentage => TotalRows > 0 ? (double)CurrentProgress / TotalRows * 100 : 0;
+    public double ProgressPercentage => TotalRows > 0 ? (double)ProcessedRows / TotalRows * 100 : 0;
 }
