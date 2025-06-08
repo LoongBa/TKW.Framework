@@ -94,9 +94,7 @@ public class ExcelImporter<T> where T : class, new()
                     _Logger?.LogError("表头行读取失败: {File}", filename);
                     return result;
                 }
-                columnNames = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i)?.Trim() ?? $"Column{i + 1}")
-                    .ToArray();
+                columnNames = [.. Enumerable.Range(0, reader.FieldCount).Select(i => reader.GetString(i)?.Trim() ?? $"Column{i + 1}")];
 
                 foreach (var mapping in template.ColumnMappings.Where(m => m.IsRequired))
                 {
@@ -112,9 +110,7 @@ public class ExcelImporter<T> where T : class, new()
             else
             {
                 // 无表头时，列名按索引生成
-                columnNames = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => $"Column{i + 1}")
-                    .ToArray();
+                columnNames = [.. Enumerable.Range(0, reader.FieldCount).Select(i => $"Column{i + 1}")];
             }
 
             // 逐行处理
@@ -180,8 +176,7 @@ public class ExcelImporter<T> where T : class, new()
                         _Logger?.LogWarning("第{Row}行校验失败: {Errors}", rowIndex, string.Join(";", validationResult.Errors.Select(e => e.ErrorMessage)));
                         if (!validationArgs.ContinueProcessing)
                             break;
-                        else
-                            continue;
+                        continue;
                     }
                 }
                 result.Data.Add(rowData);
@@ -298,7 +293,7 @@ public class ExcelImporter<T> where T : class, new()
         return model;
     }
 
-    private void AddValidationErrors(ImportResult<T> result, int rowIndex, ValidationResult validationResult)
+    private static void AddValidationErrors(ImportResult<T> result, int rowIndex, ValidationResult validationResult)
     {
         foreach (var error in validationResult.Errors)
         {
@@ -355,7 +350,7 @@ public class ExcelImporter<T> where T : class, new()
         };
     }
 
-    private static object? ParseDateTime(object value, string? formatPattern)
+    private static DateTime? ParseDateTime(object value, string? formatPattern)
     {
         if (value is double excelDate)
             return DateTime.FromOADate(excelDate);
@@ -458,7 +453,7 @@ public class ExcelImporter<T> where T : class, new()
     // 增加异常对象参数，便于外部记录堆栈
     private void OnRowProcessingError(int rowNumber, string errorMessage, Exception? ex = null)
     {
-        RowProcessingErrorOccurred?.Invoke(this, new RowProcessingErrorEventArgs(rowNumber, errorMessage));
+        RowProcessingErrorOccurred?.Invoke(this, new RowProcessingErrorEventArgs(rowNumber, errorMessage, ex));
         // 可扩展：如有需要可将 ex 传递给事件参数
     }
 
