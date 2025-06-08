@@ -20,6 +20,9 @@ public class ExcelImporter<T> where T : class, new()
     // 属性元数据缓存（反射性能优化）
     private static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> _propertyCache = new();
 
+    // 高效属性setter缓存（表达式树）
+    private static readonly ConcurrentDictionary<(Type, string), Action<object, object?>> _propertySetterCache = new();
+
     #region 事件定义
     public event EventHandler<RowValidationErrorEventArgs<T>>? RowValidationErrorOccurred;
     public event EventHandler<RowProcessingErrorEventArgs>? RowProcessingErrorOccurred;
@@ -62,16 +65,10 @@ public class ExcelImporter<T> where T : class, new()
     public async Task<ImportResult<T>> ImportWithTemplateAsync(string filename, string templateId, bool ignoreValidation = true)
     {
         var result = new ImportResult<T>();
-        var template = TemplateRegistry.GetTemplate(templateId);
+        var template = GetTemplateWithCache(templateId);
         var validator = new DynamicValidator<T>(template, _ExpressionEvaluator);
 
-        if (!File.Exists(filename))
-        {
-            var msg = _Localizer?["FileNotFound", filename];
-            if (msg != null) result.Errors.Add(new ImportError(msg));
-            _Logger?.LogError("文件不存在: {File}", filename);
-            return result;
-        }
+        if (!ValidateFileExistence(filename, result)) return result;
 
         _Logger?.LogInformation("开始导入文件: {File}，模板: {TemplateId}", filename, templateId);
 
@@ -82,13 +79,13 @@ public class ExcelImporter<T> where T : class, new()
 
         try
         {
-            #region 表头验证
-            var totalRows = reader.RowCount;
-            string[] columnNames = [];
+            // 表头验证
+            var dataRowCount = reader.RowCount;
+            string[] columnNames;
 
             if (template.HasHeader)
             {
-                totalRows--;
+                dataRowCount--;
                 if (!reader.Read())
                 {
                     var msg = _Localizer?["HeaderReadFailed"];
@@ -97,7 +94,7 @@ public class ExcelImporter<T> where T : class, new()
                     return result;
                 }
                 columnNames = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i).Trim())
+                    .Select(i => reader.GetString(i)?.Trim() ?? $"Column{i + 1}")
                     .ToArray();
 
                 foreach (var mapping in template.ColumnMappings.Where(m => m.IsRequired))
@@ -111,58 +108,16 @@ public class ExcelImporter<T> where T : class, new()
                 }
                 if (result.Errors.Count > 0) return result;
             }
-            #endregion
-
-            #region 逐行同步处理（避免Task.Run）
-            var rowIndex = template.HasHeader ? 1 : 0;
-            while (reader.Read())
+            else
             {
-                result.TotalRows++;
-                try
-                {
-                    var rowData = MapToModel(reader, template.ColumnMappings, columnNames);
-
-                    if (!ignoreValidation)
-                    {
-                        var validationResult = await validator.ValidateAsync(rowData);
-                        if (!validationResult.IsValid)
-                        {
-                            AddValidationErrors(result, rowIndex, validationResult);
-                            OnRowValidationError(rowIndex, rowData, validationResult.Errors);
-                            _Logger?.LogWarning("第{Row}行校验失败: {Errors}", rowIndex, string.Join(";", validationResult.Errors.Select(e => e.ErrorMessage)));
-                            continue;
-                        }
-                    }
-                    result.Data.Add(rowData);
-                }
-                catch (FormatException ex)
-                {
-                    var msg = _Localizer?["RowFormatError", rowIndex, ex.Message];
-                    if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
-                    OnRowProcessingError(rowIndex, ex.Message);
-                    _Logger?.LogError(ex, "第{Row}行数据格式错误", rowIndex);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    var msg = _Localizer?["RowMappingError", rowIndex, ex.Message];
-                    if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
-                    OnRowProcessingError(rowIndex, ex.Message);
-                    _Logger?.LogError(ex, "第{Row}行映射失败", rowIndex);
-                }
-                catch (Exception ex)
-                {
-                    var msg = _Localizer?["RowUnknownError", rowIndex, ex.Message];
-                    if (msg != null)
-                        result.Errors.Add(new ImportError(msg + "\n" + ex.StackTrace, fieldName: "",
-                            rowNumber: rowIndex));
-                    OnRowProcessingError(rowIndex, ex.Message);
-                    _Logger?.LogError(ex, "第{Row}行处理未知错误", rowIndex);
-                }
-
-                OnRowProgressUpdated(rowIndex, totalRows);
-                rowIndex++;
+                // 无表头时，列名按索引生成
+                columnNames = Enumerable.Range(0, reader.FieldCount)
+                    .Select(i => $"Column{i + 1}")
+                    .ToArray();
             }
-            #endregion
+
+            // 逐行处理
+            ProcessRows(reader, template, columnNames, validator, result, dataRowCount, ignoreValidation, templateId);
         }
         catch (Exception ex)
         {
@@ -176,6 +131,99 @@ public class ExcelImporter<T> where T : class, new()
     }
     #endregion
 
+    #region 文件与表头校验
+    private bool ValidateFileExistence(string filename, ImportResult<T> result)
+    {
+        if (!File.Exists(filename))
+        {
+            var msg = _Localizer?["FileNotFound", filename];
+            if (msg != null) result.Errors.Add(new ImportError(msg));
+            _Logger?.LogError("文件不存在: {File}", filename);
+            return false;
+        }
+        return true;
+    }
+    #endregion
+
+    #region 逐行处理
+    private void ProcessRows(
+        IExcelDataReader reader,
+        ExcelTemplateConfiguration template,
+        string[] columnNames,
+        DynamicValidator<T> validator,
+        ImportResult<T> result,
+        int dataRowCount,
+        bool ignoreValidation,
+        string templateId)
+    {
+        var rowIndex = template.HasHeader ? 1 : 0;
+        int progressStep = 100; // 可配置
+        while (reader.Read())
+        {
+            result.TotalRows++;
+            try
+            {
+                var rowData = MapToModel(reader, template.ColumnMappings, columnNames, rowIndex, templateId);
+
+                if (!ignoreValidation)
+                {
+                    var validationResult = validator.Validate(rowData);
+                    var validationArgs = new RowValidationErrorEventArgs<T>(rowIndex, rowData, validationResult.Errors);
+                    RowValidationErrorOccurred?.Invoke(this, validationArgs);
+                    AddValidationErrors(result, rowIndex, validationResult);
+
+                    if (!validationResult.IsValid)
+                    {
+                        _Logger?.LogWarning("第{Row}行校验失败: {Errors}", rowIndex, string.Join(";", validationResult.Errors.Select(e => e.ErrorMessage)));
+                        if (!validationArgs.ContinueProcessing)
+                            break; // 终止处理
+                        else
+                            continue; // 跳过当前行
+                    }
+                }
+                result.Data.Add(rowData);
+            }
+            catch (FormatException ex)
+            {
+                var msg = _Localizer?.GetLocalizedError("RowFormatError", rowIndex, ex.Message, templateId);
+                if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
+                OnRowProcessingError(rowIndex, ex.ToString(), ex);
+                _Logger?.LogError(ex, "第{Row}行数据格式错误，模板: {TemplateId}", rowIndex, templateId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                var msg = _Localizer?.GetLocalizedError("RowMappingError", rowIndex, ex.Message, templateId);
+                if (msg != null) result.Errors.Add(new ImportError(msg, fieldName: "", rowNumber: rowIndex));
+                OnRowProcessingError(rowIndex, ex.ToString(), ex);
+                _Logger?.LogError(ex, "第{Row}行映射失败，模板: {TemplateId}", rowIndex, templateId);
+            }
+            catch (Exception ex)
+            {
+                var msg = _Localizer?.GetLocalizedError("RowUnknownError", rowIndex, ex.Message, templateId);
+                if (msg != null)
+                    result.Errors.Add(new ImportError(msg + "\n" + ex.StackTrace, fieldName: "", rowNumber: rowIndex));
+                OnRowProcessingError(rowIndex, ex.ToString(), ex);
+                _Logger?.LogError(ex, "第{Row}行处理未知错误，模板: {TemplateId}", rowIndex, templateId);
+            }
+
+            // 进度事件频率控制
+            if (rowIndex % progressStep == 0 || rowIndex == dataRowCount - 1)
+            {
+                OnRowProgressUpdated(rowIndex, dataRowCount);
+            }
+            rowIndex++;
+        }
+    }
+    #endregion
+
+    #region 模板缓存优化
+    private static readonly ConcurrentDictionary<string, ExcelTemplateConfiguration> _templateCache = new();
+    private ExcelTemplateConfiguration GetTemplateWithCache(string templateId)
+    {
+        return _templateCache.GetOrAdd(templateId, id => TemplateRegistry.GetTemplate(id));
+    }
+    #endregion
+
     #region 数据映射与转换
     private static Dictionary<string, PropertyInfo> GetPropertyMap()
     {
@@ -184,7 +232,25 @@ public class ExcelImporter<T> where T : class, new()
              .ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase));
     }
 
-    private T MapToModel(IExcelDataReader reader, List<ColumnMapping> columnMappings, string[] columnNames)
+    // 表达式树生成高效setter
+    private static Action<object, object?> GetPropertySetter(Type type, string propertyName)
+    {
+        return _propertySetterCache.GetOrAdd((type, propertyName), _ =>
+        {
+            var prop = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (prop == null || !prop.CanWrite) return (_, _) => { };
+            var instance = System.Linq.Expressions.Expression.Parameter(typeof(object), "instance");
+            var value = System.Linq.Expressions.Expression.Parameter(typeof(object), "value");
+            var body = System.Linq.Expressions.Expression.Assign(
+                System.Linq.Expressions.Expression.Property(
+                    System.Linq.Expressions.Expression.Convert(instance, type), prop),
+                System.Linq.Expressions.Expression.Convert(value, prop.PropertyType));
+            var lambda = System.Linq.Expressions.Expression.Lambda<Action<object, object?>>(body, instance, value);
+            return lambda.Compile();
+        });
+    }
+
+    private T MapToModel(IExcelDataReader reader, List<ColumnMapping> columnMappings, string[] columnNames, int rowIndex = 0, string? templateId = null)
     {
         var model = new T();
         var propertyMap = GetPropertyMap();
@@ -197,25 +263,29 @@ public class ExcelImporter<T> where T : class, new()
             try
             {
                 var columnIndex = Array.IndexOf(columnNames, mapping.ExcelColumnName);
+                object? value = null;
                 if (columnIndex >= 0 && columnIndex < reader.FieldCount)
                 {
-                    var value = reader.GetValue(columnIndex);
-                    var convertedValue = ConvertValue(value, property.PropertyType, mapping.FormatPattern);
-                    property.SetValue(model, convertedValue);
+                    value = reader.GetValue(columnIndex);
                 }
                 else if (!string.IsNullOrEmpty(mapping.DefaultValue))
                 {
-                    var defaultValue = ConvertValue(mapping.DefaultValue, property.PropertyType, mapping.FormatPattern);
-                    property.SetValue(model, defaultValue);
+                    value = mapping.DefaultValue;
                 }
+
+                var convertedValue = ConvertValue(value, property.PropertyType, mapping.FormatPattern);
+                // 使用表达式树setter
+                GetPropertySetter(typeof(T), property.Name)(model, convertedValue);
             }
             catch (FormatException ex)
             {
-                throw new FormatException(_Localizer?["FieldFormatError", mapping.TargetFieldName, ex.Message], ex);
+                var errorMessage = _Localizer.GetLocalizedError("FieldFormatError", mapping.TargetFieldName, ex.Message, rowIndex, templateId ?? string.Empty);
+                throw new FormatException(errorMessage, ex);
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException(_Localizer?["FieldMappingError", mapping.TargetFieldName, ex.Message], ex);
+                var errorMessage = _Localizer.GetLocalizedError("FieldMappingError", mapping.TargetFieldName, ex.Message, rowIndex, templateId ?? string.Empty);
+                throw new InvalidOperationException(errorMessage, ex);
             }
         }
         return model;
@@ -368,9 +438,11 @@ public class ExcelImporter<T> where T : class, new()
         RowValidationErrorOccurred?.Invoke(this, new RowValidationErrorEventArgs<T>(rowIndex, rowData, errors));
     }
 
-    private void OnRowProcessingError(int rowNumber, string errorMessage)
+    // 增加异常对象参数，便于外部记录堆栈
+    private void OnRowProcessingError(int rowNumber, string errorMessage, Exception? ex = null)
     {
         RowProcessingErrorOccurred?.Invoke(this, new RowProcessingErrorEventArgs(rowNumber, errorMessage));
+        // 可扩展：如有需要可将 ex 传递给事件参数
     }
 
     private void OnRowProgressUpdated(int processedRows, int totalRows)
