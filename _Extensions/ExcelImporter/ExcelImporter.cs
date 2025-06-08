@@ -17,6 +17,7 @@ public class ExcelImporter<T> where T : class, new()
     private readonly ILogger<ExcelImporter<T>>? _Logger;
     private readonly IStringLocalizer<ExcelImporter<T>>? _Localizer;
     private readonly int _ProgressStep = 100;   // 进度更新步长，可配置
+    private const int _ProgressCount = 15;  // 进度更新频率，表示每处理多少行更新一次进度
 
     // 属性元数据缓存（反射性能优化）
     private static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> _propertyCache = new();
@@ -39,7 +40,6 @@ public class ExcelImporter<T> where T : class, new()
         Encoding? excelEncoding = null)
     {
         ArgumentNullException.ThrowIfNull(configDirectory);
-        ArgumentNullException.ThrowIfNull(expressionEvaluator);
 
         _ExpressionEvaluator = expressionEvaluator switch
         {
@@ -81,8 +81,8 @@ public class ExcelImporter<T> where T : class, new()
         try
         {
             // 表头验证
-            var dataRowCount = reader.RowCount;
             string[] columnNames;
+            var dataRowCount = reader.RowCount;
 
             if (template.HasHeader)
             {
@@ -155,14 +155,20 @@ public class ExcelImporter<T> where T : class, new()
     {
         var rowIndex = template.HasHeader ? 1 : 0;
         int successRows = 0, errorRows = 0, processedRows = 0;
+        var progressStep =  Math.Max(_ProgressStep, dataRowCount / _ProgressCount);
 
         while (reader.Read())
         {
             processedRows++;
             try
             {
-                var rowData = MapToModel(reader, template.ColumnMappings, columnNames, rowIndex, templateId);
+                #region 将行数据转换为字符串，便于日志记录和错误追踪
+                var rowValues = new object[reader.FieldCount];
+                for (var i = 0; i < reader.FieldCount; i++) rowValues[i] = reader.GetValue(i);
+                var rowString = string.Join(",", rowValues.Select(v => v?.ToString() ?? "null"));
+                #endregion
 
+                var rowData = MapToModel(reader, rowString, template.ColumnMappings, columnNames, rowIndex, templateId);
                 if (!ignoreValidation)
                 {
                     var validationResult = validator.Validate(rowData);
@@ -209,7 +215,7 @@ public class ExcelImporter<T> where T : class, new()
             }
 
             // 进度事件频率控制
-            if (processedRows % _ProgressStep == 0 || processedRows == dataRowCount)
+            if (processedRows % progressStep == 0 || processedRows == dataRowCount)
             {
                 OnRowProgressUpdated(dataRowCount, successRows, errorRows, processedRows);
             }
@@ -235,7 +241,7 @@ public class ExcelImporter<T> where T : class, new()
     }
 
     // 表达式树生成高效setter
-    private static Action<object, object?> GetPropertySetter(Type type, string propertyName)
+    private Action<object, object?> GetPropertySetter(Type type, string propertyName, string rowString)
     {
         return _propertySetterCache.GetOrAdd((type, propertyName), _ =>
         {
@@ -243,16 +249,28 @@ public class ExcelImporter<T> where T : class, new()
             if (prop == null || !prop.CanWrite) return (_, _) => { };
             var instance = System.Linq.Expressions.Expression.Parameter(typeof(object), "instance");
             var value = System.Linq.Expressions.Expression.Parameter(typeof(object), "value");
-            var body = System.Linq.Expressions.Expression.Assign(
+            var assign = System.Linq.Expressions.Expression.Assign(
                 System.Linq.Expressions.Expression.Property(
                     System.Linq.Expressions.Expression.Convert(instance, type), prop),
                 System.Linq.Expressions.Expression.Convert(value, prop.PropertyType));
-            var lambda = System.Linq.Expressions.Expression.Lambda<Action<object, object?>>(body, instance, value);
-            return lambda.Compile();
+            var lambda = System.Linq.Expressions.Expression.Lambda<Action<object, object?>>(assign, instance, value);
+            return (obj, val) =>
+            {
+                ArgumentNullException.ThrowIfNull(obj);
+                if (!type.IsInstanceOfType(obj))
+                    throw new InvalidOperationException($"对象类型不匹配: 期望 {type.FullName}，实际 {obj.GetType().FullName}");
+                if (val == null && prop.PropertyType.IsValueType && Nullable.GetUnderlyingType(prop.PropertyType) == null)
+                {
+                    // 修复日志记录消息模板的一致性问题
+                    _Logger?.LogWarning("属性 {PropertyName} 为值类型，跳过 null 赋值。\n\t{RowString}", prop.Name, rowString);
+                    return;
+                }
+                lambda.Compile()(obj, val);
+            };
         });
     }
 
-    private T MapToModel(IExcelDataReader reader, List<ColumnMapping> columnMappings, string[] columnNames, int rowIndex = 0, string? templateId = null)
+    private T MapToModel(IExcelDataReader reader, string rowString, List<ColumnMapping> columnMappings, string[] columnNames, int rowIndex = 0, string? templateId = null)
     {
         var model = new T();
         var propertyMap = GetPropertyMap();
@@ -277,7 +295,7 @@ public class ExcelImporter<T> where T : class, new()
 
                 var convertedValue = ConvertValue(value, property.PropertyType, mapping.FormatPattern);
                 // 使用表达式树setter
-                GetPropertySetter(typeof(T), property.Name)(model, convertedValue);
+                GetPropertySetter(typeof(T), property.Name, rowString)(model, convertedValue);
             }
             catch (FormatException ex)
             {
