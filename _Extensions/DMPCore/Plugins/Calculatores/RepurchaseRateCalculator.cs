@@ -1,6 +1,6 @@
-﻿using TKWF.DMPCore.Interfaces;
+﻿using TKWF.DMP.Core.Interfaces;
 
-namespace TKWF.DMPCore.Plugins.Calculatores;
+namespace TKWF.DMP.Core.Plugins.Calculatores;
 
 public class RepurchaseRateCalculator : IMetricCalculator
 {

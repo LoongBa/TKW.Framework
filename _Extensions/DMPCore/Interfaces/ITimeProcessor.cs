@@ -1,6 +1,6 @@
-﻿using TKWF.DMPCore.Models;
+﻿using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore.Interfaces;
+namespace TKWF.DMP.Core.Interfaces;
 /// <summary>
 /// 时间处理接口
 /// </summary>

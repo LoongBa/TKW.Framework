@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
-using TKWF.DMPCore.Interfaces;
-using TKWF.DMPCore.Models;
+using TKWF.DMP.Core.Interfaces;
+using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore;
+namespace TKWF.DMP.Core;
 /// <summary>
 /// 插件加载器实现
 /// </summary>

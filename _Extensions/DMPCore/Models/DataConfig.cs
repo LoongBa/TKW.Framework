@@ -1,4 +1,4 @@
-﻿namespace TKWF.DMPCore.Models;
+﻿namespace TKWF.DMP.Core.Models;
 /// <summary>
 /// 数据配置
 /// </summary>

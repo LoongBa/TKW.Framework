@@ -1,6 +1,6 @@
-﻿using TKWF.DMPCore.Interfaces;
+﻿using TKWF.DMP.Core.Interfaces;
 
-namespace TKWF.DMPCore.Plugins.Preprocessores;
+namespace TKWF.DMP.Core.Plugins.Preprocessores;
 /// <summary>
 /// 预处理插件示例 - 总价计算
 /// </summary>

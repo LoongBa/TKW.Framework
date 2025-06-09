@@ -1,8 +1,8 @@
 ﻿using System.Globalization;
-using TKWF.DMPCore.Interfaces;
-using TKWF.DMPCore.Models;
+using TKWF.DMP.Core.Interfaces;
+using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore.Plugins.Preprocessores;
+namespace TKWF.DMP.Core.Plugins.Preprocessores;
 /// <summary>
 /// 时间处理器实现
 /// </summary>

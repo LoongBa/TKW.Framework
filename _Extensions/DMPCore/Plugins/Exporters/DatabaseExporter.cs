@@ -1,8 +1,8 @@
 ﻿using Microsoft.Data.SqlClient;
-using TKWF.DMPCore.Interfaces;
-using TKWF.DMPCore.Models;
+using TKWF.DMP.Core.Interfaces;
+using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore.Plugins.Exporters;
+namespace TKWF.DMP.Core.Plugins.Exporters;
 
 public class DatabaseExporter : IResultExporter
 {

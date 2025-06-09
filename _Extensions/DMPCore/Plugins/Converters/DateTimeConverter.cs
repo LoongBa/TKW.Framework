@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TKWF.DMPCore.Plugins.Converters;
+namespace TKWF.DMP.Core.Plugins.Converters;
 /// <summary>
 /// 日期时间转换器
 /// </summary>

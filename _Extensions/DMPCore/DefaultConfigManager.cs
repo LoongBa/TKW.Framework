@@ -1,9 +1,9 @@
 ﻿using System.Text.Json;
-using TKWF.DMPCore.Interfaces;
-using TKWF.DMPCore.Models;
-using TKWF.DMPCore.Plugins.Converters;
+using TKWF.DMP.Core.Interfaces;
+using TKWF.DMP.Core.Models;
+using TKWF.DMP.Core.Plugins.Converters;
 
-namespace TKWF.DMPCore;
+namespace TKWF.DMP.Core;
 
 // 配置管理器实现
 public class DefaultConfigManager : IConfigManager

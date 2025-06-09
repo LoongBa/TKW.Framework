@@ -1,4 +1,4 @@
-﻿namespace TKWF.DMPCore.Interfaces;
+﻿namespace TKWF.DMP.Core.Interfaces;
 /// <summary>
 /// 指标计算插件接口
 /// </summary>

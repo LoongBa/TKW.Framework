@@ -1,6 +1,6 @@
-﻿using TKWF.DMPCore.Models;
+﻿using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore.Interfaces;
+namespace TKWF.DMP.Core.Interfaces;
 
 // 数据加载插件接口
 public interface IDataLoader

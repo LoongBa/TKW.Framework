@@ -1,6 +1,6 @@
-﻿using TKWF.DMPCore.Models;
+﻿using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore.Interfaces;
+namespace TKWF.DMP.Core.Interfaces;
 /// <summary>
 /// 结果输出插件接口
 /// </summary>

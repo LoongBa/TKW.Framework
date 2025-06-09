@@ -1,7 +1,7 @@
-﻿using TKWF.DMPCore.Interfaces;
-using TKWF.DMPCore.Models;
+﻿using TKWF.DMP.Core.Interfaces;
+using TKWF.DMP.Core.Models;
 
-namespace TKWF.DMPCore;
+namespace TKWF.DMP.Core;
 
 public class StatEngine : IStatEngine
 {
