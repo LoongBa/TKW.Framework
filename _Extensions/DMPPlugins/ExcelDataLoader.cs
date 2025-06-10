@@ -7,7 +7,7 @@ namespace TKWF.DMP.Plugins
     where T : class, new()
     {
         public string SourceType => "excel";
-        public IEnumerable<T> Load(DataLoadOptions options)
+        public IEnumerable<T> Load(DataLoadingConfig config)
         {
             throw new NotImplementedException();
         }

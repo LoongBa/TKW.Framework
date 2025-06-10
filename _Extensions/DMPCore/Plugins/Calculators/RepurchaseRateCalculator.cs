@@ -2,13 +2,10 @@
 
 namespace TKWF.DMP.Core.Plugins.Calculators
 {
-    // 配置类
-
-    // 
-
-    // 属性访问器工厂（表达式树缓存）
-
-    // 复购率计算器实现
+    /// <summary>
+    /// 复购率计算器实现
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class RepurchaseRateCalculator<T> : IMetricCalculator<T>
         where T : class
     {

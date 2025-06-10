@@ -1,62 +1,39 @@
-﻿using System.Collections.Concurrent;
-using TKWF.DMP.Core.Interfaces;
-using TKWF.DMP.Core.Models;
+﻿using TKWF.DMP.Core.Interfaces;
 
 namespace TKWF.DMP.Core.Plugins.Preprocessors;
 
-public static class PreprocessorFactory
+/// <summary>
+/// 预处理器工厂（从 StatEngine 获取注册类型并实例化）
+/// </summary>
+public class PreprocessorFactory : IPreprocessorFactory
 {
-    private static readonly ConcurrentDictionary<string, Func<MetricConfig, object>> _factories = new();
+    private readonly IStatEngine _statEngine;
 
-    static PreprocessorFactory()
+    public PreprocessorFactory(IStatEngine statEngine)
     {
-        // 注册内置预处理器
-        RegisterMethod("total_price", TotalPricePreprocessor<object>.CreateFromConfig);
-        RegisterMethod("filter", FilterPreprocessor<object>.CreateFromConfig);
+        _statEngine = statEngine ?? throw new ArgumentNullException(nameof(statEngine));
     }
 
-    // 注册预处理器工厂方法（泛型）
-    public static void RegisterMethod<T>(string name, Func<MetricConfig, IDataPreprocessor<T>> factory)
-        where T : class
+    public IDataPreprocessor<T> Create<T>(string preprocessorName) where T : class
     {
-        _factories[name] = factory;
-    }
-
-    // 注册预处理器工厂方法（非泛型）
-    public static void RegisterMethod(string name, Func<MetricConfig, IPreprocessor> factory)
-    {
-        _factories[name] = config => new PreprocessorAdapter<object>(factory(config));
-    }
-
-    // 创建预处理器（泛型）
-    public static IDataPreprocessor<T> Create<T>(string name, MetricConfig config)
-        where T : class
-    {
-        if (_factories.TryGetValue(name, out var factory))
+        // 从 StatEngine 查询注册的预处理器类型
+        var preprocessorTypeInfo = _statEngine.GetRegisteredType<IDataPreprocessor<T>>(preprocessorName);
+        if (preprocessorTypeInfo == null)
         {
-            var preprocessor = factory(config);
-
-            if (preprocessor is IDataPreprocessor<T> genericPreprocessor)
-                return genericPreprocessor;
-
-            if (preprocessor is IPreprocessor nonGenericPreprocessor)
-                return new PreprocessorAdapter<T>(nonGenericPreprocessor);
-
-            throw new InvalidOperationException($"预处理器类型不匹配: {name}");
+            throw new InvalidOperationException($"未找到预处理器: {preprocessorName}（目标接口: IDataPreprocessor<{typeof(T).Name}>）");
         }
 
-        throw new NotSupportedException($"未注册的预处理器: {name}");
-    }
-
-    // 创建预处理器（非泛型）
-    public static IPreprocessor Create(string name, MetricConfig config)
-    {
-        if (_factories.TryGetValue(name, out var factory))
+        // 实例化预处理器（支持带配置的构造函数）
+        try
         {
-            return factory(config) as IPreprocessor
-                   ?? throw new InvalidOperationException($"预处理器类型不匹配: {name}");
+            return (IDataPreprocessor<T>)Activator.CreateInstance(
+                preprocessorTypeInfo,
+                _statEngine.GetProcessingConfig().MetricConfig // 从 StatEngine 获取处理配置
+            );
         }
-
-        throw new NotSupportedException($"未注册的预处理器: {name}");
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"实例化预处理器 {preprocessorName} 失败", ex);
+        }
     }
 }

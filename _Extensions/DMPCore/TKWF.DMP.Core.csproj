@@ -8,10 +8,8 @@
 
   <ItemGroup>
     <Folder Include="Biz\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.2" />
+    <Folder Include="Plugins\DataLoaders\" />
+    <Folder Include="Plugins\Exporters\" />
   </ItemGroup>
 
 </Project>
