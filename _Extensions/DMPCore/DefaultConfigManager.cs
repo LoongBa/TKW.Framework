@@ -8,7 +8,7 @@ namespace TKWF.DMP.Core;
 // 配置管理器实现
 public class DefaultConfigManager : IConfigManager
 {
-    private readonly StatConfig _config;
+    private readonly StatConfig _Config;
 
     public DefaultConfigManager(string configPath)
     {
@@ -16,7 +16,7 @@ public class DefaultConfigManager : IConfigManager
             throw new FileNotFoundException($"配置文件不存在: {configPath}");
 
         var json = File.ReadAllText(configPath);
-        _config = JsonSerializer.Deserialize<StatConfig>(json, new JsonSerializerOptions
+        _Config = JsonSerializer.Deserialize<StatConfig>(json, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             Converters = { new DateTimeConverter() },
@@ -33,21 +33,21 @@ public class DefaultConfigManager : IConfigManager
         if (property == null)
             throw new ArgumentException($"配置节 {section} 不存在");
 
-        return (T)property.GetValue(_config);
+        return (T)property.GetValue(_Config);
     }
 
     public void Validate()
     {
-        if (_config.TimeConfig == null)
+        if (_Config.TimeConfig == null)
             throw new InvalidOperationException("时间配置不能为空");
 
-        if (_config.DataConfig == null)
+        if (_Config.DataConfig == null)
             throw new InvalidOperationException("数据配置不能为空");
 
-        if (_config.PluginConfig == null)
+        if (_Config.PluginConfig == null)
             throw new InvalidOperationException("插件配置不能为空");
 
-        if (_config.MetricRules == null || !_config.MetricRules.Any())
+        if (_Config.MetricRules == null || !_Config.MetricRules.Any())
             throw new InvalidOperationException("至少需要定义一个指标规则");
     }
 }

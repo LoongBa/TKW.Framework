@@ -19,7 +19,7 @@ public class DefaultPluginLoader<T> : IPluginLoader<T> where T : class
         };
     }
 
-    private static IEnumerable<T> LoadFromDll(string[] dllPaths)
+    private static IEnumerable<T> LoadFromDll(string[]? dllPaths)
     {
         if (dllPaths == null || dllPaths.Length == 0)
             yield break;

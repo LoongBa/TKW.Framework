@@ -5,7 +5,7 @@
 
 public record PluginLoadOptions(
     string LoadMode,
-    string[] DllPaths,
+    string[]? DllPaths,
     string[] DebugAssemblies,
     string[] ExporterPaths
 );

@@ -3,10 +3,11 @@ using TKWF.DMP.Core.Models;
 
 namespace TKWF.DMP.Core.Plugins.DataLoaders
 {
-    internal class ExcelDataLoader: IDataLoader
+    public class ExcelDataLoader<T> : IDataLoader<T>
+    where T : class, new()
     {
-        public string SourceType { get; }
-        public IEnumerable<Dictionary<string, object>> Load(DataLoadOptions options)
+        public string SourceType { get; private set; } = "Excel";
+        public IEnumerable<T> Load(DataLoadOptions options)
         {
             throw new NotImplementedException();
         }

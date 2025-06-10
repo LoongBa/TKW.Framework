@@ -2,8 +2,8 @@
 /// <summary>
 /// 预处理插件接口
 /// </summary>
+/// <remarks>非泛型接口（可选，用于兼容旧代码）</remarks>
 public interface IPreprocessor
 {
-    string Name { get; }
-    void Process(Dictionary<string, object> dataItem);
+    object Process(object data);
 }
