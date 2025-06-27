@@ -82,7 +82,7 @@ namespace TKW.Framework.Domain
         /// ×¢²á·þÎñ£¨²»ÊÜÀ¹½ØÆ÷Ó°Ïì£©
         /// </summary>
         public static IRegistrationBuilder<TDomainService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddDomainService<TDomainService>(this ContainerBuilder left)
+            AddService<TDomainService>(this ContainerBuilder left)
             where TDomainService : class, IDomainService
         {
             return left.RegisterType<TDomainService>();
@@ -103,13 +103,13 @@ namespace TKW.Framework.Domain
         /// ×¢²áÊÜÀ¹½ØµÄ¿ØÖÆÆ÷
         /// </summary>
         /// <typeparam name="TContractInterface"></typeparam>
-        /// <typeparam name="TDomainController"></typeparam>
+        /// <typeparam name="TAopContract"></typeparam>
         /// <param name="left"></param>
-        public static IRegistrationBuilder<TDomainController, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddDomainController<TContractInterface, TDomainController>(this ContainerBuilder left)
-            where TDomainController : class, IDomainControllerContract
+        public static IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            AddServiceWithAop<TContractInterface, TAopContract>(this ContainerBuilder left)
+            where TAopContract : class, Domain.IAopContract
         {
-            return left.RegisterType<TDomainController>()
+            return left.RegisterType<TAopContract>()
                        .As<TContractInterface>()
                        .EnableInterfaceInterceptors()
                        .InterceptedBy(typeof(DomainInterceptor)); //TKW Domain ÁìÓò¿ò¼ÜÀ¹½ØÆ÷

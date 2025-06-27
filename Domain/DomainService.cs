@@ -13,14 +13,14 @@ namespace TKW.Framework.Domain
             return User.Use<T>();
         }
         /// <summary>Initializes a new instance of the <see cref="T:System.Object"></see> class.</summary>
-        public DomainService(DomainUser domainUser)
+        public DomainService(DomainUser user)
         {
-            User = domainUser.AssertNotNull(nameof(domainUser));
+            User = user.AssertNotNull(nameof(user));
         }
     }
 
     /// <summary>
-    /// 领域控制器
+    /// 领域控制器：可选，一般情况下用 DomainService + IAopContract 即可。
     /// </summary>
-    public class DomainController(DomainUser domainUser) : DomainService(domainUser);
+    public class DomainController(DomainUser user) : DomainService(user);
 }

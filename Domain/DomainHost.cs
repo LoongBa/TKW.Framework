@@ -129,12 +129,12 @@ namespace TKW.Framework.Domain
         /// <summary>
         /// 使用控制器实例
         /// </summary>
-        /// <typeparam name="TDomainControllerContract">控制器契约类型</typeparam>
+        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
         /// <typeparam name="TUser">领域用户类型</typeparam>
         /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
         /// <param name="sessionKey">Session Key</param>
-        public TDomainControllerContract UseController<TDomainControllerContract, TUser, TUserHelper>(string sessionKey)
-            where TDomainControllerContract : IDomainControllerContract
+        public TAopContract UseWithAop<TAopContract, TUser, TUserHelper>(string sessionKey)
+            where TAopContract : IAopContract
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>
         {
@@ -148,23 +148,23 @@ namespace TKW.Framework.Domain
                 throw new AuthenticationException($"无效的 SessionKey，请先以游客方式登录并分配 SessionKey：{sessionKey}");
 
             // 获取控制器实例，并传递参数：领域用户
-            return Container.Resolve<TDomainControllerContract>(TypedParameter.From((DomainUser)user));
+            return Container.Resolve<TAopContract>(TypedParameter.From((DomainUser)user));
         }
 
         /// <summary>
         /// 使用控制器实例
         /// </summary>
-        /// <typeparam name="TDomainControllerContract">控制器契约类型</typeparam>
+        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
         /// <typeparam name="TUser">领域用户类型</typeparam>
         /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
         /// <param name="user">领域用户</param>
-        public TDomainControllerContract UseController<TDomainControllerContract, TUser, TUserHelper>(TUser user)
-            where TDomainControllerContract : IDomainControllerContract
+        public TAopContract UseWithAop<TAopContract, TUser, TUserHelper>(TUser user)
+            where TAopContract : IAopContract
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>
         {
             var sessionKey = user.AssertNotNull().SessionKey;
-            return UseController<TDomainControllerContract, TUser, TUserHelper>(sessionKey);
+            return UseWithAop<TAopContract, TUser, TUserHelper>(sessionKey);
         }
 
         /// <summary>
