@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Reflection;
-using System.Security.Authentication;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Castle.DynamicProxy;
@@ -10,10 +5,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Reflection;
+using System.Security.Authentication;
+using TKW.Framework.Common.DataType;
 using TKW.Framework.Common.Extensions;
-using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interception;
-using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain
 {
@@ -127,47 +126,6 @@ namespace TKW.Framework.Domain
         }
 
         /// <summary>
-        /// 使用控制器实例
-        /// </summary>
-        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
-        /// <typeparam name="TUser">领域用户类型</typeparam>
-        /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
-        /// <param name="sessionKey">Session Key</param>
-        public TAopContract UseWithAop<TAopContract, TUser, TUserHelper>(string sessionKey)
-            where TAopContract : IAopContract
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
-        {
-            DomainUser user;
-            if (sessionKey.HasValue() && UserHelper<TUser, TUserHelper>().ContainsSession(sessionKey))
-                // 根据 SessionKey 获取领域用户
-                user = UserHelper<TUser, TUserHelper>()
-                    .RetrieveAndActiveUserSession(sessionKey.EnsureHasValue().TrimSelf()).User;
-            else
-                // 无效的 SessionKey
-                throw new AuthenticationException($"无效的 SessionKey，请先以游客方式登录并分配 SessionKey：{sessionKey}");
-
-            // 获取控制器实例，并传递参数：领域用户
-            return Container.Resolve<TAopContract>(TypedParameter.From((DomainUser)user));
-        }
-
-        /// <summary>
-        /// 使用控制器实例
-        /// </summary>
-        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
-        /// <typeparam name="TUser">领域用户类型</typeparam>
-        /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
-        /// <param name="user">领域用户</param>
-        public TAopContract UseWithAop<TAopContract, TUser, TUserHelper>(TUser user)
-            where TAopContract : IAopContract
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
-        {
-            var sessionKey = user.AssertNotNull().SessionKey;
-            return UseWithAop<TAopContract, TUser, TUserHelper>(sessionKey);
-        }
-
-        /// <summary>
         /// 控制器契约的并发字典缓存
         /// </summary>
         private readonly ConcurrentDictionary<string, DomainContracts> _ControllerContracts = new();
@@ -246,5 +204,86 @@ namespace TKW.Framework.Domain
         /// 获取DomainHost实例的工厂方法
         /// </summary>
         public static Func<DomainHost> Factory => () => Root;
+
+        /// <summary>
+        /// 使用控制器实例
+        /// </summary>
+        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
+        /// <typeparam name="TUser">领域用户类型</typeparam>
+        /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
+        /// <param name="sessionKey">Session Key</param>
+        private TAopContract UseAop<TAopContract, TUser, TUserHelper>(string sessionKey)
+            where TAopContract : IAopContract
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            var user = GetDomainUser<TUser, TUserHelper>(sessionKey);
+
+            // 获取控制器实例，并传递参数：领域用户
+            return Container.Resolve<TAopContract>(TypedParameter.From((DomainUser)user));
+        }
+
+        /// <summary>
+        /// 使用控制器实例
+        /// </summary>
+        /// <typeparam name="TAopContract">控制器契约类型</typeparam>
+        /// <typeparam name="TUser">领域用户类型</typeparam>
+        /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
+        /// <param name="user">领域用户</param>
+        private TAopContract UseAop<TAopContract, TUser, TUserHelper>(TUser user)
+            where TAopContract : IAopContract
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            var sessionKey = user.AssertNotNull().SessionKey;
+            return UseAop<TAopContract, TUser, TUserHelper>(sessionKey);
+        }
+
+        #region 为方便使用的方法
+
+        public DomainUser GetDomainUser<TUser, TUserHelper>(string sessionKey)
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            DomainUser user;
+            if (sessionKey.HasValue() && UserHelper<TUser, TUserHelper>().ContainsSession(sessionKey))
+                // 根据 SessionKey 获取领域用户
+                user = UserHelper<TUser, TUserHelper>()
+                    .RetrieveAndActiveUserSession(sessionKey.EnsureHasValue().TrimSelf()).User;
+            else
+                // 无效的 SessionKey
+                throw new AuthenticationException($"无效的 SessionKey，请先以游客方式登录并分配 SessionKey：{sessionKey}");
+            return user;
+        }
+
+        public DomainUserSession<TUser> UserLogin<TUser, TUserHelper>(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null)
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            // 调用用户登录方法
+            return UserHelper<TUser, TUserHelper>().UserLogin(userName, passWordHashed, authType, existsSessionKey);
+        }
+
+        public void GuestOrUserLogout<TUser, TUserHelper>(string sessionKey)
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            UserHelper<TUser, TUserHelper>().GuestOrUserLogout(sessionKey);
+        }
+
+        public DomainUserSession<TUser> NewGuestSession<TUser, TUserHelper>()
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            return UserHelper<TUser, TUserHelper>().NewGuestSession();
+        }
+        public DomainUserSession<TUser> RetrieveAndActiveUserSession<TUser, TUserHelper>(string sessionKey)
+            where TUser : DomainUser, new()
+            where TUserHelper : DomainHelperBase<TUser>
+        {
+            return UserHelper<TUser, TUserHelper>().RetrieveAndActiveUserSession(sessionKey);
+        }
+
+        #endregion
     }
 }

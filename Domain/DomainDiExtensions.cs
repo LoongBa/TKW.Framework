@@ -106,7 +106,7 @@ namespace TKW.Framework.Domain
         /// <typeparam name="TAopContract"></typeparam>
         /// <param name="left"></param>
         public static IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddServiceWithAop<TContractInterface, TAopContract>(this ContainerBuilder left)
+            AddAopService<TContractInterface, TAopContract>(this ContainerBuilder left)
             where TAopContract : class, Domain.IAopContract
         {
             return left.RegisterType<TAopContract>()

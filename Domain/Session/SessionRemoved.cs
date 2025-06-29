@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
-using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Session;
 

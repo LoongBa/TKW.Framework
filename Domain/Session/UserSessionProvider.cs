@@ -1,5 +1,4 @@
 using System;
-using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Session {
     /// <summary>

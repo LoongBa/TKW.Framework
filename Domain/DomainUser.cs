@@ -1,9 +1,9 @@
+using Autofac;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Security.Principal;
-using Autofac;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Permission;
 
@@ -33,6 +33,16 @@ namespace TKW.Framework.Domain
         public TDomainService Use<TDomainService>() where TDomainService : IDomainService
         {
             return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
+        }
+
+        /// <summary>
+        /// 使用 DomainService 领域服务 AOP
+        /// </summary>
+        /// <remarks>注意：必须在 DomainHost.Initial() 中注册领域服务</remarks>
+        /// <typeparam name="TAopContract">领域服务的接口类型</typeparam>
+        public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
+        {
+            return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TAopContract>(TypedParameter.From(this));
         }
 
         #region IPrincipal 接口的方法
