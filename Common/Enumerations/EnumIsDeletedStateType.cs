@@ -1,6 +1,6 @@
 ﻿namespace TKW.Framework.Common.Enumerations
 {
-    public enum EnumIsDeletedStateType
+    public enum EnumIsDeletedState
     {
         /// <summary>
         /// 全部
@@ -16,7 +16,7 @@
         UnDeleted,
     }
 
-    public enum EnumTrippleState
+    public enum EnumTripleState
     {
         /// <summary>
         /// 全部
