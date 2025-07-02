@@ -22,6 +22,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="DataType\Location\GeoLocationAccuracy.cs" />
+    <Compile Remove="DataType\Location\GeoLocationChangedEventArgs.cs" />
+    <Compile Remove="DataType\Location\GeoLocationProvider.cs" />
+    <Compile Remove="DataType\Location\GeoLocationProviderBase.cs" />
+    <Compile Remove="DataType\Location\GeoLocationStatus.cs" />
+    <Compile Remove="DataType\Location\GeoLocationStatusChangedEventArgs.cs" />
+    <Compile Remove="DataType\Location\ICivicAddressResolver.cs" />
+    <Compile Remove="DataType\Location\ResolveAddressCompletedEventArgs.cs" />
     <Compile Remove="Extensions\QueryableExtensions.cs" />
   </ItemGroup>
 
