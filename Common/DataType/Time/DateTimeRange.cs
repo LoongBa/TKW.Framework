@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.DataType;
+namespace TKW.Framework.Common.DataType.Time;
 
 /// <summary>
 /// 日期区间，前闭后开：[Start, End)

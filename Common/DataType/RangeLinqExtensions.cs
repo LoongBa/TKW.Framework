@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using TKW.Framework.Common.DataType.Time;
 
 namespace TKW.Framework.Common.DataType;
 

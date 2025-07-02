@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.DataType;
+namespace TKW.Framework.Common.DataType.Time;
 
 /// <summary>
 /// System.Text.Json 自定义转换器 for DateOnlyRange

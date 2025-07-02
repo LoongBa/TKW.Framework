@@ -1,4 +1,4 @@
-﻿namespace TKW.Framework.Common.DataType;
+﻿namespace TKW.Framework.Common.DataType.Time;
 
 /// <summary>
 /// 枚举步长类型

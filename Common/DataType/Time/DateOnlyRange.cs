@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.DataType;
+namespace TKW.Framework.Common.DataType.Time;
 
 /// <summary>
 /// 仅日期区间，前闭后开：[Start, End)
@@ -105,7 +105,7 @@ public readonly struct DateOnlyRange : IEquatable<DateOnlyRange>, IEnumerable<Da
     public IEnumerator<DateOnly> GetEnumerator() => Enumerate().GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    public override bool Equals(object? obj) => obj is DateOnlyRange other && Equals(other);
+    public override bool Equals(object obj) => obj is DateOnlyRange other && Equals(other);
     public bool Equals(DateOnlyRange other) => Start == other.Start && End == other.End;
     public override int GetHashCode() => HashCode.Combine(Start, End);
     public static bool operator ==(DateOnlyRange left, DateOnlyRange right) => left.Equals(right);
