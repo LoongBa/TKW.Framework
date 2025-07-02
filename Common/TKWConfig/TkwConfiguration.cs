@@ -10,8 +10,8 @@ namespace TKW.Framework.Common.TKWConfig
         /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
         public TkwConfiguration()
         {
-            Constants = new List<Constant>();
-            Enumerations = new List<Enumeration>();
+            Constants = [];
+            Enumerations = [];
         }
         public List<Constant> Constants { get; set; }
         public List<Enumeration> Enumerations { get; set; }
@@ -46,9 +46,8 @@ namespace TKW.Framework.Common.TKWConfig
             if (string.IsNullOrWhiteSpace(constantName))
                 throw new ArgumentNullException(nameof(constantName));
 
-            var constant = Constants.FirstOrDefault(c => c.Name.Equals(constantName, StringComparison.OrdinalIgnoreCase));
-            if (constant == null)
-                throw new ConfigurationErrorException($"尚未定义类型 {constantName} 的常量。");
+            var constant = Constants.FirstOrDefault(c => c.Name.Equals(constantName, StringComparison.OrdinalIgnoreCase))
+                           ?? throw new ConfigurationErrorException($"尚未定义类型 {constantName} 的常量。");
             return constant;
         }
 
@@ -57,9 +56,8 @@ namespace TKW.Framework.Common.TKWConfig
             if (string.IsNullOrWhiteSpace(enumerationName))
                 throw new ArgumentNullException(nameof(enumerationName));
 
-            var enumeration = Enumerations.FirstOrDefault(c => c.Name.Equals(enumerationName, StringComparison.OrdinalIgnoreCase));
-            if (enumeration == null)
-                throw new ConfigurationErrorException($"尚未定义类型 {enumerationName} 的枚举。");
+            var enumeration = Enumerations.FirstOrDefault(c => c.Name.Equals(enumerationName, StringComparison.OrdinalIgnoreCase))
+                              ?? throw new ConfigurationErrorException($"尚未定义类型 {enumerationName} 的枚举。");
             return enumeration;
         }
     }

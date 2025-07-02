@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Common.Tools.BatchId;
 
 /// <summary>
 /// 批次ID生成器工厂实现

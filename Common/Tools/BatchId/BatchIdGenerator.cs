@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Common.Tools.BatchId;
 
 /// <summary>
 /// 批次ID生成器（线程安全，支持时钟回拨处理）

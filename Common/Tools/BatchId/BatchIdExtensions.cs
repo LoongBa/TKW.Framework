@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Common.Tools.BatchId;
 
 /// <summary>
 /// 批次ID扩展方法
@@ -56,7 +56,7 @@ public static class BatchIdExtensions
         var generator = new BatchIdGenerator(prefix);
 
         var sortedData = sortSelector != null
-            ? source.OrderBy(sortSelector).ToList()
+            ? [.. source.OrderBy(sortSelector)]
             : source.OrderBy(timestampSelector).ToList();
 
         foreach (var item in sortedData)
@@ -78,7 +78,7 @@ public static class BatchIdExtensions
         Action<T, string> idSetter,
         string prefix = "")
     {
-        return source.WithBatchIds(timestampSelector, idSetter, prefix).ToList();
+        return [.. source.WithBatchIds(timestampSelector, idSetter, prefix)];
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public static class BatchIdExtensions
         string prefix = "")
     {
         if (source == null)
-            return Array.Empty<T>();
+            return [];
 
         return await source.WithBatchIdsAsync(timestampSelector, idSetter, prefix).ToListAsync();
     }
@@ -168,12 +168,12 @@ public static class BatchIdExtensions
         string prefix = "")
     {
         if (source == null)
-            return Array.Empty<T>();
+            return [];
 
         // 优化：合并排序和批次ID生成
         var list = await source.ToListAsync();
         var sortedData = sortSelector != null
-            ? list.OrderBy(sortSelector).ToList()
+            ? [.. list.OrderBy(sortSelector)]
             : list.OrderBy(timestampSelector).ToList();
 
         var generator = new BatchIdGenerator(prefix);
@@ -228,8 +228,8 @@ public static class BatchIdExtensions
         ArgumentNullException.ThrowIfNull(resultSelector);
 
         var sortedData = sortSelector != null
-            ? source.OrderBy(sortSelector)
-            : source.OrderBy(timestampSelector);
+            ? [.. source.OrderBy(sortSelector)]
+            : source.OrderBy(timestampSelector).ToList();
 
         var generator = new BatchIdGenerator(prefix);
 

@@ -51,14 +51,14 @@ public readonly struct DateTimeRange : IEquatable<DateTimeRange>, IEnumerable<Da
     /// <summary>
     /// 通过 DateOnly 创建区间，区间为 [start, end+1)
     /// </summary>
-    public static DateTimeRange FromDateOnly(DateOnly start, DateOnly end, DateTimeKind kind = DateTimeKind.Unspecified)
-        => new(start.ToDateTime(TimeOnly.MinValue, kind), end.ToDateTime(TimeOnly.MinValue, kind).AddDays(1));
+    public static DateTimeRange FromDateOnly(DateOnly start, DateOnly end)
+        => new(start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), end.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified).AddDays(1));
 
     /// <summary>
     /// 通过单个 DateOnly 创建区间，区间为 [date, date+1)
     /// </summary>
-    public static DateTimeRange FromDateOnly(DateOnly date, DateTimeKind kind = DateTimeKind.Unspecified)
-        => new(date.ToDateTime(TimeOnly.MinValue, kind), date.ToDateTime(TimeOnly.MinValue, kind).AddDays(1));
+    public static DateTimeRange FromDateOnly(DateOnly date)
+        => new(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified).AddDays(1));
 
     /// <summary>
     /// 转为 DateOnly 区间（仅当区间为整天时有效，否则抛异常）
@@ -247,28 +247,28 @@ public readonly struct DateTimeRange : IEquatable<DateTimeRange>, IEnumerable<Da
     }
 
     // 静态工厂方法举例
-    public static DateTimeRange Today(DateTimeKind kind = DateTimeKind.Local)
+    public static DateTimeRange Today()
     {
         var now = DateTime.Now;
-        var today = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, kind);
+        var today = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, DateTimeKind.Local);
         return new DateTimeRange(today, today.AddDays(1));
     }
 
-    public static DateTimeRange ThisMonth(DateTimeKind kind = DateTimeKind.Local)
+    public static DateTimeRange ThisMonth()
     {
         var now = DateTime.Now;
-        var first = new DateTime(now.Year, now.Month, 1, 0, 0, 0, kind);
+        var first = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Local);
         return new DateTimeRange(first, first.AddMonths(1));
     }
 
-    public static DateTimeRange ThisYear(DateTimeKind kind = DateTimeKind.Local)
+    public static DateTimeRange ThisYear()
     {
         var now = DateTime.Now;
-        var first = new DateTime(now.Year, 1, 1, 0, 0, 0, kind);
+        var first = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Local);
         return new DateTimeRange(first, first.AddYears(1));
     }
 
-    public static DateTimeRange LastNDays(int n, DateTimeKind kind = DateTimeKind.Local)
+    public static DateTimeRange LastNDays(int n)
     {
         var now = DateTime.Now;
         var start = now.Date.AddDays(-n);
