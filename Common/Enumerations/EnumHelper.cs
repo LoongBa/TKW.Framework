@@ -2,8 +2,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using TKW.Framework.Common.Extensions;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Common.Enumerations;
 
 /// <summary>
 /// 枚举工具类，提供基于 DisplayName 的枚举解析、映射、校验等功能。
@@ -13,8 +14,30 @@ public static class EnumHelper
     // 使用 ConcurrentDictionary 确保线程安全
     private static readonly ConcurrentDictionary<Type, Dictionary<Enum, string>> EnumValueDisplayCache = new();
     private static readonly ConcurrentDictionary<Type, List<string>> AllDisplayNamesCache = new();
-    private static readonly ConcurrentDictionary<Type, Dictionary<string, List<Enum>>> DisplayNameToEnumValuesCache = new();
+    private static readonly ConcurrentDictionary<Type, Dictionary<string, List<Enum>>> DisplayNameToEnumValuesCache =
+        new();
     private static readonly Random RandomInstance = new();
+
+    /// <summary>
+    /// 根据枚举类型的 DisplayName 返回对应的枚举值，找不到时返回默认值。
+    /// </summary>
+    /// <typeparam name="T">枚举类型。</typeparam>
+    /// <param name="enumValueString">枚举值的 DisplayName。</param>
+    /// <param name="defaultValue">找不到匹配项时返回的默认值。</param>
+    /// <returns>与 DisplayName 对应的枚举值，若未找到则返回 <paramref name="defaultValue"/>。</returns>
+    /// <exception cref="ArgumentException">当 <paramref name="enumValueString"/> 为 null 或空白字符串时抛出。</exception>
+    public static T ParseEnumValueByDisplay<T>(string enumValueString, T defaultValue) where T : struct, Enum
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(enumValueString, nameof(enumValueString));
+
+        var displayNameToEnumValues = GetDisplayToEnumValuesMap(typeof(T));
+        if (displayNameToEnumValues.TryGetValue(enumValueString, out var enumValues) && enumValues.Count > 0)
+        {
+            return (T)enumValues[0];
+        }
+
+        return defaultValue;
+    }
 
     /// <summary>
     /// 根据枚举类型的 DisplayName 返回对应的枚举值。

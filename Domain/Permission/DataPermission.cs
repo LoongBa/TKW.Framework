@@ -1,19 +1,20 @@
 using TKW.Framework.Common.DataType;
+using TKW.Framework.Common.Enumerations;
 
 namespace TKW.Framework.Domain.Permission
 {
-    public class DataPermission : UserPermissionBase
+    public class DataPermission(
+        Operator oper,
+        string permissionId,
+        string permissionName,
+        EnumNoneReadOnlyReadWrite type = EnumNoneReadOnlyReadWrite.ReadOnly,
+        string permissionText = null)
+        : UserPermissionBase(oper, permissionId, permissionName, type, permissionText)
     {
-        public DataPermission(Operator oper, string permissionId, string permissionName, EnumNoneReadOnlyReadWrite type = EnumNoneReadOnlyReadWrite.ReadOnly, string permissionText = null)
-            : base(oper, permissionId, permissionName, type, permissionText)
-        {
-            Type = type;
-        }
-
-        public EnumNoneReadOnlyReadWrite Type { get; }
+        public EnumNoneReadOnlyReadWrite Type { get; } = type;
 
         public bool IsReadOnly => Type == EnumNoneReadOnlyReadWrite.ReadOnly;
         public bool IsWritable => Type == EnumNoneReadOnlyReadWrite.ReadAndWrite;
-        public bool IsForbidden => Type == EnumNoneReadOnlyReadWrite.None;
+        public bool IsForbidden => Type == EnumNoneReadOnlyReadWrite.Unset;
     }
 }

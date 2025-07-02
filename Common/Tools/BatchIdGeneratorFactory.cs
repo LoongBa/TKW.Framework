@@ -7,5 +7,5 @@ namespace TKW.Framework.Common.Tools;
 /// </summary>
 public class BatchIdGeneratorFactory : IBatchIdGeneratorFactory
 {
-    public BatchIdGenerator Create(string prefix = "") => new BatchIdGenerator(prefix);
+    public BatchIdGenerator Create(string prefix = "") => new(prefix);
 }

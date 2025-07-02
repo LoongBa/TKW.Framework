@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Common.Enumerations;
 
 /// <summary>
 /// 字符串类型的枚举扩展方法。

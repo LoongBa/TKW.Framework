@@ -1,4 +1,5 @@
 using TKW.Framework.Common.DataType;
+using TKW.Framework.Common.Enumerations;
 
 namespace TKW.Framework.Domain.Permission
 {

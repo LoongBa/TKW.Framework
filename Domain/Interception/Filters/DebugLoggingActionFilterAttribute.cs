@@ -5,17 +5,11 @@ using TKW.Framework.Common.Extensions;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-public class DebugLoggingActionFilterAttribute : DomainActionFilterAttribute
+public class DebugLoggingActionFilterAttribute(string formatString, LogLevel logLevel = LogLevel.Debug)
+    : DomainActionFilterAttribute
 {
-    private readonly string _FormatString;
     private readonly ILogger _Logger;
-    private readonly LogLevel _LogLevel;
-
-    public DebugLoggingActionFilterAttribute(string formatString, LogLevel logLevel = LogLevel.Debug)
-    {
-        _FormatString = formatString;
-        _LogLevel = logLevel;
-    }
+    private readonly LogLevel _LogLevel = logLevel;
 
     #region Overrides of DomainActionFilterAttribute
 
@@ -35,7 +29,7 @@ public class DebugLoggingActionFilterAttribute : DomainActionFilterAttribute
 
     public override void PreProceed(DomainInvocationWhereType method, DomainContext context)
     {
-        if (_FormatString.HasValue())
+        if (formatString.HasValue())
         {
             //开始时间
         }
@@ -43,7 +37,7 @@ public class DebugLoggingActionFilterAttribute : DomainActionFilterAttribute
 
     public override void PostProceed(DomainInvocationWhereType method, DomainContext context)
     {
-        if (_FormatString.HasValue())
+        if (formatString.HasValue())
         {
             //结束时间
         }

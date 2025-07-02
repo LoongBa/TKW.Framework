@@ -15,7 +15,7 @@ public class BatchIdGenerator(string prefix = "")
     private readonly string _prefix = string.IsNullOrEmpty(prefix) ? "" : $"{prefix}_";
     private DateTime _lastTimestamp = DateTime.MinValue;
     private int _sequence = 0;
-    private readonly object _lock = new object();
+    private readonly object _lock = new();
 
     /// <summary>
     /// 生成批次ID（格式：[前缀_]yyyyMMdd_HHmmss_fff_序列号_随机字符串）

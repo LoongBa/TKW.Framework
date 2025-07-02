@@ -1,20 +1,16 @@
 using TKW.Framework.Common.DataType;
+using TKW.Framework.Common.Enumerations;
 
 namespace TKW.Framework.Domain.Permission
 {
-    public class UiPermission : UserPermissionBase
+    public class UiPermission(
+        Operator oper,
+        string permissionId,
+        string permissionName,
+        EnumNoneEnabledDisabled type,
+        string permissionText = null)
+        : UserPermissionBase(oper, permissionId, permissionName, type, permissionText)
     {
-        public UiPermission(
-            Operator oper,
-            string permissionId,
-            string permissionName,
-            EnumNoneEnabledDisabled type,
-            string permissionText = null)
-            : base(oper, permissionId, permissionName, type, permissionText)
-        {
-            Type = type;
-        }
-
-        public EnumNoneEnabledDisabled Type { get; }
+        public EnumNoneEnabledDisabled Type { get; } = type;
     }
 }

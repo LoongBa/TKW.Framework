@@ -1,4 +1,6 @@
-﻿namespace TKW.Framework.Common.DataType
+﻿using TKW.Framework.Common.Enumerations;
+
+namespace TKW.Framework.Common.DataType
 {
     /// <summary>
     /// App 用户信息
@@ -9,7 +11,7 @@
         public AppUser()
         {
             AppId = string.Empty;
-            AppType = AppType.Unset;
+            EnumAppType = EnumAppType.Unset;
             Nickname = string.Empty;
             AvatarUrl = string.Empty;
 
@@ -18,7 +20,7 @@
         /// <summary>
         /// App 类型
         /// </summary>
-        public AppType AppType { get; set; }
+        public EnumAppType EnumAppType { get; set; }
         /// <summary>
         /// 用户 Id
         /// </summary>

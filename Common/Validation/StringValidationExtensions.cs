@@ -4,7 +4,7 @@ namespace TKW.Framework.Common.Validation;
 
 public static class StringValidationExtensions
 {
-    private static readonly InlineValidator<string> EmailValidator = new InlineValidator<string>();
+    private static readonly InlineValidator<string> EmailValidator = new();
 
     /// <summary>
     /// 验证电子邮件地址是否有效

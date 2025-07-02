@@ -6,20 +6,13 @@ namespace TKW.Framework.Domain
     /// <summary>
     /// 用户身份基类
     /// </summary>
-    public class CommonIdentity : IIdentity
+    public class CommonIdentity(string name, string authenticationType, bool isAuthenticated)
+        : IIdentity
     {
-        public CommonIdentity(string name, string authenticationType, bool isAuthenticated)
-        {
-            AuthenticationType = authenticationType;
-            IsAuthenticated = isAuthenticated;
-            Name = name;
-        }
+        public string AuthenticationType { get; } = authenticationType;
 
-        public string AuthenticationType { get; }
+        public string Name { get; } = name;
 
-        public string Name { get; }
-
-        public bool IsAuthenticated { get; }
-
+        public bool IsAuthenticated { get; } = isAuthenticated;
     }
 }

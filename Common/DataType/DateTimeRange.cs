@@ -1,180 +1,278 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.DataType
+namespace TKW.Framework.Common.DataType;
+
+/// <summary>
+/// 日期区间，前闭后开：[Start, End)
+/// <para>
+/// <b>注意：</b>Start 和 End 必须同为 UTC 或同为本地时间，禁止混用。
+/// </para>
+/// </summary>
+[Serializable]
+[JsonConverter(typeof(DateTimeRangeJsonConverter))]
+public readonly struct DateTimeRange : IEquatable<DateTimeRange>, IEnumerable<DateTime>, ISerializable, IComparable<DateTimeRange>
 {
+    public DateTime Start { get; }
+    public DateTime End { get; }
+
     /// <summary>
-    /// 日期区间
+    /// 空区间（Start == End == DateTime.MinValue）
     /// </summary>
-    public struct DateTimeRange
+    public static DateTimeRange Empty => new(DateTime.MinValue, DateTime.MinValue);
+
+    public DateTimeRange(DateTime start, DateTime end)
     {
-        /// <summary>
-        /// 结束于
-        /// </summary>
-        public DateTime End { get; set; }
+        if (start.Kind != end.Kind)
+            throw new ArgumentException("Start and End must have the same DateTimeKind (UTC or Local).");
+        if (start > end)
+            throw new ArgumentOutOfRangeException(nameof(end), "Start must be less than or equal to End.");
+        Start = start;
+        End = end;
+    }
 
-        /// <summary>
-        /// 开始于
-        /// </summary>
-        public DateTime Start { get; set; }
+    // 反序列化构造器
+    private DateTimeRange(SerializationInfo info, StreamingContext context)
+    {
+        Start = info.GetDateTime(nameof(Start));
+        End = info.GetDateTime(nameof(End));
+    }
 
-        /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
-        public static DateTimeRange Empty => new DateTimeRange(DateTime.MinValue, DateTime.MaxValue);
+    public void GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        info.AddValue(nameof(Start), Start);
+        info.AddValue(nameof(End), End);
+    }
 
-        /// <summary>
-        /// 以开始日期和结束日期初始化DateTimeRange实例
-        /// </summary>
-        /// <param name="start">开始日期</param>
-        /// <param name="end">结束日期</param>
-        public DateTimeRange(DateTime start, DateTime end)
+    /// <summary>
+    /// 通过 DateOnly 创建区间，区间为 [start, end+1)
+    /// </summary>
+    public static DateTimeRange FromDateOnly(DateOnly start, DateOnly end, DateTimeKind kind = DateTimeKind.Unspecified)
+        => new(start.ToDateTime(TimeOnly.MinValue, kind), end.ToDateTime(TimeOnly.MinValue, kind).AddDays(1));
+
+    /// <summary>
+    /// 通过单个 DateOnly 创建区间，区间为 [date, date+1)
+    /// </summary>
+    public static DateTimeRange FromDateOnly(DateOnly date, DateTimeKind kind = DateTimeKind.Unspecified)
+        => new(date.ToDateTime(TimeOnly.MinValue, kind), date.ToDateTime(TimeOnly.MinValue, kind).AddDays(1));
+
+    /// <summary>
+    /// 转为 DateOnly 区间（仅当区间为整天时有效，否则抛异常）
+    /// </summary>
+    public (DateOnly Start, DateOnly End) ToDateOnlyRange()
+    {
+        if (Start.TimeOfDay != System.TimeSpan.Zero || End.TimeOfDay != System.TimeSpan.Zero)
+            throw new InvalidOperationException("Only full-day ranges can be converted to DateOnly.");
+        return (DateOnly.FromDateTime(Start), DateOnly.FromDateTime(End.AddDays(-1)));
+    }
+
+    /// <summary>
+    /// 是否为有效区间（Start &lt;= End）
+    /// </summary>
+    public bool IsValid => Start <= End;
+
+    /// <summary>
+    /// 是否为空区间（Start == End）
+    /// </summary>
+    public bool IsEmpty => Start == End;
+
+    /// <summary>
+    /// 是否有开始值（不为默认值）
+    /// </summary>
+    public bool HasStartDateTime => Start != DateTime.MaxValue && Start != DateTime.MinValue;
+
+    /// <summary>
+    /// 是否有结束值（不为默认值）
+    /// </summary>
+    public bool HasEndDateTime => End != DateTime.MaxValue && End != DateTime.MinValue;
+
+    /// <summary>
+    /// 区间间隔
+    /// </summary>
+    public TimeSpan TimeSpan() => End - Start;
+
+    /// <summary>
+    /// 指定的时间是否在范围内：前闭后开
+    /// </summary>
+    public bool IsInRange(DateTime dateTime)
+    {
+        if (dateTime.Kind != Start.Kind)
+            throw new ArgumentException("DateTime.Kind must match the range's Kind.");
+        if (dateTime == DateTime.MinValue || dateTime == DateTime.MaxValue) return false;
+        return dateTime >= Start && dateTime < End;
+    }
+
+    /// <summary>
+    /// 是否包含另一区间
+    /// </summary>
+    public bool Contains(DateTimeRange other)
+        => Start <= other.Start && End >= other.End && Start.Kind == other.Start.Kind;
+
+    /// <summary>
+    /// 是否重叠
+    /// </summary>
+    public bool Overlaps(DateTimeRange other)
+        => Start < other.End && End > other.Start && Start.Kind == other.Start.Kind;
+
+    /// <summary>
+    /// 是否相邻
+    /// </summary>
+    public bool IsAdjacentTo(DateTimeRange other)
+        => (End == other.Start || Start == other.End) && Start.Kind == other.Start.Kind;
+
+    /// <summary>
+    /// 交集
+    /// </summary>
+    public DateTimeRange? Intersect(DateTimeRange other)
+    {
+        if (Start.Kind != other.Start.Kind) return null;
+        var newStart = Start > other.Start ? Start : other.Start;
+        var newEnd = End < other.End ? End : other.End;
+        return newStart < newEnd ? new DateTimeRange(newStart, newEnd) : null;
+    }
+
+    /// <summary>
+    /// 并集（仅当区间重叠或相邻时）
+    /// </summary>
+    public DateTimeRange? Union(DateTimeRange other)
+    {
+        if (Start.Kind != other.Start.Kind) return null;
+        if (!Overlaps(other) && !IsAdjacentTo(other)) return null;
+        var newStart = Start < other.Start ? Start : other.Start;
+        var newEnd = End > other.End ? End : other.End;
+        return new DateTimeRange(newStart, newEnd);
+    }
+
+    /// <summary>
+    /// 区间拆分（按天/小时/分钟）
+    /// </summary>
+    public IEnumerable<DateTimeRange> Split(DateTimeStep step)
+    {
+        if (IsEmpty) yield break;
+        var current = Start;
+        while (current < End)
         {
-            if (start >= end) throw new ArgumentOutOfRangeException($"结束时间必须晚于开始时间");
-
-            Start = start;
-            End = end;
-        }
-
-        /// <summary>
-        /// 以开始和结束的年、月、日初始化DateTimeRange实例
-        /// </summary>
-        /// <param name="startYear">开始日期 年</param>
-        /// <param name="startMonth">开始日期 月</param>
-        /// <param name="startDay">开始日期 日</param>
-        /// <param name="endYear">结束日期 年</param>
-        /// <param name="endMonth">结束日期 月</param>
-        /// <param name="endDay">结束日期 日</param>
-        public DateTimeRange(int startYear, int startMonth, int startDay, int endYear, int endMonth, int endDay)
-            : this(new DateTime(startYear, startMonth, startDay, 0, 0, 0, 0), new DateTime(endYear, endMonth, endDay, 23, 59, 59, 999)) //TODO: 将 End 改为 0:0:0
-        {
-        }
-
-        /// <summary>
-        /// 指定开始日期初始化DateTimeRange实例，无结束日期
-        /// </summary>
-        /// <param name="start">开始日期</param>
-        public DateTimeRange(DateTime start)
-            : this(start, DateTime.MaxValue)
-        {
-        }
-
-        /// <summary>
-        /// 指定开始日期的年、月、日初始化DateTimeRange实例，无结束日期
-        /// </summary>
-        /// <param name="startYear">开始日期 年</param>
-        /// <param name="startMonth">开始日期 月</param>
-        /// <param name="startDay">开始日期 日</param>
-        public DateTimeRange(int startYear, int startMonth, int startDay)
-            : this(new DateTime(startYear, startMonth, startDay, 0, 0, 0, 0), DateTime.MaxValue)
-        {
-        }
-
-        /// <summary>
-        /// 是否有开始值（不为默认值：DateTime.MaxValue、DateTime.MinValue）
-        /// </summary>
-        public bool HasStartDateTime => Start != DateTime.MaxValue && Start != DateTime.MinValue;
-        /// <summary>
-        /// 是否有结束值（不为默认值：DateTime.MaxValue、DateTime.MinValue）
-        /// </summary>
-        public bool HasEndDateTime => End != DateTime.MaxValue && End != DateTime.MinValue;
-
-        /// <summary>
-        /// 区间间隔
-        /// </summary>
-        public TimeSpan TimeSpan()
-        {
-            return End - Start;
-        }
-
-        /// <summary>
-        /// 指定的时间是否在范围内：前闭后开
-        /// </summary>
-        public bool IsInRange(DateTime dateTime)
-        {
-            if (dateTime == DateTime.MinValue || dateTime == DateTime.MaxValue) return false;
-            return dateTime >= Start && dateTime < End;
-        }
-
-        public static DateTime Tomorrow => DateTime.Now.Date.AddDays(1);
-
-        public static DateTime ThisYearStartDate => new DateTime(DateTime.Now.Year, 1, 1);
-
-        /// <summary>
-        /// 本年
-        /// </summary>
-        public static DateTimeRange ThisYear => new DateTimeRange(ThisYearStartDate, ThisYearStartDate.AddYears(1));
-
-        public static DateTimeRange ThisYear2Today => new DateTimeRange(ThisYearStartDate, Tomorrow);
-
-        public static DateTime ThisQuarterStartDate
-        {
-            get
+            var next = step switch
             {
-                var now = DateTime.Now;
-                var month = now.Month;
-                var quarter = month / 3;
-                if (quarter > 0 && month % 3 == 0) quarter--;
-                return new DateTime(now.Year, quarter * 3 + 1, 1);
-            }
+                DateTimeStep.Day => current.AddDays(1),
+                DateTimeStep.Hour => current.AddHours(1),
+                DateTimeStep.Minute => current.AddMinutes(1),
+                _ => throw new NotSupportedException()
+            };
+            yield return new DateTimeRange(current, next < End ? next : End);
+            current = next;
         }
+    }
 
-        public static DateTime ThisQuarterEndDate => new DateTime(ThisQuarterStartDate.Year, ThisQuarterStartDate.Month + 3, 1);
+    /// <summary>
+    /// 区间偏移
+    /// </summary>
+    public DateTimeRange Shift(TimeSpan offset) => new(Start + offset, End + offset);
 
-        /// <summary>
-        /// 本季度
-        /// </summary>
-        public static DateTimeRange ThisQuarter => new DateTimeRange(ThisQuarterStartDate, ThisQuarterEndDate);
+    /// <summary>
+    /// 区间缩放（向两端扩展/收缩）
+    /// </summary>
+    public DateTimeRange Expand(TimeSpan delta) => new(Start - delta, End + delta);
 
-        public static DateTimeRange ThisQuarter2Today => new DateTimeRange(ThisQuarterStartDate, Tomorrow);
+    /// <summary>
+    /// 自定义格式化
+    /// </summary>
+    public string ToString(string format)
+        => $"[{Start.ToString(format)} ~ {End.ToString(format)})";
 
-        public static DateTime ThisMonthStartDate => new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        /// <summary>
-        /// 本月
-        /// </summary>
-        public static DateTimeRange ThisMonth => new DateTimeRange(ThisMonthStartDate, ThisMonthStartDate.AddMonths(1));
+    /// <summary>
+    /// 重写 ToString
+    /// </summary>
+    public override string ToString() => ToString("yyyy-MM-dd HH:mm:ss");
 
-        public static DateTimeRange ThisMonth2Today => new DateTimeRange(ThisMonthStartDate, Tomorrow);
+    /// <summary>
+    /// 解析字符串为区间，格式：[yyyy-MM-dd HH:mm:ss ~ yyyy-MM-dd HH:mm:ss)
+    /// </summary>
+    public static DateTimeRange Parse(string s, string format = "yyyy-MM-dd HH:mm:ss")
+    {
+        if (string.IsNullOrWhiteSpace(s)) throw new ArgumentNullException(nameof(s));
+        var parts = s.Trim('[', ')').Split('~');
+        if (parts.Length != 2) throw new FormatException("Invalid DateTimeRange format.");
+        var start = DateTime.ParseExact(parts[0].Trim(), format, CultureInfo.InvariantCulture);
+        var end = DateTime.ParseExact(parts[1].Trim(), format, CultureInfo.InvariantCulture);
+        return new DateTimeRange(start, end);
+    }
 
-        public static DateTime ThisWeekStartDate => DateTime.Now.Date.AddDays(-(double)(DateTime.Now.DayOfWeek - 1));
-
-        /// <summary>
-        /// 本周
-        /// </summary>
-        public static DateTimeRange ThisWeek => new DateTimeRange(ThisWeekStartDate, ThisWeekStartDate.AddDays(7));
-
-        public static DateTimeRange ThisWeek2Today => new DateTimeRange(ThisWeekStartDate, Tomorrow);
-
-        /// <summary>
-        /// 过去30天
-        /// </summary>
-        public static DateTimeRange Last30Days
+    /// <summary>
+    /// 支持区间内的日期枚举（默认按天，可选按小时、分钟）
+    /// </summary>
+    public IEnumerable<DateTime> Enumerate(DateTimeStep step = DateTimeStep.Day)
+    {
+        if (IsEmpty) yield break;
+        var current = Start;
+        while (current < End)
         {
-            get
+            yield return current;
+            current = step switch
             {
-                var now = DateTime.Now;
-                var l30d = now.AddDays(-30);
-                var start = new DateTime(l30d.Year, l30d.Month, l30d.Day, 0, 0, 0, 0);
-                //var end = new DateTime(now.Year, now.Month, now.Day, 23, 59, 59, 999).AddDays(-1);
-                var end = DateTime.Now.Date;
-
-                return new DateTimeRange(start, end);
-            }
+                DateTimeStep.Day => current.AddDays(1),
+                DateTimeStep.Hour => current.AddHours(1),
+                DateTimeStep.Minute => current.AddMinutes(1),
+                _ => throw new NotSupportedException()
+            };
         }
+    }
 
-        /// <summary>
-        /// 包含今天的过去30天
-        /// </summary>
-        public static DateTimeRange Last30DaysIncludeToday
-        {
-            get
-            {
-                // 包含今天的过去30天 = 之前的29天 + 今天全天（1天)
-                var now = DateTime.Now;
-                var l30d = now.AddDays(-29);
-                var start = new DateTime(l30d.Year, l30d.Month, l30d.Day, 0, 0, 0, 0);
-                //var end = new DateTime(now.Year, now.Month, now.Day, 23, 59, 59, 999).AddDays(-1);
-                var end = DateTime.Now.Date.AddDays(1);
+    /// <summary>
+    /// 默认实现，按天枚举
+    /// </summary>
+    public IEnumerator<DateTime> GetEnumerator() => Enumerate().GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-                return new DateTimeRange(start, end);
-            }
-        }
+    /// <summary>
+    /// 重写 Equals
+    /// </summary>
+    public override bool Equals(object obj) => obj is DateTimeRange other && Equals(other);
+
+    public bool Equals(DateTimeRange other) => Start == other.Start && End == other.End;
+
+    public override int GetHashCode() => HashCode.Combine(Start, End);
+
+    public static bool operator ==(DateTimeRange left, DateTimeRange right) => left.Equals(right);
+    public static bool operator !=(DateTimeRange left, DateTimeRange right) => !(left == right);
+
+    public int CompareTo(DateTimeRange other)
+    {
+        var cmp = Start.CompareTo(other.Start);
+        return cmp != 0 ? cmp : End.CompareTo(other.End);
+    }
+
+    // 静态工厂方法举例
+    public static DateTimeRange Today(DateTimeKind kind = DateTimeKind.Local)
+    {
+        var now = DateTime.Now;
+        var today = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, kind);
+        return new DateTimeRange(today, today.AddDays(1));
+    }
+
+    public static DateTimeRange ThisMonth(DateTimeKind kind = DateTimeKind.Local)
+    {
+        var now = DateTime.Now;
+        var first = new DateTime(now.Year, now.Month, 1, 0, 0, 0, kind);
+        return new DateTimeRange(first, first.AddMonths(1));
+    }
+
+    public static DateTimeRange ThisYear(DateTimeKind kind = DateTimeKind.Local)
+    {
+        var now = DateTime.Now;
+        var first = new DateTime(now.Year, 1, 1, 0, 0, 0, kind);
+        return new DateTimeRange(first, first.AddYears(1));
+    }
+
+    public static DateTimeRange LastNDays(int n, DateTimeKind kind = DateTimeKind.Local)
+    {
+        var now = DateTime.Now;
+        var start = now.Date.AddDays(-n);
+        var end = now.Date;
+        return new DateTimeRange(start, end);
     }
 }

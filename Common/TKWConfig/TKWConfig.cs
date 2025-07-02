@@ -9,12 +9,12 @@ namespace TKW.Framework.Common.TKWConfig
     public class TkwConfig
     {
         private static TkwConfig _Instance;
-        private static readonly object LockObject = new object();
+        private static readonly object LockObject = new();
 
         public string JsonConfigurationFilename { get; }
 
         private TkwConfiguration _TkwConfiguration;
-        private TkwConfiguration TkwConfiguration => _TkwConfiguration ?? (_TkwConfiguration = _LoadConfigurations());
+        private TkwConfiguration TkwConfiguration => _TkwConfiguration ??= LoadConfigurations();
 
         public TkwConfig(string jsonFilename)
         {
@@ -30,7 +30,7 @@ namespace TKW.Framework.Common.TKWConfig
         public static TkwConfig OpenJsonConfig(string jsonFilename)
         {
             var tkwConfig = new TkwConfig(jsonFilename);
-            if (_Instance == null) _Instance = tkwConfig;
+            _Instance ??= tkwConfig;
             tkwConfig.RefreshConfigurations();
             return tkwConfig;
         }
@@ -42,7 +42,7 @@ namespace TKW.Framework.Common.TKWConfig
         /// </summary>
         public void RefreshConfigurations()
         {
-            _TkwConfiguration = _LoadConfigurations();
+            _TkwConfiguration = LoadConfigurations();
         }
 
         #endregion
@@ -119,7 +119,7 @@ namespace TKW.Framework.Common.TKWConfig
 
         #region Private Helper Methods
 
-        private TkwConfiguration _LoadConfigurations()
+        private TkwConfiguration LoadConfigurations()
         {
             return LoadFromJsonFile(JsonConfigurationFilename);
         }

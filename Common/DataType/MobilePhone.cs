@@ -7,10 +7,11 @@ namespace TKW.Framework.Common.DataType
     public class MobilePhone
     {
         public const string _DefaultRegexPatternString_ = "^1[34578][0-9]{9}$";
-        private static readonly Regex DefaultRulesRegex = new Regex(_DefaultRegexPatternString_, RegexOptions.Compiled | RegexOptions.Singleline);
+        private static readonly Regex DefaultRulesRegex =
+            new(_DefaultRegexPatternString_, RegexOptions.Compiled | RegexOptions.Singleline);
 
         private readonly Regex _Regex;
-        public static MobilePhone Empty = new MobilePhone();
+        private static readonly MobilePhone Empty = new();
 
         public MobilePhone(string mobilePhoneNumbers = null, string regexPatternString = null)
         {
