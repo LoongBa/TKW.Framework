@@ -81,42 +81,6 @@ namespace TKW.Framework.Common.TKWConfig
 
         #endregion
 
-        /*
-
-                private Dictionary<string, string> _UnHandledExeptions;
-
-                public ReadOnlyDictionary<string, string> UnHandledExeptions
-                {
-                    get
-                    {
-                        return _UnHandledExeptions == null
-                            ? _LoadUnHandledExceptions()
-                            : new ReadOnlyDictionary<string, string>(_UnHandledExeptions);
-                    }
-                }
-
-                private ReadOnlyDictionary<string, string> _LoadUnHandledExceptions()
-                {
-                    var lockObject = new object();
-                    lock (lockObject)
-                    {
-                        if (_UnHandledExeptions == null)
-                            _UnHandledExeptions = new Dictionary<string, string>();
-                        else
-                            _UnHandledExeptions.Clear();
-                        var applicationSection = _GetApplicationSection();
-                        foreach (UnHandledExeptionElement unHandledExeption in applicationSection.UnHandledExeptions)
-                            _UnHandledExeptions.Add(unHandledExeption.Name, unHandledExeption.Description);
-                    }
-                    return new ReadOnlyDictionary<string, string>(_UnHandledExeptions);
-                }
-
-                public void ReloadUnHandledExceptions()
-                {
-                    _LoadUnHandledExceptions();
-                }
-        */
-
         #region Private Helper Methods
 
         private TkwConfiguration LoadConfigurations()

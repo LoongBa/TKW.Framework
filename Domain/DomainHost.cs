@@ -10,7 +10,6 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Security.Authentication;
-using TKW.Framework.Common.DataType;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
 
@@ -220,7 +219,7 @@ namespace TKW.Framework.Domain
             var user = GetDomainUser<TUser, TUserHelper>(sessionKey);
 
             // 获取控制器实例，并传递参数：领域用户
-            return Container.Resolve<TAopContract>(TypedParameter.From((DomainUser)user));
+            return Container.Resolve<TAopContract>(TypedParameter.From(user));
         }
 
         /// <summary>
