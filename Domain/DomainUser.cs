@@ -30,7 +30,7 @@ namespace TKW.Framework.Domain
         /// </summary>
         /// <remarks>注意：必须在 DomainHost.Initial() 中注册领域服务</remarks>
         /// <typeparam name="TDomainService">领域服务的接口类型</typeparam>
-        public TDomainService Use<TDomainService>() where TDomainService : IDomainService
+        public TDomainService Use<TDomainService>() where TDomainService : DomainService
         {
             return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
         }

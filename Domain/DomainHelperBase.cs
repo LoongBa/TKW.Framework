@@ -21,7 +21,7 @@ namespace TKW.Framework.Domain
         protected DomainHelperBase(Func<DomainHost> hostFactory = null)
         {
             DomainHostFactory = hostFactory?? DomainHost.Factory;
-            // MARK: 构造函数被调用时DomainHost还未创建实例，
+            // MARK: 构造函数被调用时 DomainHost 还未创建实例，
             //SessionManager = DomainHostFactory().Container.Resolve<SessionManager<TUser>>();
         }
 

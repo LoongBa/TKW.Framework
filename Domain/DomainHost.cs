@@ -229,7 +229,7 @@ namespace TKW.Framework.Domain
         /// <typeparam name="TUser">领域用户类型</typeparam>
         /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
         /// <param name="user">领域用户</param>
-        private TAopContract UseAop<TAopContract, TUser, TUserHelper>(TUser user)
+        internal TAopContract UseAop<TAopContract, TUser, TUserHelper>(TUser user)
             where TAopContract : IAopContract
             where TUser : DomainUser, new()
             where TUserHelper : DomainHelperBase<TUser>

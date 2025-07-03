@@ -8,9 +8,9 @@ namespace TKW.Framework.Domain
     public class DomainService : IDomainService
     {
         protected internal DomainUser User { get; }
-        protected T Use<T>() where T : IDomainService
+        protected TService Use<TService>() where TService : DomainService
         {
-            return User.Use<T>();
+            return User.Use<TService>();
         }
         /// <summary>Initializes a new instance of the <see cref="T:System.Object"></see> class.</summary>
         public DomainService(DomainUser user)
