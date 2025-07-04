@@ -2,16 +2,15 @@
 
 namespace TKW.Framework.Domain
 {
-    public class DomainUserSession<T>
-        where T : DomainUser
+    public class DomainUserSession
     {
         public string Key { get; }
-        public T User { get; }
+        public DomainUser User { get; }
 
         /// <summary>
         /// 初始化 <see cref="T:System.Object"/> 类的新实例。
         /// </summary>
-        public DomainUserSession(string key, T user)
+        public DomainUserSession(string key, DomainUser user)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Argument is null or whitespace", nameof(key));
@@ -19,9 +18,9 @@ namespace TKW.Framework.Domain
             User = user ?? throw new ArgumentNullException(nameof(user));
         }
 
-        public DomainUserSession<DomainUser> ToUserSession()
+        public DomainUserSession ToUserSession()
         {
-            return new DomainUserSession<DomainUser>(Key, User);
+            return new DomainUserSession(Key, User);
         }
     }
 }

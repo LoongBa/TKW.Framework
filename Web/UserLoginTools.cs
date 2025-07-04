@@ -1,7 +1,6 @@
 ﻿using System;
 using Microsoft.AspNetCore.Http;
 using TKW.Framework.Domain;
-using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Web
@@ -13,8 +12,7 @@ namespace TKW.Framework.Web
     {
         #region 用户认证相关的辅助方法
 
-        public static string CurrentSessionKey<T>(HttpContext httpContext, UserSessionProvider<T> userSessionProvider)
-            where T : DomainUser, ICopyValues<T>
+        public static string CurrentSessionKey(HttpContext httpContext, UserSessionProvider userSessionProvider)
         {
             if (httpContext == null) throw new ArgumentNullException(nameof(httpContext));
             if (userSessionProvider == null)
@@ -28,15 +26,13 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 完成用户登录操作
         /// </summary>
-        /// <typeparam name="T">用户类型</typeparam>
         /// <param name="httpContext">当前HTTP上下文</param>
         /// <param name="userSessionProvider">用户会话提供者</param>
         /// <param name="session">用户会话对象</param>
         /// <param name="createPersistentCookie">是否创建持久化Cookie</param>
         /// <returns>用户会话对象</returns>
-        public static DomainUserSession<T> UserLoginDone<T>(HttpContext httpContext,
-            IUserSessionProvider userSessionProvider, DomainUserSession<T> session, bool createPersistentCookie = false)
-            where T : DomainUser, ICopyValues<T>
+        public static DomainUserSession UserLoginDone(HttpContext httpContext,
+            IUserSessionProvider userSessionProvider, DomainUserSession session, bool createPersistentCookie = false)
         {
             // 检查httpContext是否为null
             if (httpContext == null) throw new ArgumentNullException(nameof(httpContext));
@@ -59,11 +55,9 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 完成用户登出操作
         /// </summary>
-        /// <typeparam name="T">用户类型</typeparam>
         /// <param name="httpContext">当前HTTP上下文</param>
         /// <param name="userSessionProvider">用户会话提供者</param>
-        public static void UserLogoutDone<T>(HttpContext httpContext, UserSessionProvider<T> userSessionProvider)
-            where T : DomainUser, ICopyValues<T>
+        public static void UserLogoutDone(HttpContext httpContext, UserSessionProvider userSessionProvider)
         {
             // 检查httpContext是否为null
             if (httpContext == null) throw new ArgumentNullException(nameof(httpContext));
@@ -87,7 +81,6 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 用户登录
         /// </summary>
-        /// <typeparam name="T">用户类型</typeparam>
         /// <param name="context">当前HTTP上下文</param>
         /// <param name="userHelper">用户帮助类</param>
         /// <param name="userName">用户名</param>
@@ -95,9 +88,8 @@ namespace TKW.Framework.Web
         /// <param name="authType">认证类型</param>
         /// <param name="createPersistentCookie">是否创建持久化Cookie</param>
         /// <returns>用户会话对象</returns>
-        public static DomainUserSession<T> UserLogin<T>(HttpContext context, IUserHelper<T> userHelper, string userName,
+        public static DomainUserSession UserLogin(HttpContext context, IUserHelper userHelper, string userName,
             string passWordHashed, UserAuthenticationType authType, bool createPersistentCookie = false)
-            where T : DomainUser, ICopyValues<T>
         {
             // 尝试获取SessionKey
             var sessionProvider = userHelper.ToUserAuthSessionProvider();

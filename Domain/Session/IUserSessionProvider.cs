@@ -9,12 +9,12 @@ namespace TKW.Framework.Domain.Session
         /// <summary>
         /// 获取并激活用户会话
         /// </summary>
-        DomainUserSession<DomainUser> RetrieveAndActiveUserSession(string sessionKey);
+        DomainUserSession RetrieveAndActiveUserSession(string sessionKey);
         /// <summary>
         /// 产生新的 Guest 用户会话
         /// </summary>
         /// <returns></returns>
-        DomainUserSession<DomainUser> NewGuestSession();
+        DomainUserSession NewGuestSession();
         /// <summary>
         /// Guest 或 用户退出登录
         /// </summary>

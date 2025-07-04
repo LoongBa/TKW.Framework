@@ -2,7 +2,7 @@ using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain
 {
-    public interface IUserHelper<T> where T : DomainUser/*, ICopyValues<T>*/
+    public interface IUserHelper
     {
         /// <summary>
         /// 会话 Key 的 KeyName
@@ -11,7 +11,7 @@ namespace TKW.Framework.Domain
         /// <summary>
         /// 获取并激活用户会话
         /// </summary>
-        DomainUserSession<T> RetrieveAndActiveUserSession(string sessionKey);
+        DomainUserSession RetrieveAndActiveUserSession(string sessionKey);
         /// <summary>
         /// 判断用户会话是否存在
         /// </summary>
@@ -20,20 +20,20 @@ namespace TKW.Framework.Domain
         /// 产生新的 Guest 用户会话
         /// </summary>
         /// <returns></returns>
-        DomainUserSession<T> NewGuestSession();
+        DomainUserSession NewGuestSession();
         /// <summary>
         /// Guest 或 用户退出登录
         /// </summary>
         /// <param name="sessionKey"></param>
         void GuestOrUserLogout(string sessionKey);
 
-        UserSessionProvider<T> ToUserAuthSessionProvider();
+        UserSessionProvider ToUserAuthSessionProvider();
 
         /// <summary>
         /// 用户登录
         /// </summary>
         /// <exception cref="SessionException">Condition.</exception>
-        DomainUserSession<T> UserLogin(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null);
+        DomainUserSession UserLogin(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null);
 
     }
 }

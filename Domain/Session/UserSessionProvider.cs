@@ -6,26 +6,25 @@ namespace TKW.Framework.Domain.Session {
     /// </summary>
     /// <remarks>适用于某些特殊场景如：MvcAuthorizeRequiredAttribute</remarks>
     /// <see cref="TKW.Framework.Web.Mvc.Attributes.MvcAuthorizeRequiredAttribute"/>
-    public sealed class UserSessionProvider<T> : IUserSessionProvider
-        where T : DomainUser/*, ICopyValues<T>*/
+    public sealed class UserSessionProvider : IUserSessionProvider
     {
-        private readonly IUserHelper<T> _UserHelper;
+        private readonly IUserHelper _UserHelper;
 
         /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
-        public UserSessionProvider(IUserHelper<T> userHelper)
+        public UserSessionProvider(IUserHelper userHelper)
         {
             _UserHelper = userHelper ?? throw new ArgumentNullException(nameof(userHelper));
         }
 
         public string SessionKey_KeyName => _UserHelper.SessionKey_KeyName;
 
-        public DomainUserSession<DomainUser> RetrieveAndActiveUserSession(string sessionKey)
+        public DomainUserSession RetrieveAndActiveUserSession(string sessionKey)
         {
             var session = _UserHelper.RetrieveAndActiveUserSession(sessionKey);
             return session.ToUserSession();
         }
 
-        public DomainUserSession<DomainUser> NewGuestSession()
+        public DomainUserSession NewGuestSession()
         {
             var session = _UserHelper.NewGuestSession();
             return session.ToUserSession();

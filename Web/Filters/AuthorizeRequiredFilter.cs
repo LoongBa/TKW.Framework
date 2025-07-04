@@ -24,7 +24,7 @@ namespace TKW.Framework.Web.Filters
             if (context == null) throw new ArgumentNullException(nameof(context));
 
             #region 尝试恢复会话
-            DomainUserSession<DomainUser> domainUserSession = null;
+            DomainUserSession domainUserSession = null;
 
             // 尝试获得 SessionKey
             var sessionKey = WebTools.GetValueFromSessionOrCookieOrHeaderOrQueryString(SessionkeyName, context.HttpContext);
@@ -105,10 +105,10 @@ namespace TKW.Framework.Web.Filters
         }
 
         #endregion
-        private readonly Func<string, DomainUserSession<DomainUser>> _ResumeUserSessionDelegate;
+        private readonly Func<string, DomainUserSession> _ResumeUserSessionDelegate;
 
-        private readonly Func<DomainUserSession<DomainUser>> _CreateNewUserSessionDelegate;
-        private readonly Func<DomainUserSession<DomainUser>, WebDomainUser> _WebUserConvertor;
+        private readonly Func<DomainUserSession> _CreateNewUserSessionDelegate;
+        private readonly Func<DomainUserSession, WebDomainUser> _WebUserConvertor;
         public bool Return401Code { get; }
         public string SessionkeyName { get; }
 
@@ -118,7 +118,7 @@ namespace TKW.Framework.Web.Filters
         /// <param name="resumeUserSessionDelegate">恢复会话的委托</param>
         /// <param name="sessionkeyName">约定的SessionKey名称</param>
         /// <param name="return401Code">授权检查失败是否返回401错误（否则抛出异常 WebAuthenticationException）</param>
-        public AuthorizeRequiredFilter(Func<string, DomainUserSession<DomainUser>> resumeUserSessionDelegate, string sessionkeyName = "X-SessionKey", bool return401Code = false)
+        public AuthorizeRequiredFilter(Func<string, DomainUserSession> resumeUserSessionDelegate, string sessionkeyName = "X-SessionKey", bool return401Code = false)
             : this(resumeUserSessionDelegate, null, sessionkeyName, return401Code)
         {
         }
@@ -133,11 +133,11 @@ namespace TKW.Framework.Web.Filters
         /// <param name="webUserConvertor"></param>
         /// <exception cref="ArgumentNullException"><paramref name="resumeUserSessionDelegate"/> is <see langword="null"/></exception>
         /// <exception cref="ArgumentException">Argument is null or whitespace</exception>
-        public AuthorizeRequiredFilter(Func<string, DomainUserSession<DomainUser>> resumeUserSessionDelegate,
-            Func<DomainUserSession<DomainUser>> createNewUserSessionDelegate,
+        public AuthorizeRequiredFilter(Func<string, DomainUserSession> resumeUserSessionDelegate,
+            Func<DomainUserSession> createNewUserSessionDelegate,
             string sessionkeyName = "X-SessionKey",
             bool return401Code = false,
-            Func<DomainUserSession<DomainUser>, WebDomainUser> webUserConvertor = null)
+            Func<DomainUserSession, WebDomainUser> webUserConvertor = null)
         {
             Return401Code = return401Code;
             if (string.IsNullOrWhiteSpace(sessionkeyName))
@@ -157,7 +157,7 @@ namespace TKW.Framework.Web.Filters
         /// <param name="return401Code"></param>
         /// <param name="webUserConvertor"></param>
         /// <exception cref="ArgumentNullException"><paramref name="userSessionProvider"/> is <see langword="null"/></exception>
-        public AuthorizeRequiredFilter(IUserSessionProvider userSessionProvider, bool return401Code = false, Func<DomainUserSession<DomainUser>, WebDomainUser> webUserConvertor = null)
+        public AuthorizeRequiredFilter(IUserSessionProvider userSessionProvider, bool return401Code = false, Func<DomainUserSession, WebDomainUser> webUserConvertor = null)
         {
             Return401Code = return401Code;
             if (userSessionProvider == null) throw new ArgumentNullException(nameof(userSessionProvider));

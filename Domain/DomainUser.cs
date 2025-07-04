@@ -15,6 +15,11 @@ namespace TKW.Framework.Domain
         public UserAuthenticationType AuthenticationType { get; protected set; } = UserAuthenticationType.Unset;
         public UserPermissionSet Permissions { get; } = new();
 
+        /// <summary>
+        /// 领域中的用户信息（改为不用泛型，需自行检查、装箱拆箱）
+        /// </summary>
+        public IDomainUser UserInfo { get; set; }
+
         protected DomainUser(Func<DomainHost> domainHostFactory) : this()
         {
             DomainHostFactory = domainHostFactory.AssertNotNull(name: nameof(domainHostFactory));
@@ -89,5 +94,9 @@ namespace TKW.Framework.Domain
         public string SessionKey { get; set; } = string.Empty;
 
         #endregion
+    }
+
+    public interface IDomainUser
+    {
     }
 }

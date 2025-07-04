@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
-using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain
@@ -34,17 +33,16 @@ namespace TKW.Framework.Domain
 
         #region 会话二级缓存
 
-        public static IRegistrationBuilder<ISessionCache, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+        /*public static IRegistrationBuilder<ISessionCache, ConcreteReflectionActivatorData, SingleRegistrationStyle>
             UseSessionManager(this ContainerBuilder left)
         {
             return left.RegisterType<ISessionCache>().SingleInstance().As<ISessionCache>();
-        }
+        }*/
 
         public static IRegistrationBuilder<ISessionCache, SimpleActivatorData, SingleRegistrationStyle>
-            UseSessionManager<TDomainUser>(this ContainerBuilder left)
-        where TDomainUser : DomainUser
+            UseSessionManager(this ContainerBuilder left)
         {
-            var sessionManager = new SessionManager<TDomainUser>();
+            var sessionManager = new SessionManager();
             return left.RegisterInstance(sessionManager).As<ISessionCache>();
         }
 
@@ -57,9 +55,8 @@ namespace TKW.Framework.Domain
 
         #endregion
         public static IServiceCollection
-            AddDomainSessionHelper<TSessionHelper, TUser>(this IServiceCollection services, TSessionHelper sessionHelper)
-            where TSessionHelper : DomainHelperBase<TUser>
-            where TUser : DomainUser, ICopyValues<TUser>, new()
+            AddDomainSessionHelper<TSessionHelper>(this IServiceCollection services, TSessionHelper sessionHelper)
+            where TSessionHelper : DomainHelperBase
         {
             return services.AddSingleton(sessionHelper);
         }

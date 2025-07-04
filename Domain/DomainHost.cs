@@ -33,12 +33,12 @@ namespace TKW.Framework.Domain
         /// <param name="configureServices">配置服务的委托</param>
         /// <param name="upLevelServices">上级服务集合</param>
         /// <returns>DomainHost实例</returns>
-        public static DomainHost Initial<TUser, TUserHelper>(
+        public static DomainHost Initial<TUserHelper>(
             Func<ContainerBuilder, IServiceCollection, ConfigurationBuilder,
-            IServiceCollection, DomainHelperBase<TUser>> configureServices,
+            IServiceCollection, DomainHelperBase> configureServices,
             IServiceCollection upLevelServices = null)
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+
+            where TUserHelper : DomainHelperBase
         {
             // 确保不能重复初始化
             if (Root != null) throw new InvalidOperationException("不能重复初始化");
@@ -114,12 +114,10 @@ namespace TKW.Framework.Domain
         /// <summary>
         /// 获取用户助手实例
         /// </summary>
-        /// <typeparam name="TUser">用户类型</typeparam>
         /// <typeparam name="TUserHelper">用户助手类型</typeparam>
         /// <returns>用户助手实例</returns>
-        public TUserHelper UserHelper<TUser, TUserHelper>()
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public TUserHelper UserHelper<TUserHelper>()
+            where TUserHelper : DomainHelperBase
         {
             return Container.Resolve<TUserHelper>();
         }
@@ -211,12 +209,11 @@ namespace TKW.Framework.Domain
         /// <typeparam name="TUser">领域用户类型</typeparam>
         /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
         /// <param name="sessionKey">Session Key</param>
-        private TAopContract UseAop<TAopContract, TUser, TUserHelper>(string sessionKey)
+        private TAopContract UseAop<TAopContract, TUserHelper>(string sessionKey)
             where TAopContract : IAopContract
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+            where TUserHelper : DomainHelperBase
         {
-            var user = GetDomainUser<TUser, TUserHelper>(sessionKey);
+            var user = GetDomainUser<TUserHelper>(sessionKey);
 
             // 获取控制器实例，并传递参数：领域用户
             return Container.Resolve<TAopContract>(TypedParameter.From(user));
@@ -226,28 +223,25 @@ namespace TKW.Framework.Domain
         /// 使用控制器实例
         /// </summary>
         /// <typeparam name="TAopContract">控制器契约类型</typeparam>
-        /// <typeparam name="TUser">领域用户类型</typeparam>
         /// <typeparam name="TUserHelper">领域用户助手类型</typeparam>
         /// <param name="user">领域用户</param>
-        internal TAopContract UseAop<TAopContract, TUser, TUserHelper>(TUser user)
+        internal TAopContract UseAop<TAopContract, TUserHelper>(DomainUser user)
             where TAopContract : IAopContract
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+            where TUserHelper : DomainHelperBase
         {
             var sessionKey = user.AssertNotNull().SessionKey;
-            return UseAop<TAopContract, TUser, TUserHelper>(sessionKey);
+            return UseAop<TAopContract, TUserHelper>(sessionKey);
         }
 
         #region 为方便使用的方法
 
-        public DomainUser GetDomainUser<TUser, TUserHelper>(string sessionKey)
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public DomainUser GetDomainUser<TUserHelper>(string sessionKey)
+            where TUserHelper : DomainHelperBase
         {
             DomainUser user;
-            if (sessionKey.HasValue() && UserHelper<TUser, TUserHelper>().ContainsSession(sessionKey))
+            if (sessionKey.HasValue() && UserHelper<TUserHelper>().ContainsSession(sessionKey))
                 // 根据 SessionKey 获取领域用户
-                user = UserHelper<TUser, TUserHelper>()
+                user = UserHelper<TUserHelper>()
                     .RetrieveAndActiveUserSession(sessionKey.EnsureHasValue().TrimSelf()).User;
             else
                 // 无效的 SessionKey
@@ -255,32 +249,31 @@ namespace TKW.Framework.Domain
             return user;
         }
 
-        public DomainUserSession<TUser> UserLogin<TUser, TUserHelper>(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null)
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public DomainUserSession UserLogin<TUserHelper>(string userName, string passWordHashed, UserAuthenticationType authType, string existsSessionKey = null)
+            where TUserHelper : DomainHelperBase
         {
             // 调用用户登录方法
-            return UserHelper<TUser, TUserHelper>().UserLogin(userName, passWordHashed, authType, existsSessionKey);
+            return UserHelper<TUserHelper>().UserLogin(userName, passWordHashed, authType, existsSessionKey);
         }
 
-        public void GuestOrUserLogout<TUser, TUserHelper>(string sessionKey)
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public void GuestOrUserLogout<TUserHelper>(string sessionKey)
+
+            where TUserHelper : DomainHelperBase
         {
-            UserHelper<TUser, TUserHelper>().GuestOrUserLogout(sessionKey);
+            UserHelper<TUserHelper>().GuestOrUserLogout(sessionKey);
         }
 
-        public DomainUserSession<TUser> NewGuestSession<TUser, TUserHelper>()
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public DomainUserSession NewGuestSession<TUserHelper>()
+
+            where TUserHelper : DomainHelperBase
         {
-            return UserHelper<TUser, TUserHelper>().NewGuestSession();
+            return UserHelper<TUserHelper>().NewGuestSession();
         }
-        public DomainUserSession<TUser> RetrieveAndActiveUserSession<TUser, TUserHelper>(string sessionKey)
-            where TUser : DomainUser, new()
-            where TUserHelper : DomainHelperBase<TUser>
+        public DomainUserSession RetrieveAndActiveUserSession<TUserHelper>(string sessionKey)
+
+            where TUserHelper : DomainHelperBase
         {
-            return UserHelper<TUser, TUserHelper>().RetrieveAndActiveUserSession(sessionKey);
+            return UserHelper<TUserHelper>().RetrieveAndActiveUserSession(sessionKey);
         }
 
         #endregion

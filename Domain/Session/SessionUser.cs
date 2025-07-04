@@ -35,10 +35,10 @@ namespace TKW.Framework.Domain.Session
             SessionKey = sessionKey;
         }
 
-        public SessionUser(string sessionKey, IUserHelper<T> userHelper) : this(userHelper.RetrieveAndActiveUserSession(sessionKey), userHelper.SessionKey_KeyName) { }
-        public SessionUser(DomainUserSession<T> domainUserSession, IUserHelper<T> userHelper) : this(domainUserSession, userHelper.SessionKey_KeyName) { }
+        public SessionUser(string sessionKey, IUserHelper userHelper) : this(userHelper.RetrieveAndActiveUserSession(sessionKey), userHelper.SessionKey_KeyName) { }
+        public SessionUser(DomainUserSession domainUserSession, IUserHelper userHelper) : this(domainUserSession, userHelper.SessionKey_KeyName) { }
 
-        public SessionUser(DomainUserSession<T> domainUserSession, string sessionKeyName)
+        public SessionUser(DomainUserSession domainUserSession, string sessionKeyName)
         {
             domainUserSession.AssertNotNull(name: nameof(domainUserSession));
             Username = domainUserSession.User.Identity.Name;

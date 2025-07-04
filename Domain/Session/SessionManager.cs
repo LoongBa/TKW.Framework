@@ -6,11 +6,11 @@ using TKW.Framework.Common.Extensions;
 
 namespace TKW.Framework.Domain.Session
 {
-    public class SessionManager<TUser> : ISessionCache where TUser : DomainUser /*ICopyValues<T>*/
+    public class SessionManager : ISessionCache 
     {
-        public event SessionCreated<TUser> SessionCreated;
-        public event SessionAbandon<TUser> SessionAbandon;
-        public event SessionRemoved<TUser> SessionTimeout;
+        public event SessionCreated SessionCreated;
+        public event SessionAbandon SessionAbandon;
+        public event SessionRemoved SessionTimeout;
         private readonly IMemoryCache _MemoryCache;
         private readonly string _CacheKeySalt;
         public const uint _SecondsCheckingIntervalDefault_ = 3;
@@ -39,7 +39,7 @@ namespace TKW.Framework.Domain.Session
         public string SessionKey_KeyName { get; }
 
         /// <exception cref="SessionException"></exception>
-        public CommonSession<TUser> AbandonSession(string sessionKey)
+        public CommonSession AbandonSession(string sessionKey)
         {
             if (!sessionKey.HasValue())
                 throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
@@ -49,7 +49,7 @@ namespace TKW.Framework.Domain.Session
 
             _MemoryCache.Remove(sessionKey);
 
-            var session = sessionValue as CommonSession<TUser>;
+            var session = sessionValue as CommonSession;
             OnSessionAbandon(sessionKey, session);
             return session;
         }
@@ -59,7 +59,7 @@ namespace TKW.Framework.Domain.Session
         /// </summary>
         /// <param name="sessionKey"></param>
         /// <exception></exception>
-        public CommonSession<TUser> ActiveSession(string sessionKey)
+        public CommonSession ActiveSession(string sessionKey)
         {
             if (!sessionKey.HasValue())
                 throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
@@ -67,7 +67,7 @@ namespace TKW.Framework.Domain.Session
             if (!_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
                 throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
 
-            var session = (CommonSession<TUser>)sessionValue;
+            var session = (CommonSession)sessionValue;
             return session?.Active();
         }
 
@@ -81,15 +81,15 @@ namespace TKW.Framework.Domain.Session
 
         /// <exception cref="SessionException"></exception>
         /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession<TUser> CreateSession(TUser value)
+        public CommonSession CreateSession(DomainUser value)
         {
             return CreateSession(value, null);
         }
 
-        private CommonSession<TUser> CreateSession(TUser value, string sessionKey)
+        private CommonSession CreateSession(DomainUser value, string sessionKey)
         {
             sessionKey ??= GenerateNewCacheKey(Guid.NewGuid().ToString());
-            var session = new CommonSession<TUser>(sessionKey, value);
+            var session = new CommonSession(sessionKey, value);
             if (_MemoryCache.TryGetValue(sessionKey, out _))
                 throw new SessionException(sessionKey, SessionExceptionType.DuplicatedSessionKey);
             OnSessionCreated(session.Key, session);
@@ -104,34 +104,34 @@ namespace TKW.Framework.Domain.Session
         /// <exception cref="SessionException"></exception>
         /// <exception cref="Exception">A delegate callback throws an exception.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Condition.</exception>
-        public CommonSession<TUser> GetSession(string sessionKey)
+        public CommonSession GetSession(string sessionKey)
         {
             if (!sessionKey.HasValue())
                 throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
             if (_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                return sessionValue as CommonSession<TUser>;
+                return sessionValue as CommonSession;
 
             throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
         }
 
         /// <exception cref="SessionException"></exception>
         /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession<TUser> GetOrCreateSession(string sessionKey, TUser value)
+        public CommonSession GetOrCreateSession(string sessionKey, DomainUser value)
         {
             if (!sessionKey.HasValue())
                 throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
             //TODO: 尝试从二级缓存获取会话
             if (_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                return sessionValue as CommonSession<TUser>;
+                return sessionValue as CommonSession;
 
             return CreateSession(value, sessionKey);
         }
 
         /// <exception cref="SessionException">Condition.</exception>
         /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession<TUser> GetAndActiveSession(string sessionKey)
+        public CommonSession GetAndActiveSession(string sessionKey)
         {
             return ActiveSession(sessionKey);
         }
@@ -141,7 +141,7 @@ namespace TKW.Framework.Domain.Session
         /// </summary>
         /// <remarks>注意：仅复制传入 value 的属性值（调用 ICacheValue.CopyValuesFrom() 方法）</remarks>
         /// <exception cref="SessionException"></exception>
-        public CommonSession<TUser> UpdateSessionValue(string sessionKey, TUser value)
+        public CommonSession UpdateSessionValue(string sessionKey, DomainUser value)
         {
             if (!sessionKey.HasValue())
                 throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
@@ -152,7 +152,7 @@ namespace TKW.Framework.Domain.Session
             if (!_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
                 throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
 
-            var session = (CommonSession<TUser>)sessionValue;
+            var session = (CommonSession)sessionValue;
             session?.UpdateValue(value);
             session?.Active();
             return session;
@@ -160,21 +160,21 @@ namespace TKW.Framework.Domain.Session
 
         private void PostEvictionCallback(object key, object value, EvictionReason reason, object state)
         {
-            OnSessionTimeout((string)key, (CommonSession<TUser>)value, reason, state);
+            OnSessionTimeout((string)key, (CommonSession)value, reason, state);
         }
 
-        protected virtual void OnSessionCreated(string sessionKey, CommonSession<TUser> session)
+        protected virtual void OnSessionCreated(string sessionKey, CommonSession session)
         {
             //TODO: 加上二级、分布式会话机制
             SessionCreated?.Invoke(sessionKey, session);
         }
-        protected virtual void OnSessionAbandon(string sessionKey, CommonSession<TUser> session)
+        protected virtual void OnSessionAbandon(string sessionKey, CommonSession session)
         {
             //TODO: 加上二级、分布式会话机制
             SessionAbandon?.Invoke(sessionKey, session);
         }
 
-        protected virtual void OnSessionTimeout(string sessionKey, CommonSession<TUser> session, EvictionReason reason, object state)
+        protected virtual void OnSessionTimeout(string sessionKey, CommonSession session, EvictionReason reason, object state)
         {
             //TODO: 加上二级、分布式会话机制
             SessionTimeout?.Invoke(sessionKey, session, reason, state);

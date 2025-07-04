@@ -20,8 +20,8 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 添加领域（将领域实例注入到容器）
         /// </summary>
-        public static IServiceCollection AddDomain<T>(this IServiceCollection left, DomainHelperBase<T> domainHelper)
-            where T : DomainUser, ICopyValues<T>, new()
+        public static IServiceCollection AddDomainHelper<TDomainHelper>(this IServiceCollection left, TDomainHelper domainHelper)
+        where TDomainHelper : DomainHelperBase
         {
             return left.AddSingleton(domainHelper);
         }

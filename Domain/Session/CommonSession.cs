@@ -3,21 +3,21 @@ using TKW.Framework.Common.Extensions;
 
 namespace TKW.Framework.Domain.Session
 {
-    public class CommonSession<T>
+    public class CommonSession
     {
         /// <summary>
         /// 初始化 <see cref="T:ISessionValue"/> 类的新实例。
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
-        public CommonSession(string key, T value)
+        public CommonSession(string key, DomainUser value)
         {
             Key = key.HasValue() ? key : Guid.NewGuid().ToString();
             Value = value;
             TimeLastActived = TimeCreated = DateTime.Now;
         }
 
-        public CommonSession(T value) : this(null, value) { }
+        public CommonSession(DomainUser value) : this(null, value) { }
 
         /// <summary>
         /// 缓存项的 Key
@@ -27,7 +27,7 @@ namespace TKW.Framework.Domain.Session
         /// <summary>
         /// 缓存的值
         /// </summary>
-        public T Value { get; internal set; }
+        public DomainUser Value { get; internal set; }
 
         /// <summary>
         /// 创建时间
@@ -44,33 +44,32 @@ namespace TKW.Framework.Domain.Session
         /// </summary>
         public TimeSpan Idle => DateTime.Now - TimeLastActived;
 
-        internal CommonSession<T> Active()
+        internal CommonSession Active()
         {
             TimeLastActived = DateTime.Now;
             return this;
         }
 
-        internal void UpdateValue(T value)
+        internal void UpdateValue(DomainUser value)
         {
             value.AssertNotNull(name: nameof(value));
             Value = value;
         }
 
         /// <exception cref="InvalidCastException"></exception>
-        public DomainUserSession<TUserBase> ToUserSession<TUserBase>()
-            where TUserBase : DomainUser
+        public DomainUserSession ToUserSession()
         {
             Value.AssertNotNull(name: nameof(Value));
             var user = Value as DomainUser;
             if (user == null)
-                throw new InvalidCastException($"指定的类型并非 DomainUser 派生类：{nameof(TUserBase)}");
+                throw new InvalidCastException($"指定的类型并非 DomainUser 派生类：{nameof(DomainUser)}");
             user.SessionKey = Key;
-            return new DomainUserSession<TUserBase>(Key, user as TUserBase);
+            return new DomainUserSession(Key, user as DomainUser);
         }
 
-        public static CommonSession<T> New(T value)
+        public static CommonSession New(DomainUser value)
         {
-            return new CommonSession<T>(value);
+            return new CommonSession(value);
         }
     }
 }
