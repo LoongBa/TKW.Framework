@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <!-- Roslyn 4.x 核心包（兼容 .NET Standard 2.0） -->
+    <PackageReference Include="Microsoft.CodeAnalysis" Version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.9.2" />
+    
+    <!-- 模板引擎 -->
+    <PackageReference Include="RazorLight" Version="2.3.0" />
+    
+    <!-- JSON 处理 -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    
+    <!-- MSBuild 依赖 -->
+    <PackageReference Include="Microsoft.Build" Version="17.8.3" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.8.3" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="17.8.3" />
+  </ItemGroup>
+</Project>
+    

@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>xCodeGen</RootNamespace>
+    <Nullable>disable</Nullable>
+    <!-- 禁用可空引用类型（C# 8.0+ 特性） -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>xCodeGen.Core</AssemblyName>
+    <RootNamespace>xCodeGen.Core</RootNamespace>
+    <GeneratorCacheDir>$(BaseIntermediateOutputPath)/GeneratorCache</GeneratorCacheDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="RazorLight" Version="2.3.1" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\xCodeGen.Abstractions\xCodeGen.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

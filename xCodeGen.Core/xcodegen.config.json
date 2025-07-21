@@ -1,0 +1,26 @@
+{
+  "TargetProject": "src/MyProject/MyProject.csproj",
+  "OutputRoot": "src/MyProject/Generated",
+  "Debug": {
+    "Enabled": true,
+    "Directory": "_Debug"
+  },
+  "TemplateMappings": {
+    "Dto": {
+      "Default": "Templates/Artifact/Dto.cshtml"
+    },
+    "Validator": {
+      "Default": "Templates/Artifact/Validator.cshtml"
+    }
+  },
+  "OutputDirectories": {
+    "Dto": "Dtos",
+    "Validator": "Validators"
+  },
+  "EnabledUtilities": [
+    "Utilities.NamingUtility",
+    "Utilities.TypeUtility",
+    "Utilities.ValidationUtility"
+  ]
+}
+    
