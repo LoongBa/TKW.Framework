@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Xml;
 using Newtonsoft.Json;
 using Formatting = Newtonsoft.Json.Formatting;
 
-namespace xCodeGen.Configuration
+namespace xCodeGen.Core.Configuration
 {
     /// <summary>
     /// 生成器配置

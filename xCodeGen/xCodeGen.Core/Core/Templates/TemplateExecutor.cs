@@ -2,11 +2,10 @@ using System;
 using System.IO;
 using RazorLight;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Configuration;
-using xCodeGen.Utilities;
-using System.Collections.Generic;
+using xCodeGen.Core.Configuration;
+using xCodeGen.Core.Utilities;
 
-namespace xCodeGen.Core.Templates
+namespace xCodeGen.Core.Core.Templates
 {
     public class TemplateInput
     {

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace xCodeGen.Utilities
+namespace xCodeGen.Core.Utilities
 {
     /// <summary>
     /// 类型处理工具

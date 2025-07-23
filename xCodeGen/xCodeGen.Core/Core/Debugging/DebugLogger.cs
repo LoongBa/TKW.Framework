@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using System.Text;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Configuration;
+using xCodeGen.Core.Configuration;
 
-namespace xCodeGen.Core.Debugging
+namespace xCodeGen.Core.Core.Debugging
 {
     public class DebugLogger
     {

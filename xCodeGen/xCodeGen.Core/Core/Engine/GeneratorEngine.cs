@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Configuration;
-using xCodeGen.Core.Debugging;
-using xCodeGen.Core.Extraction;
-using xCodeGen.Core.Templates;
+using xCodeGen.Core.Configuration;
+using xCodeGen.Core.Core.Debugging;
+using xCodeGen.Core.Core.Extraction;
+using xCodeGen.Core.Core.Templates;
 
-namespace xCodeGen.Core.Engine
+namespace xCodeGen.Core.Core.Engine
 {
     public class GeneratorEngine
     {

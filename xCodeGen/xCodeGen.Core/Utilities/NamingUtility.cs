@@ -1,7 +1,7 @@
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace xCodeGen.Utilities
+namespace xCodeGen.Core.Utilities
 {
     /// <summary>
     /// 命名转换工具

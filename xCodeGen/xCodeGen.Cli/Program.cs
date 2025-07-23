@@ -1,5 +1,5 @@
-﻿using xCodeGen.Configuration;
-using xCodeGen.Core.Engine;
+﻿using xCodeGen.Core.Configuration;
+using xCodeGen.Core.Core.Engine;
 
 namespace xCodeGen.Cli;
 
@@ -7,10 +7,11 @@ class Program
 {
     static void Main(string[] args)
     {
+        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具");
+        Console.WriteLine("-----------------------------------");
+        return;
         try
         {
-            Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具");
-            Console.WriteLine("-----------------------------------");
 
             // 获取配置文件路径（默认使用当前目录下的xcodegen.config.json）
             string configPath = args.Length > 0 ? args[0] : "xcodegen.config.json";

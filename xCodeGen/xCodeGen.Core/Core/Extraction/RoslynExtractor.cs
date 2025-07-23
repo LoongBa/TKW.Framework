@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Metadata;
 
-namespace xCodeGen.Core.Extraction
+namespace xCodeGen.Core.Core.Extraction
 {
     public interface IMetadataExtractor
     {

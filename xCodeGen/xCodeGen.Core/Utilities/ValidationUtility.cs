@@ -1,6 +1,6 @@
 using xCodeGen.Abstractions.Metadata;
 
-namespace xCodeGen.Utilities
+namespace xCodeGen.Core.Utilities
 {
     /// <summary>
     /// 验证规则生成工具

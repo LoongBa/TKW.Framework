@@ -8,6 +8,7 @@ namespace xCodeGen.Abstractions.Attributes
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false)]
     public class GenerateArtifactAttribute : Attribute
     {
+        public static string TypeFullName => typeof(GenerateArtifactAttribute).FullName;
         /// <summary>
         /// 产物类型（用于匹配模板）
         /// </summary>

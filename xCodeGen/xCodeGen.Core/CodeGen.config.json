@@ -1,0 +1,15 @@
+{
+  "OutputBasePath": "Generated",
+  "TemplatesPath": "Templates",
+  "DebugMode": true,
+  "NamingRules": [
+    {
+      "ArtifactType": "Dto",
+      "Pattern": "{Name}Dto"  // 命名规则：源类名+Dto（如User→UserDto）
+    },
+    {
+      "ArtifactType": "ViewModel",
+      "Pattern": "{Name}ViewModel"
+    }
+  ]
+}
