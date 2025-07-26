@@ -10,8 +10,4 @@
     <EnableIncrementalBuild>true</EnableIncrementalBuild>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\xCodeGen.Core\xCodeGen.Core.csproj" />
-  </ItemGroup>
-
 </Project>

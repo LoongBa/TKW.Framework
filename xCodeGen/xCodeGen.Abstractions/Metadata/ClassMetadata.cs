@@ -28,11 +28,6 @@ namespace xCodeGen.Abstractions.Metadata
         /// 类中包含的方法元数据
         /// </summary>
         public List<MethodMetadata> Methods { get; set; } = new List<MethodMetadata>();
-
-        /// <summary>
-        /// 类上的生成特性
-        /// </summary>
-        public GenerateArtifactAttribute GenerateArtifactAttribute { get; set; }
     }
     /// <summary>
     /// 提取的元数据（类集合）
@@ -68,11 +63,6 @@ namespace xCodeGen.Abstractions.Metadata
         /// 方法参数元数据
         /// </summary>
         public List<ParameterMetadata> Parameters { get; set; } = new List<ParameterMetadata>();
-
-        /// <summary>
-        /// 方法上的生成特性
-        /// </summary>
-        public GenerateArtifactAttribute GenerateArtifactAttribute { get; set; }
 
         /// <summary>
         /// 方法的唯一签名（用于处理重载）

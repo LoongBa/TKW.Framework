@@ -6,31 +6,37 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using xCodeGen.Abstractions.Attributes;
-using xCodeGen.Abstractions.Metadata;
 
 namespace xCodeGen.SourceGenerator
 {
     [Generator]
-    public class MetaDataExtractor : IIncrementalGenerator
+    public class SourceMetaDataExtractor : IIncrementalGenerator
     {
-        public MetaDataExtractor()
+        public SourceMetaDataExtractor()
         {
+            // Debugger.Launch(); // 仅本地调试时使用
         }
 
-        private static readonly string GenerateArtifactAttributeFullName = GenerateArtifactAttribute.TypeFullName;
+        //private static readonly string GenerateArtifactAttributeFullName = GenerateArtifactAttribute.TypeFullName;
+        private static readonly string GenerateArtifactAttributeFullName = "xCodeGen.Abstractions.Attributes.GenerateArtifactAttribute";
         private readonly List<string> _debugLogs = new List<string>();
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            LogDebug("⏱️ 开始初始化代码生成器");
+            var message = "⏱️ 开始初始化代码生成器";
+            var debugLogFileName = "log.cs";
+            context.RegisterPostInitializationOutput(
+                ctx => ctx.AddSource(debugLogFileName, SourceText.From($"// [{DateTime.Now}] {message}", Encoding.UTF8))
+            );
+            LogDebug(message);
+
             // 1. 筛选带有特性的类声明
             var candidateClasses = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: (node, _) => IsCandidateClass(node),
-                    transform: (ctx, _) => GetClassSymbolWithDebug(ctx)
+                    transform: (ctx, _) => ExtractGenerationInfo(ctx)
                 )
-                .Where(symbol => symbol != null);
+                .Where(info => info != null);
 
             LogDebug("✅ 已创建类筛选数据流");
 
@@ -43,16 +49,17 @@ namespace xCodeGen.SourceGenerator
 
             LogDebug("✅ 已组合编译上下文和类数据");
 
+
             // 4. 注册代码生成输出
-            context.RegisterSourceOutput(compilationWithClasses, (spc, data) =>
+            /*context.RegisterSourceOutput(compilationWithClasses, (spc, data) =>
             {
-                LogDebug(spc, "⚛️ 进入代码生成阶段");
+                LogDebug(spc, "⚛️ 进入代码生成阶段：");
                 try
                 {
                     var compilation = data.Left;
                     var classes = data.Right;
 
-                    LogDebug(spc, $"⏱️ 开始处理 {classes.Length} 个类");
+                    LogDebug(spc, $"⏱️ 开始生成 {classes.Length} 个类");
 
                     // 处理每个类
                     foreach (var classSymbol in classes)
@@ -69,7 +76,22 @@ namespace xCodeGen.SourceGenerator
                     LogDebug(spc, $"⚠️ 生成过程异常: {ex.Message}\n{ex.StackTrace}");
                     ReportError(spc, $"⚠️ 生成器执行失败: {ex.Message}");
                 }
+            });*/
+#if DEBUG
+            //Debugger.Launch(); // 仅在调试时使用
+            Debugger.Break();
+#endif
+            context.RegisterSourceOutput(candidateClasses.Collect(), (spc, classes) =>
+            {
+                LogDebug(spc, "⚛️ 进入代码生成阶段：");
+                foreach (var info in classes)
+                {
+                    GenerateCode(spc, info.Metadata, info.ArtifactType, info.TemplateName, info.Overwrite);
+                }
+                LogDebug(spc, "💯 代码生成过程完成");
+                GenerateDebugLogFile(spc);
             });
+
 
             LogDebug("✅ 初始化完成，等待生成触发");
         }
@@ -91,12 +113,29 @@ namespace xCodeGen.SourceGenerator
                 // 提取类元数据
                 var classMetadata = ExtractClassMetadata(classSymbol);
                 LogDebug(context, $"✅ 已提取 {classSymbol.Name} 的元数据，包含 {classMetadata.Methods.Count} 个方法");
+                foreach (var method in classMetadata.Methods)
+                    LogDebug(context, $"\t{method.ReturnType} {method.Name}()");
 
                 // 获取特性参数
-                var artifactType = GetAttributeValue(generateAttribute, nameof(GenerateArtifactAttribute.ArtifactType));
-                var templateName = GetAttributeValue(generateAttribute, nameof(GenerateArtifactAttribute.TemplateName)) ?? "Default";
-                var overwrite = GetAttributeBoolValue(generateAttribute, nameof(GenerateArtifactAttribute.Overwrite)) ?? false;
+                string artifactType = null;
+                var templateName = "Default";
+                var overwrite = false;
 
+                foreach (var arg in generateAttribute.NamedArguments)
+                {
+                    switch (arg.Key)
+                    {
+                        case "ArtifactType":
+                            artifactType = arg.Value.Value?.ToString();
+                            break;
+                        case "TemplateName":
+                            templateName = arg.Value.Value?.ToString() ?? "Default";
+                            break;
+                        case "Overwrite":
+                            overwrite = arg.Value.Value is bool b && b;
+                            break;
+                    }
+                }
                 LogDebug(context, $"☣️ 特性参数 - ArtifactType: {artifactType}, TemplateName: {templateName}, Overwrite: {overwrite}");
 
                 if (string.IsNullOrEmpty(artifactType))
@@ -110,9 +149,52 @@ namespace xCodeGen.SourceGenerator
             }
             catch (Exception ex)
             {
-                LogDebug(context, $"⚠️ 处理 {classSymbol.Name} 时出错: {ex.Message}\n{ex.StackTrace}");
-                ReportError(context, $"⚠️ 处理类 {classSymbol.Name} 失败: {ex.Message}");
+                LogDebug(context, $"⚠️ 处理 {classSymbol.Name} 时出错: {ex.Message}\n{ex}\n{ex.StackTrace}");
+                ReportError(context, $"⚠️ 处理类 {classSymbol.Name} 失败: {ex.Message}。{ex}");
             }
+        }
+        private ClassGenerationInfo ExtractGenerationInfo(GeneratorSyntaxContext context)
+        {
+            var classDecl = (ClassDeclarationSyntax)context.Node;
+            var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol;
+
+            // 只用字符串判断特性类型
+            var generateAttribute = classSymbol?.GetAttributes()
+                .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "xCodeGen.Abstractions.Attributes.GenerateArtifactAttribute");
+            if (generateAttribute == null) return null;
+
+            // 只用 AttributeData 提取参数，不依赖类型
+            string artifactType = null;
+            var templateName = "Default";
+            var overwrite = false;
+
+            foreach (var arg in generateAttribute.NamedArguments)
+            {
+                switch (arg.Key)
+                {
+                    case "ArtifactType":
+                        artifactType = arg.Value.Value?.ToString();
+                        break;
+                    case "TemplateName":
+                        templateName = arg.Value.Value?.ToString() ?? "Default";
+                        break;
+                    case "Overwrite":
+                        overwrite = arg.Value.Value is bool b && b;
+                        break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(artifactType)) return null;
+
+            var metadata = ExtractClassMetadata(classSymbol);
+
+            return new ClassGenerationInfo
+            {
+                Metadata = metadata,
+                ArtifactType = artifactType,
+                TemplateName = templateName,
+                Overwrite = overwrite
+            };
         }
 
         private ClassMetadata ExtractClassMetadata(INamedTypeSymbol classSymbol)
@@ -347,5 +429,13 @@ namespace xCodeGen.SourceGenerator
                 SourceText.From(logContent.ToString(), Encoding.UTF8));
         }
         #endregion
+
+        public class ClassGenerationInfo
+        {
+            public ClassMetadata Metadata { get; set; }
+            public string ArtifactType { get; set; }
+            public string TemplateName { get; set; }
+            public bool Overwrite { get; set; }
+        }
     }
 }

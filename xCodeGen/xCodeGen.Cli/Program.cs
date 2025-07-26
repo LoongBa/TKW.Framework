@@ -1,7 +1,4 @@
-﻿using xCodeGen.Core.Configuration;
-using xCodeGen.Core.Core.Engine;
-
-namespace xCodeGen.Cli;
+﻿namespace xCodeGen.Cli;
 
 class Program
 {
@@ -21,13 +18,6 @@ class Program
             {
                 throw new FileNotFoundException("配置文件不存在", configPath);
             }
-
-            // 加载配置
-            GeneratorConfig config = GeneratorConfig.LoadFromFile(configPath);
-
-            // 启动生成器
-            GeneratorEngine engine = new GeneratorEngine(config);
-            engine.Generate();
 
             Console.WriteLine("代码生成完成!");
         }

@@ -9,9 +9,11 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <!-- 增量生成支持（与生成器配合） -->
     <EnableIncrementalBuild>true</EnableIncrementalBuild>
-    <!--<DebugType>portable</DebugType>
+    <!-- 禁用增量编译，仅调试时使用 -->
+    <DisableIncrementalBuild>true</DisableIncrementalBuild>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
-    <Optimize>false</Optimize>-->
+    <Optimize>false</Optimize>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="CodeGenEngine.cs" />
@@ -25,9 +27,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="System.Text.Json" Version="9.0.7" PrivateAssets="all" />
   </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\xCodeGen.Abstractions\xCodeGen.Abstractions.csproj" />
-  </ItemGroup>
-
+  <Target Name="CopyDependencies" AfterTargets="Build">
+    <Copy SourceFiles="..\xCodeGen.Abstractions\bin\Debug\netstandard2.0\xCodeGen.Abstractions.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+  </Target>
 </Project>
