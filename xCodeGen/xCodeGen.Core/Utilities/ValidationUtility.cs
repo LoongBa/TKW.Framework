@@ -10,7 +10,7 @@ namespace xCodeGen.Core.Utilities
         /// <summary>
         /// 生成验证规则代码
         /// </summary>
-        public string GenerateValidationRules(ParameterMetadata param, string propertyName)
+        public static string GenerateValidationRules(ParameterMetadata param, string propertyName)
         {
             if (param == null || string.IsNullOrEmpty(propertyName))
                 return string.Empty;

@@ -1,13 +1,19 @@
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace xCodeGen.Core
+namespace xCodeGen.Core.Configuration
 {
     /// <summary>
     /// 代码生成器配置
     /// </summary>
     public class CodeGenConfig
     {
+        private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = true
+        };
+
         /// <summary>
         /// 输出基础路径
         /// </summary>
@@ -21,7 +27,7 @@ namespace xCodeGen.Core
         /// <summary>
         /// 命名规则集合
         /// </summary>
-        public List<NamingRule> NamingRules { get; set; } = new List<NamingRule>();
+        public List<NamingRule> NamingRules { get; set; } = [];
         
         /// <summary>
         /// 是否启用调试模式
@@ -33,10 +39,7 @@ namespace xCodeGen.Core
         /// </summary>
         public static CodeGenConfig FromJson(string json)
         {
-            return JsonSerializer.Deserialize<CodeGenConfig>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? new CodeGenConfig();
+            return JsonSerializer.Deserialize<CodeGenConfig>(json, _jsonSerializerOptions) ?? new CodeGenConfig();
         }
         
         /// <summary>
@@ -44,10 +47,7 @@ namespace xCodeGen.Core
         /// </summary>
         public string ToJson()
         {
-            return JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            return JsonSerializer.Serialize(this, _jsonSerializerOptions);
         }
     }
     
@@ -62,8 +62,8 @@ namespace xCodeGen.Core
         public string ArtifactType { get; set; }
         
         /// <summary>
-        /// 命名模式，可用占位符: {Name} - 原始名称, {ArtifactType} - 产物类型
+        /// 命名模式，可用占位符: {ClassName} - 原始名称, {ArtifactType} - 产物类型
         /// </summary>
-        public string Pattern { get; set; } = "{Name}{ArtifactType}";
+        public string Pattern { get; set; } = "{ClassName}{ArtifactType}";
     }
 }

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace xCodeGen.SourceGenerator
+namespace xCodeGen.Abstractions.Metadata
 {
     /// <summary>
     /// 方法的元数据
@@ -39,5 +39,10 @@ namespace xCodeGen.SourceGenerator
                 return $"{Name}_{paramTypes}";
             }
         }
+
+        /// <summary>
+        /// 访问修饰符
+        /// </summary>
+        public string AccessModifier { get; set; } = string.Empty;
     }
 }

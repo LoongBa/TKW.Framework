@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace xCodeGen.SourceGenerator
+namespace xCodeGen.Abstractions.Metadata
 {
     /// <summary>
     /// 提取的元数据（类集合）

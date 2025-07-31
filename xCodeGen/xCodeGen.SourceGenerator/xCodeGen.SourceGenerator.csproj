@@ -10,7 +10,7 @@
     <!-- 增量生成支持（与生成器配合） -->
     <EnableIncrementalBuild>true</EnableIncrementalBuild>
     <!-- 禁用增量编译，仅调试时使用 -->
-    <DisableIncrementalBuild>true</DisableIncrementalBuild>
+    <!-- <DisableIncrementalBuild>true</DisableIncrementalBuild> -->
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <Optimize>false</Optimize>
@@ -20,12 +20,32 @@
     <Compile Remove="DtoGenerator.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\xCodeGen.Abstractions\Attributes\GenerateCodeAttribute.cs" Link="Attributes\GenerateCodeAttribute.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Extractors\ExtractorOptions.cs" Link="Extractors\ExtractorOptions.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Extractors\IMetaDataExtractor.cs" Link="Extractors\IMetaDataExtractor.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Extractors\MetadataSources.cs" Link="Extractors\MetadataSources.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\AttributeMetadata.cs" Link="Metadata\AttributeMetadata.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassGenerationInfo.cs" Link="Metadata\ClassGenerationInfo.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassMetadata.cs" Link="Metadata\ClassMetadata.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\ExtractedMetadata.cs" Link="Metadata\ExtractedMetadata.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\IMetadataConverter.cs" Link="Metadata\IMetadataConverter.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\MethodMetadata.cs" Link="Metadata\MethodMetadata.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\ParameterMetadata.cs" Link="Metadata\ParameterMetadata.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\RawMetadata.cs" Link="Metadata\RawMetadata.cs" />
+    <Compile Include="..\xCodeGen.Core\CodeAnalysisHelper.cs" Link="CodeAnalysisHelper.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="System.Text.Json" Version="9.0.7" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Metadata\" />
+    <Folder Include="Attributes\" />
+    <Folder Include="Extractors\" />
   </ItemGroup>
   <Target Name="CopyDependencies" AfterTargets="Build">
     <Copy SourceFiles="..\xCodeGen.Abstractions\bin\Debug\netstandard2.0\xCodeGen.Abstractions.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
