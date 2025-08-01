@@ -29,7 +29,7 @@ namespace xCodeGen.Abstractions.Metadata
         public ICollection<MethodMetadata> Methods { get; set; } = new Collection<MethodMetadata>();
 
         public string Mode { get; set; } = string.Empty;
-        
+
         /// <summary>
         /// 来源类型（Class/Table等）
         /// </summary>
@@ -39,5 +39,15 @@ namespace xCodeGen.Abstractions.Metadata
         /// 模板名称（用于代码生成）
         /// </summary>
         public string TemplateName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 基类全限定名
+        /// </summary>
+        public string BaseType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 实现的接口全限定名列表
+        /// </summary>
+        public ICollection<string> ImplementedInterfaces { get; set; } = new Collection<string>();
     }
 }
