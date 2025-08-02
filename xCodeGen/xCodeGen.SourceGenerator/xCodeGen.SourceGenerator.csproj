@@ -36,7 +36,9 @@
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ProjectConfiguration.cs" Link="Metadata\ProjectConfiguration.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\PropertyMetadata.cs" Link="Metadata\PropertyMetadata.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\RawMetadata.cs" Link="Metadata\RawMetadata.cs" />
-    <Compile Include="..\xCodeGen.Core\CodeAnalysisHelper.cs" Link="CodeAnalysisHelper.cs" />
+    <Compile Include="..\xCodeGen.Core\Utilities\AttributeDataExtensions.cs" Link="Utilities\AttributeDataExtensions.cs" />
+    <Compile Include="..\xCodeGen.Core\Utilities\CodeAnalysisDiagnostics.cs" Link="Utilities\CodeAnalysisDiagnostics.cs" />
+    <Compile Include="..\xCodeGen.Core\Utilities\CodeAnalysisHelper.cs" Link="Utilities\CodeAnalysisHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all">

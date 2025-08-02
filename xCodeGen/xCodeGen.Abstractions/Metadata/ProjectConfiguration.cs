@@ -17,7 +17,7 @@ namespace xCodeGen.Abstractions.Metadata
         /// <param name="outputPath">编译输出目录（必填）</param>
         /// <param name="assemblyName">程序集名称</param>
         /// <param name="targetFramework">目标框架（如 net6.0）</param>
-        /// <param name="configuration">编译配置（Debug/Release）</param>
+        /// <param name="buildConfiguration">编译配置（Debug/Release）</param>
         /// <param name="langVersion">C#语言版本</param>
         /// <param name="nullable">Nullable配置模式</param>
         /// <param name="generatedNamespace">生成代码的基础命名空间</param>
@@ -29,7 +29,7 @@ namespace xCodeGen.Abstractions.Metadata
             string outputPath,
             string assemblyName = null,
             string targetFramework = null,
-            string configuration = null,
+            string buildConfiguration = null,
             string langVersion = null,
             string nullable = null,
             string generatedNamespace = null,
@@ -44,7 +44,7 @@ namespace xCodeGen.Abstractions.Metadata
             // 可选参数初始化
             AssemblyName = assemblyName ?? rootNamespace;
             TargetFramework = targetFramework ?? "net6.0";
-            Configuration = configuration ?? "Debug";
+            Configuration = buildConfiguration ?? "Debug";
             LangVersion = langVersion ?? "7.3";
             Nullable = nullable ?? "disable";
             GeneratorVersion = generatorVersion ?? "xCodeGen.Engine.V2";

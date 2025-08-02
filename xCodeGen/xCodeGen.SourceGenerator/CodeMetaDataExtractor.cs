@@ -1,6 +1,5 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -9,7 +8,7 @@ using System.Linq;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Core;
+using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -97,7 +96,7 @@ namespace xCodeGen.SourceGenerator
             }
 
             // 检查是否有 [GenerateCode] 特性
-            if (!CodeAnalysisHelper.HasGenerateCodeAttribute(context.SemanticModel.Compilation, classDecl))
+            if (!classSymbol.HasGenerateCodeAttribute())
                 return null;
 
             // 提取元数据并转换为强类型
@@ -105,11 +104,7 @@ namespace xCodeGen.SourceGenerator
             var classMetadata = ConvertToClassMetadata(rawMetadata);
 
             // 提取特性参数
-            var generateAttribute = CodeAnalysisHelper.GetGenerateAttribute(
-                context.SemanticModel.Compilation,
-                classSymbol,
-                GenerateCodeAttribute.TypeFullName
-            );
+            var generateAttribute = classSymbol.GetGenerateAttribute(GenerateCodeAttribute.TypeFullName);
             var (_, templateName, _) = CodeAnalysisHelper.ExtractGenerateAttributeParams(generateAttribute);
 
             return new ClassGenerationInfo
@@ -133,13 +128,14 @@ namespace xCodeGen.SourceGenerator
                 try
                 {
                     var root = syntaxTree.GetRoot();
+                    var semanticModel = compilation.GetSemanticModel(syntaxTree);
+
                     var classes = root.DescendantNodes()
                         .OfType<ClassDeclarationSyntax>()
-                        .Where(c => CodeAnalysisHelper.HasGenerateCodeAttribute(compilation, c));
+                        .Where(c => c.HasGenerateCodeAttribute(semanticModel));
 
                     foreach (var classDecl in classes)
                     {
-                        var semanticModel = compilation.GetSemanticModel(syntaxTree);
                         var metadata = ConvertToRawMetadata(classDecl, semanticModel, syntaxTree.FilePath);
                         results.Add(metadata);
                     }
@@ -157,6 +153,7 @@ namespace xCodeGen.SourceGenerator
 
             return results;
         }
+
 
         /// <summary>
         /// 将类声明转换为原始元数据
@@ -182,11 +179,7 @@ namespace xCodeGen.SourceGenerator
             };
 
             // 获取生成特性参数
-            var generateAttribute = CodeAnalysisHelper.GetGenerateAttribute(
-                semanticModel.Compilation,
-                classSymbol,
-                GenerateCodeAttribute.TypeFullName
-            );
+            var generateAttribute = classSymbol.GetGenerateAttribute(GenerateCodeAttribute.TypeFullName);
             var (_, templateName, _) = CodeAnalysisHelper.ExtractGenerateAttributeParams(generateAttribute);
 
             // 提取基类和接口信息
@@ -221,7 +214,7 @@ namespace xCodeGen.SourceGenerator
         {
             return classSymbol.GetMembers()
                 .OfType<IMethodSymbol>()
-                .Where(m => !m.IsImplicitlyDeclared && !CodeAnalysisHelper.IsSpecialMethod(m))
+                .Where(m => !m.IsImplicitlyDeclared && !CodeAnalysisDiagnostics.IsSpecialMethod(m))
                 .Select(method => new Dictionary<string, object>
                 {
                     { "Name", method.Name },
@@ -391,7 +384,7 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         private static bool IsCandidateClass(SyntaxNode node)
         {
-            return CodeAnalysisHelper.IsCandidateClass(node);
+            return CodeAnalysisDiagnostics.IsCandidateClass(node);
         }
 
         #region 辅助方法
@@ -401,7 +394,7 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         private static string GetAccessModifier(Accessibility accessibility)
         {
-            return CodeAnalysisHelper.GetAccessModifier(accessibility);
+            return CodeAnalysisDiagnostics.GetAccessModifier(accessibility);
         }
 
         /// <summary>
@@ -409,7 +402,7 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         private static string GetCollectionItemType(ITypeSymbol type)
         {
-            return CodeAnalysisHelper.GetCollectionItemType(type);
+            return CodeAnalysisDiagnostics.GetCollectionItemType(type);
         }
 
         #endregion

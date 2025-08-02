@@ -237,7 +237,7 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"        rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\",");
                 codeBuilder.AppendLine($"        assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\",");
                 codeBuilder.AppendLine($"        targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\",");
-                codeBuilder.AppendLine($"        configuration: \"{EscapeString(projectInfo.BuildConfiguration)}\",");
+                codeBuilder.AppendLine($"        buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\",");
                 codeBuilder.AppendLine($"        langVersion: \"{EscapeString(projectInfo.LangVersion)}\",");
                 codeBuilder.AppendLine($"        nullable: \"{EscapeString(projectInfo.Nullable)}\",");
                 codeBuilder.AppendLine($"        generatedNamespace: \"{EscapeString($"{projectInfo.GeneratedNamespace}")}\",");

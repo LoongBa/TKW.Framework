@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Core;
+using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -25,7 +25,7 @@ namespace xCodeGen.SourceGenerator
             // 1. 筛选带有特性的类声明
             var candidateClasses = context.SyntaxProvider
                 .CreateSyntaxProvider(
-                    predicate: (node, _) => CodeAnalysisHelper.IsCandidateClass(node),
+                    predicate: (node, _) => CodeAnalysisDiagnostics.IsCandidateClass(node),
                     transform: (ctx, _) => ExtractGenerationInfo(ctx)
                 )
                 .Where(info => info != null);
@@ -148,9 +148,9 @@ namespace xCodeGen.SourceGenerator
                 Name = parameterSymbol.Name,
                 TypeName = parameterSymbol.Type.Name,
                 TypeFullName = parameterSymbol.Type.ToString(),
-                IsNullable = CodeAnalysisHelper.IsNullableType(parameterSymbol.Type),
+                IsNullable = CodeAnalysisDiagnostics.IsNullable(parameterSymbol.Type),
                 IsCollection = CodeAnalysisHelper.IsCollectionType(parameterSymbol.Type),
-                CollectionItemType = CodeAnalysisHelper.GetCollectionItemType(parameterSymbol.Type)
+                CollectionItemType = CodeAnalysisDiagnostics.GetCollectionItemType(parameterSymbol.Type)
             };
         }
 

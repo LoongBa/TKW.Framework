@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Core;
+using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -110,7 +111,7 @@ namespace xCodeGen.SourceGenerator
                 outputPath: OutputPath,
                 assemblyName: AssemblyName,
                 targetFramework: TargetFramework,
-                configuration: BuildConfiguration,
+                buildConfiguration: BuildConfiguration,
                 langVersion: LangVersion,
                 nullable: Nullable,
                 generatedNamespace: GeneratedNamespace,
