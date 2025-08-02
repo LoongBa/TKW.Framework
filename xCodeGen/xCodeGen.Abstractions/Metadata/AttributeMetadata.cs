@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace xCodeGen.Abstractions.Metadata
 {
@@ -7,6 +8,7 @@ namespace xCodeGen.Abstractions.Metadata
     /// </summary>
     public class AttributeMetadata
     {
+        public string Name { get; set; } = string.Empty;
         /// <summary>
         /// 特性类型全限定名
         /// </summary>
@@ -16,5 +18,8 @@ namespace xCodeGen.Abstractions.Metadata
         /// 特性参数
         /// </summary>
         public Dictionary<string, object> Properties { get; set; } = new Dictionary<string, object>();
+        public ICollection<object> ConstructorArguments { get; set; } = new Collection<object>();
+        public Dictionary<string, object> NamedArguments { get; set; } = new Dictionary<string, object>();
+
     }
 }

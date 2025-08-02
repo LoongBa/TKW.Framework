@@ -37,6 +37,9 @@ namespace xCodeGen.Abstractions.Metadata
         /// </summary>
         public string CollectionItemType { get; set; }
 
+        public bool IsOptional { get; set; }
+        public string DefaultValue { get; set; } = string.Empty;
+
         /// <summary>
         /// 参数上的特性
         /// </summary>

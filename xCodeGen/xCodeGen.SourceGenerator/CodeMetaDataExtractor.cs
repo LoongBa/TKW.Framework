@@ -1,9 +1,10 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
@@ -26,9 +27,10 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            Debugger.Launch();
             LogDebug("⏱️ 初始化 CodeMetaDataExtractor 生成器");
 
-            // 1. 筛选带有有 [GenerateCode] 特性的类声明
+            // 1. 筛选带有 [GenerateCode] 特性的类声明
             var candidateClasses = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: (node, _) => IsCandidateClass(node),
@@ -38,20 +40,34 @@ namespace xCodeGen.SourceGenerator
 
             LogDebug("✅ 已创建类筛选数据流");
 
-            // 2. 注册代码生成输出（修改部分）
-            context.RegisterSourceOutput(candidateClasses.Collect(), (spc, classInfos) =>
+            // 2. 创建项目信息提供器
+            var projectInfoProvider = context.CompilationProvider
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Select((pair, _) => new ProjectInfo(pair.Right, pair.Left));
+
+            // 3. 组合：类信息集合与项目信息
+            var combinedData = candidateClasses
+                .Collect()
+                .Combine(projectInfoProvider);
+
+            // 4. 注册代码生成输出
+            context.RegisterSourceOutput(combinedData, (spc, combined) =>
             {
-                LogDebug(spc, $"⚛️ 开始处理 {classInfos.Length} 个类的代码生成");
+                var (classInfos, projectInfo) = combined;
+                LogDebug(spc, $"⚛️ 开始处理 {classInfos.Length} 个类的代码生成，项目根: {projectInfo.ProjectDirectory}");
 
-                // 收集所有元数据
-                var allMetadatas = new List<ClassMetadata>();
+                var allMetadatas = classInfos.Select(info => info.Metadata).ToList();
+                var projectConfig = projectInfo.CreateProjectConfiguration();
+                var changeLog = new MetadataChangeLog();
 
+                GenerateProjectMetaContext(spc, allMetadatas, projectInfo, changeLog);
+
+                // 生成单个类的元数据文件
                 foreach (var info in classInfos)
                 {
                     try
                     {
                         GenerateMetaFile(spc, info.Metadata);
-                        allMetadatas.Add(info.Metadata);
                         LogDebug(spc, $"🔅 已生成 {info.Metadata.ClassName} 的元数据文件");
                     }
                     catch (Exception ex)
@@ -60,9 +76,6 @@ namespace xCodeGen.SourceGenerator
                         ReportError(spc, $"生成 {info.Metadata.ClassName} 时出错: {ex.Message}");
                     }
                 }
-
-                // 生成元数据收集器
-                GenerateMetaCollector(spc, allMetadatas);
 
                 GenerateDebugLogFile(spc);
                 LogDebug(spc, "💯 代码生成流程完成");
@@ -103,7 +116,8 @@ namespace xCodeGen.SourceGenerator
             {
                 Metadata = classMetadata,
                 GenerateMode = GetGenerateMode(classSymbol),
-                TemplateName = templateName ?? DefaultTemplateName
+                TemplateName = templateName ?? DefaultTemplateName,
+                SemanticModel = context.SemanticModel
             };
         }
 
@@ -175,9 +189,8 @@ namespace xCodeGen.SourceGenerator
             );
             var (_, templateName, _) = CodeAnalysisHelper.ExtractGenerateAttributeParams(generateAttribute);
 
-            // 提取基类信息
+            // 提取基类和接口信息
             var baseType = classSymbol.BaseType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? string.Empty;
-            // 提取接口信息
             var interfaces = classSymbol.AllInterfaces
                 .Select(i => i.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
                 .ToList();
@@ -195,7 +208,7 @@ namespace xCodeGen.SourceGenerator
                     { "ImplementedInterfaces", interfaces },
                     { "GenerateMode", GetGenerateMode(classSymbol) },
                     { "TemplateName", templateName ?? DefaultTemplateName },
-                    { "BaseType", baseType }, // 新增基类信息
+                    { "BaseType", baseType },
                 },
                 ExtractionLogs = logs
             };
@@ -208,34 +221,32 @@ namespace xCodeGen.SourceGenerator
         {
             return classSymbol.GetMembers()
                 .OfType<IMethodSymbol>()
-                .Where(m => !m.IsImplicitlyDeclared && !IsSpecialMethod(m))
+                .Where(m => !m.IsImplicitlyDeclared && !CodeAnalysisHelper.IsSpecialMethod(m))
                 .Select(method => new Dictionary<string, object>
                 {
                     { "Name", method.Name },
                     { "ReturnType", method.ReturnType.ToDisplayString() },
                     { "IsAsync", method.IsAsync },
                     { "AccessModifier", GetAccessModifier(method.DeclaredAccessibility) },
-                    { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p)).ToList() }
+                    { "Parameters", method.Parameters.Select(ExtractParameterMetadata).ToList() }
                 }).ToList();
         }
 
         /// <summary>
-        /// 提取单个参数的元数据（包含特性）
+        /// 提取参数元数据（包含特性信息）
         /// </summary>
         private Dictionary<string, object> ExtractParameterMetadata(IParameterSymbol parameter)
         {
-            var paramData = new Dictionary<string, object>
+            return new Dictionary<string, object>
             {
                 { "Name", parameter.Name },
                 { "Type", parameter.Type.ToDisplayString() },
                 { "TypeFullName", parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) },
-                { "IsNullable", IsNullableType(parameter.Type) },
-                { "IsCollection", IsCollectionType(parameter.Type) },
+                { "IsNullable", CodeAnalysisHelper.IsNullable(parameter.Type) },
+                { "IsCollection", CodeAnalysisHelper.IsCollectionType(parameter.Type) },
                 { "CollectionItemType", GetCollectionItemType(parameter.Type) },
-                { "DefaultValue", parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue?.ToString() : null },
                 { "Attributes", ExtractAttributeMetadataList(parameter.GetAttributes()) }
             };
-            return paramData;
         }
 
         /// <summary>
@@ -272,14 +283,14 @@ namespace xCodeGen.SourceGenerator
                 SourceType = rawMetadata.SourceType,
                 TemplateName = rawMetadata.Data["TemplateName"] as string,
                 Methods = ConvertToMethodMetadataList(rawMetadata.Data["Methods"] as List<Dictionary<string, object>>),
-                BaseType = rawMetadata.Data["BaseType"] as string ?? string.Empty, // 映射基类信息
+                BaseType = rawMetadata.Data["BaseType"] as string ?? string.Empty,
                 ImplementedInterfaces = (rawMetadata.Data["ImplementedInterfaces"] as List<string>)?.ToList()
-                                        ?? new List<string>() // 映射接口列表
+                                        ?? new List<string>()
             };
         }
 
         /// <summary>
-        /// 转换方法元数据为强类型列表
+        /// 转换原始方法元数据为强类型列表
         /// </summary>
         private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)
         {
@@ -296,13 +307,13 @@ namespace xCodeGen.SourceGenerator
         }
 
         /// <summary>
-        /// 转换参数元数据为强类型列表（包含特性）
+        /// 转换原始参数元数据为强类型列表
         /// </summary>
-        private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams)
+        private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParameters)
         {
-            if (rawParams == null) return new List<ParameterMetadata>();
+            if (rawParameters == null) return new List<ParameterMetadata>();
 
-            return rawParams.Select(rawParam => new ParameterMetadata
+            return rawParameters.Select(rawParam => new ParameterMetadata
             {
                 Name = rawParam["Name"] as string,
                 TypeName = rawParam["Type"] as string,
@@ -328,24 +339,6 @@ namespace xCodeGen.SourceGenerator
             }).ToList();
         }
 
-        #region 辅助方法
-
-        /// <summary>
-        /// 转换访问修饰符为字符串
-        /// </summary>
-        private static string GetAccessModifier(Accessibility accessibility)
-        {
-            return CodeAnalysisHelper.GetAccessModifier(accessibility);
-        }
-
-        /// <summary>
-        /// 获取集合元素类型
-        /// </summary>
-        private static string GetCollectionItemType(ITypeSymbol type)
-        {
-            return CodeAnalysisHelper.GetCollectionItemType(type);
-        }
-
         /// <summary>
         /// 从特性获取生成模式
         /// </summary>
@@ -364,6 +357,36 @@ namespace xCodeGen.SourceGenerator
         }
 
         /// <summary>
+        /// 计算变更日志（需要缓存上一次生成的元数据）
+        /// </summary>
+        private MetadataChangeLog CalculateChangeLog(
+            List<ClassMetadata> currentMetadatas,
+            List<ClassMetadata> previousMetadatas) // 从缓存获取
+        {
+            var changeLog = new MetadataChangeLog();
+
+            // 新增
+            changeLog.Added.AddRange(currentMetadatas
+                .Where(curr => previousMetadatas.All(prev => prev.FullName != curr.FullName)));
+
+            // 修改
+            changeLog.Modified.AddRange(currentMetadatas
+                .Join(previousMetadatas,
+                    curr => curr.FullName,
+                    prev => prev.FullName,
+                    (curr, prev) => new { curr, prev })
+                .Where(pair => pair.curr.SourceHash != pair.prev.SourceHash)
+                .Select(pair => pair.curr));
+
+            // 删除
+            changeLog.RemovedClassNames.AddRange(previousMetadatas
+                .Where(prev => currentMetadatas.All(curr => curr.FullName != prev.FullName))
+                .Select(prev => prev.ClassName));
+
+            return changeLog;
+        }
+
+        /// <summary>
         /// 判断是否为候选类（类声明且包含特性）
         /// </summary>
         private static bool IsCandidateClass(SyntaxNode node)
@@ -371,40 +394,24 @@ namespace xCodeGen.SourceGenerator
             return CodeAnalysisHelper.IsCandidateClass(node);
         }
 
+        #region 辅助方法
+
         /// <summary>
-        /// 判断是否为特殊方法（属性访问器、事件访问器等）
+        /// 转换访问修饰符为字符串
         /// </summary>
-        private static bool IsSpecialMethod(IMethodSymbol method)
+        private static string GetAccessModifier(Accessibility accessibility)
         {
-            return CodeAnalysisHelper.IsSpecialMethod(method);
+            return CodeAnalysisHelper.GetAccessModifier(accessibility);
         }
 
         /// <summary>
-        /// 判断是否为可空类型
+        /// 获取集合元素类型
         /// </summary>
-        private static bool IsNullableType(ITypeSymbol type)
+        private static string GetCollectionItemType(ITypeSymbol type)
         {
-            return CodeAnalysisHelper.IsNullableType(type);
-        }
-
-        /// <summary>
-        /// 判断是否为集合类型
-        /// </summary>
-        private static bool IsCollectionType(ITypeSymbol type)
-        {
-            return CodeAnalysisHelper.IsCollectionType(type);
+            return CodeAnalysisHelper.GetCollectionItemType(type);
         }
 
         #endregion
-
-        /// <summary>
-        /// 生成所需的元数据信息（强类型）
-        /// </summary>
-        public class ClassGenerationInfo
-        {
-            public ClassMetadata Metadata { get; set; }
-            public string GenerateMode { get; set; }
-            public string TemplateName { get; set; }
-        }
     }
 }

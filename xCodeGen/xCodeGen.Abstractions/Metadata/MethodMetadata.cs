@@ -39,10 +39,10 @@ namespace xCodeGen.Abstractions.Metadata
                 return $"{Name}_{paramTypes}";
             }
         }
-
+        public bool IsStatic { get; set; }
         /// <summary>
         /// 访问修饰符
         /// </summary>
-        public string AccessModifier { get; set; } = string.Empty;
+        public string AccessModifier { get; set; } = "public";
     }
 }

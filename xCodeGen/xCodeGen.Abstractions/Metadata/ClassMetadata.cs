@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
@@ -8,46 +9,74 @@ namespace xCodeGen.Abstractions.Metadata
     /// </summary>
     public class ClassMetadata
     {
-        /// <summary>
-        /// 命名空间
-        /// </summary>
-        public string Namespace { get; set; } = string.Empty;
+        // 基础标识信息
+        public string Namespace { get; set; }
+        public string ClassName { get; set; }
+        public string FullName { get; set; }
+
+        // 结构信息
+        public ICollection<MethodMetadata> Methods { get; set; }
+        public ICollection<PropertyMetadata> Properties { get; set; }
+        public ICollection<string> ImplementedInterfaces { get; set; }
+        public ICollection<string> DependentTypes { get; set; }
+        public string BaseType { get; set; }
+
+        // 生成配置信息
+        public string Mode { get; set; }
+        public string SourceType { get; set; }
+        public string TemplateName { get; set; }
+        public Dictionary<string, object> GenerateCodeSettings { get; set; }
+        public ICollection<AttributeMetadata> Attributes { get; set; }
+
+        // 版本与变更跟踪
+        public string SourceHash { get; set; }
+        public string PreviousHash { get; set; }
+        public string Version { get; set; }
+        public string GeneratorVersion { get; set; }
+        public bool IsIncrementalUpdate { get; set; }
+
+        // 源文件信息
+        public string SourceFilePath { get; set; }
+        public int SourceLineNumber { get; set; }
+        public DateTime CreatedTime { get; set; }
+        public DateTime UpdatedTime { get; set; }
+
+        // 生成器标识
+        public string GeneratorId { get; set; }
+        public string GeneratorDescription { get; set; }
 
         /// <summary>
-        /// 类名
+        /// 初始化 ClassMetadata 实例
         /// </summary>
-        public string ClassName { get; set; } = string.Empty;
+        public ClassMetadata()
+        {
+            // 初始化字符串属性为空字符串（避免 null）
+            Namespace = string.Empty;
+            ClassName = string.Empty;
+            FullName = string.Empty;
+            BaseType = string.Empty;
+            Mode = string.Empty;
+            SourceType = string.Empty;
+            TemplateName = string.Empty;
+            SourceHash = string.Empty;
+            PreviousHash = string.Empty;
+            Version = "1.0.0"; // 默认版本
+            GeneratorVersion = string.Empty;
+            SourceFilePath = string.Empty;
+            GeneratorId = string.Empty;
+            GeneratorDescription = string.Empty;
 
-        /// <summary>
-        /// 类的全限定名
-        /// </summary>
-        public string FullName { get; set; } = string.Empty;
+            // 初始化集合属性（避免 null 引用）
+            Methods = new Collection<MethodMetadata>();
+            Properties = new Collection<PropertyMetadata>();
+            ImplementedInterfaces = new Collection<string>();
+            DependentTypes = new Collection<string>();
+            GenerateCodeSettings = new Dictionary<string, object>();
+            Attributes = new Collection<AttributeMetadata>();
 
-        /// <summary>
-        /// 类中包含的方法元数据
-        /// </summary>
-        public ICollection<MethodMetadata> Methods { get; set; } = new Collection<MethodMetadata>();
-
-        public string Mode { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 来源类型（Class/Table等）
-        /// </summary>
-        public string SourceType { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 模板名称（用于代码生成）
-        /// </summary>
-        public string TemplateName { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 基类全限定名
-        /// </summary>
-        public string BaseType { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 实现的接口全限定名列表
-        /// </summary>
-        public ICollection<string> ImplementedInterfaces { get; set; } = new Collection<string>();
+            // 初始化时间（默认为 UTC 时间）
+            CreatedTime = DateTime.UtcNow;
+            UpdatedTime = DateTime.UtcNow;
+        }
     }
 }

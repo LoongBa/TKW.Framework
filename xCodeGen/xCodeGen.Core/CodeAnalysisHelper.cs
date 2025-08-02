@@ -1,7 +1,11 @@
 ﻿// 注意：本文件需遵循 C# 7.3 语法标准，请勿使用更高版本特性（如模式匹配、空值判断运算符等）
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using xCodeGen.Abstractions.Attributes;
 
@@ -12,6 +16,281 @@ namespace xCodeGen.Core
     /// </summary>
     public static class CodeAnalysisHelper
     {
+        #region 项目配置相关方法
+
+        /// <summary>
+        /// 获取项目根目录（.csproj 所在目录）
+        /// </summary>
+        public static string GetProjectDirectory(
+            in AnalyzerConfigOptionsProvider options,
+            Compilation compilation)
+        {
+            // 1. 优先使用 MSBuild 内置属性（最可靠，直接返回项目根目录）
+            if (options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out var dir)
+                && !string.IsNullOrWhiteSpace(dir))
+            {
+                // 验证路径是否包含典型编译输出目录，增强容错性
+                // 修正：使用 IndexOf 替代 Contains，兼容不支持 StringComparison 参数的框架版本
+                if (dir.IndexOf("obj", StringComparison.OrdinalIgnoreCase) == -1 &&
+                    dir.IndexOf("bin", StringComparison.OrdinalIgnoreCase) == -1)
+                {
+                    return dir;
+                }
+            }
+
+            // 2. 从项目文件路径推导（.csproj 所在目录即为根目录）
+            if (options.GlobalOptions.TryGetValue("build_property.MSBuildProjectFile", out var projectFile)
+                && !string.IsNullOrWhiteSpace(projectFile) &&
+                string.Equals(Path.GetExtension(projectFile), ".csproj", StringComparison.OrdinalIgnoreCase))
+            {
+                var projectDir = Path.GetDirectoryName(projectFile);
+                if (!string.IsNullOrWhiteSpace(projectDir) &&
+                    projectDir.IndexOf("obj", StringComparison.OrdinalIgnoreCase) == -1 &&
+                    projectDir.IndexOf("bin", StringComparison.OrdinalIgnoreCase) == -1)
+                {
+                    return projectDir;
+                }
+            }
+
+            // 3. 仅通过源文件路径的字符串特征推导（无文件系统操作）
+            if (compilation.SyntaxTrees.Any())
+            {
+                var firstSourcePath = compilation.SyntaxTrees.First().FilePath;
+                if (!string.IsNullOrWhiteSpace(firstSourcePath))
+                {
+                    var pathSeparator = Path.DirectorySeparatorChar;
+                    var dirSegments = firstSourcePath.Split(new[] { pathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+
+                    // 过滤关键优化：识别并排除编译输出目录（obj/bin）
+                    var outputDirIndices = new List<int>();
+                    for (int i = 0; i < dirSegments.Length; i++)
+                    {
+                        if (string.Equals(dirSegments[i], "obj", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(dirSegments[i], "bin", StringComparison.OrdinalIgnoreCase))
+                        {
+                            outputDirIndices.Add(i);
+                        }
+                    }
+
+                    // 如果存在编译输出目录，取其之前的路径作为根目录
+                    if (outputDirIndices.Any())
+                    {
+                        var firstOutputDirIndex = outputDirIndices.First();
+                        if (firstOutputDirIndex > 0)
+                        {
+                            return string.Join(pathSeparator.ToString(),
+                                dirSegments.Take(firstOutputDirIndex));
+                        }
+                    }
+
+                    // 原有策略：寻找 src 目录
+                    for (int i = 0; i < dirSegments.Length; i++)
+                    {
+                        if (string.Equals(dirSegments[i], "src", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (i + 1 < dirSegments.Length)
+                            {
+                                return string.Join(pathSeparator.ToString(),
+                                    dirSegments.Take(i + 2));
+                            }
+                            return string.Join(pathSeparator.ToString(),
+                                dirSegments.Take(i + 1));
+                        }
+                    }
+
+                    // 备选策略：取源文件路径的上两级目录
+                    if (dirSegments.Length >= 2)
+                    {
+                        return string.Join(pathSeparator.ToString(),
+                            dirSegments.Take(dirSegments.Length - 2));
+                    }
+
+                    return Path.GetDirectoryName(firstSourcePath) ?? string.Empty;
+                }
+            }
+
+            // 4. 最终兜底
+            return string.Empty;
+        }
+
+
+        /// <summary>
+        /// 获取编译输出目录（绝对路径）
+        /// </summary>
+        public static string GetOutputPath(in AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            // 1. 优先使用项目配置的 OutputPath
+            var projectDir = GetProjectDirectory(options, compilation);
+            if (options.GlobalOptions.TryGetValue("build_property.OutputPath", out var outputPath)
+                && !string.IsNullOrWhiteSpace(outputPath))
+            {
+                return string.IsNullOrWhiteSpace(projectDir)
+                    ? outputPath
+                    : Path.Combine(projectDir, outputPath);
+            }
+
+            // 3. 兜底：项目目录 + "bin/Debug"
+            var defaultRelativePath = $"bin{Path.DirectorySeparatorChar}{GetBuildConfiguration(options)}";
+            var defaultProjectDir = projectDir;
+            return string.IsNullOrWhiteSpace(defaultProjectDir)
+                ? defaultRelativePath
+                : Path.Combine(defaultProjectDir, defaultRelativePath);
+        }
+
+        /// <summary>
+        /// 获取生成文件的最终存放路径（绝对路径）
+        /// <remarks>优先取项目配置 "CompilerGeneratedFilesOutputPath" 的值</remarks>
+        /// <remarks>其次，默认为项目输出目录下的 Generated 文件夹</remarks>
+        /// </summary>
+        public static string GetGeneratedFilesDirectory(in AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            // 优先使用用户配置的生成路径
+            if (options.GlobalOptions.TryGetValue("build_property.CompilerGeneratedFilesOutputPath", out var customPath)
+                && !string.IsNullOrWhiteSpace(customPath))
+            {
+                var projectDir = GetProjectDirectory(options, compilation);
+                return string.IsNullOrWhiteSpace(projectDir)
+                    ? customPath
+                    : Path.Combine(projectDir, customPath);
+            }
+
+            // 否则使用 OutputPath/generated
+            return Path.Combine(GetOutputPath(options, compilation), "generated");
+        }
+
+        /// <summary>
+        /// 获取根命名空间
+        /// </summary>
+        public static string GetRootNamespace(in AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (compilation == null)
+                throw new ArgumentNullException(nameof(compilation));
+
+            if (options.GlobalOptions.TryGetValue("build_property.RootNamespace", out var rootNs) && !string.IsNullOrWhiteSpace(rootNs))
+                return rootNs;
+
+            return GetAssemblyName(options, compilation) ?? "xCodeGen.Generated";
+        }
+
+        /// <summary>
+        /// 获取程序集名称
+        /// </summary>
+        public static string GetAssemblyName(in AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (compilation == null)
+                throw new ArgumentNullException(nameof(compilation));
+
+            if (options.GlobalOptions.TryGetValue("build_property.AssemblyName", out var assemblyName))
+                return assemblyName;
+
+            return compilation.AssemblyName ?? "xCodeGen.Generated";
+        }
+
+        /// <summary>
+        /// 获取目标框架
+        /// </summary>
+        public static string GetTargetFramework(in AnalyzerConfigOptionsProvider options)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            options.GlobalOptions.TryGetValue("build_property.TargetFramework", out var tfm);
+            return tfm ?? string.Empty;
+        }
+
+        /// <summary>
+        /// 获取编译配置（Debug/Release）
+        /// </summary>
+        public static string GetBuildConfiguration(AnalyzerConfigOptionsProvider options)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (options.GlobalOptions.TryGetValue("build_property.Configuration", out var config) && !string.IsNullOrWhiteSpace(config))
+                return config;
+            // 默认返回 Debug
+            return "Debug";
+        }
+
+        /// <summary>
+        /// 获取语言版本
+        /// </summary>
+        public static string GetLangVersion(AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (compilation == null)
+                throw new ArgumentNullException(nameof(compilation));
+            // 优先使用 MSBuild 属性
+            if (options.GlobalOptions.TryGetValue("build_property.LanguageVersion", out var langVersion) && !string.IsNullOrWhiteSpace(langVersion))
+                return langVersion;
+            // 其次使用编译选项
+            if (compilation is CSharpCompilation csharpCompilation)
+            {
+                return csharpCompilation.LanguageVersion.ToString();
+            }
+            // 默认返回 C# 7.3
+            return "7.3";
+        }
+
+        /// <summary>
+        /// 获取可空类型配置
+        /// </summary>
+        public static string GetNullableConfig(in AnalyzerConfigOptionsProvider options, Compilation compilation)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (compilation == null)
+                throw new ArgumentNullException(nameof(compilation));
+
+            if (options.GlobalOptions.TryGetValue("build_property.Nullable", out var nullable) && !string.IsNullOrWhiteSpace(nullable))
+                return nullable.ToLower();
+
+            if (compilation is CSharpCompilation csharpCompilation)
+            {
+                return csharpCompilation.Options.NullableContextOptions.ToString().ToLower();
+            }
+
+            return "disable";
+        }
+
+        /// <summary>
+        /// 计算业务根命名空间（从元数据推断）
+        /// </summary>
+        public static string GetGeneratedRootNamespace(string rootNamespace)
+        {
+            if (string.IsNullOrEmpty(rootNamespace))
+                return "xCodeGen.Generated";
+            return $"{rootNamespace}.Generated";
+        }
+
+        /// <summary>
+        /// 读取MSBuild属性值
+        /// </summary>
+        public static string ReadMsBuildProperty(in AnalyzerConfigOptionsProvider options, string propertyName)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (string.IsNullOrWhiteSpace(propertyName))
+                throw new ArgumentException("属性名称不能为空", nameof(propertyName));
+
+            options.GlobalOptions.TryGetValue($"build_property.{propertyName}", out var value);
+            return value ?? string.Empty;
+        }
+
+        #endregion
+
+        #region 类型与特性分析相关方法
+
         /// <summary>
         /// 从特性数据中提取生成相关参数
         /// </summary>
@@ -95,7 +374,7 @@ namespace xCodeGen.Core
         public static bool GetAttributeBoolValue(AttributeData attribute, string propertyName)
         {
             var namedArg = attribute.NamedArguments.FirstOrDefault(a => a.Key == propertyName);
-            return namedArg.Value.Value is bool && (bool)namedArg.Value.Value;
+            return namedArg.Value.Value is bool value && value;
         }
 
         /// <summary>
@@ -103,11 +382,11 @@ namespace xCodeGen.Core
         /// </summary>
         public static INamedTypeSymbol GetClassSymbolWithDebug(GeneratorSyntaxContext context, Action<string> logDebug)
         {
-            ClassDeclarationSyntax classDecl = context.Node as ClassDeclarationSyntax;
+            var classDecl = context.Node as ClassDeclarationSyntax;
             if (classDecl == null)
                 return null;
 
-            INamedTypeSymbol classSymbol = context.SemanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol;
+            var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol;
             if (classSymbol == null)
             {
                 if (logDebug != null)
@@ -159,6 +438,35 @@ namespace xCodeGen.Core
         }
 
         /// <summary>
+        /// 判断类型是否为可空类型（可空值类型或可空引用类型）
+        /// </summary>
+        /// <param name="type">类型符号</param>
+        /// <returns>如果是可空类型则返回 true，否则返回 false</returns>
+        public static bool IsNullable(ITypeSymbol type)
+        {
+            if (type == null)
+                return false;
+
+            // 处理可空值类型（如 int?、DateTime?）
+            if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
+            {
+                var originalDefinition = namedType.OriginalDefinition;
+                if (originalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                {
+                    return true;
+                }
+            }
+
+            // 处理可空引用类型（C# 8.0+）
+            if (type.NullableAnnotation == NullableAnnotation.Annotated)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 判断语法节点是否为候选类（类声明且包含特性）
         /// </summary>
         public static bool IsCandidateClass(SyntaxNode node)
@@ -207,5 +515,7 @@ namespace xCodeGen.Core
             if (method.MethodKind == MethodKind.Constructor || method.MethodKind == MethodKind.Destructor) return true; // 构造/析构函数
             return false;
         }
+
+        #endregion
     }
 }
