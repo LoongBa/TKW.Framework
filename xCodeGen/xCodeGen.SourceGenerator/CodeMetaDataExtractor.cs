@@ -26,7 +26,9 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            Debugger.Launch();
+#if DEBUG            
+            //Debugger.Launch();
+#endif
             LogDebug("⏱️ 初始化 CodeMetaDataExtractor 生成器");
 
             // 1. 筛选带有 [GenerateCode] 特性的类声明

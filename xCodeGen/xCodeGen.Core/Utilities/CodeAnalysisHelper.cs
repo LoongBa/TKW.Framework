@@ -64,9 +64,7 @@ namespace xCodeGen.Core.Utilities
 
             return result;
         }
-
-
-
+        
         /// <summary>
         /// 检查类型是否为可空类型
         /// </summary>
