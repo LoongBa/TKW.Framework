@@ -18,7 +18,7 @@ namespace TKW.Framework.Domain
         /// <summary>
         /// 领域中的用户信息（改为不用泛型，需自行检查、装箱拆箱）
         /// </summary>
-        public IDomainUser UserInfo { get; set; }
+        public IUserInfo UserInfo { get; set; }
 
         protected DomainUser(Func<DomainHost> domainHostFactory) : this()
         {
@@ -94,9 +94,5 @@ namespace TKW.Framework.Domain
         public string SessionKey { get; set; } = string.Empty;
 
         #endregion
-    }
-
-    public interface IDomainUser
-    {
     }
 }

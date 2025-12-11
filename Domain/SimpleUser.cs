@@ -4,23 +4,23 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain
 {
-    public class SimpleUser : IUser
+    public class SimpleUserInfo : IUser
     {
-        public SimpleUser(string userIdString, string userName) : this(userName)
+        public SimpleUserInfo(string userIdString, string userName) : this(userName)
         {
             userIdString.EnsureHasValue();
             UserIdString = userIdString;
         }
-        public SimpleUser(int userId, string userName) : this(userName)
+        public SimpleUserInfo(int userId, string userName) : this(userName)
         {
             UserIdString = userId.ToString();
         }
-        public SimpleUser(Guid userGuid, string userName) : this(userName)
+        public SimpleUserInfo(Guid userGuid, string userName) : this(userName)
         {
             UserIdString = userGuid.ToString();
         }
 
-        private SimpleUser(string userName)
+        private SimpleUserInfo(string userName)
         {
             userName.EnsureHasValue();
             UserName = userName;
