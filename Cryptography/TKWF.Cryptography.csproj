@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>TKW.Framework.Cryptography</AssemblyName>
     <RootNamespace>TKW.Framework.Cryptography</RootNamespace>
     <LangVersion>latest</LangVersion>
