@@ -9,77 +9,120 @@ namespace TKW.Framework.Common.DataType.Location;
 /// </summary>
 public static class GeoCoordinateExtensions
 {
-    /// <summary>
-    /// 校验经纬度是否合法
-    /// </summary>
-    /// <param name="coord">地理坐标</param>
-    /// <returns>经纬度均为合法数值时返回 true</returns>
-    public static bool IsValid(this GeoCoordinate coord)
-        => coord is not null
-           && !double.IsNaN(coord.Latitude)
-           && !double.IsNaN(coord.Longitude)
-           && coord.Latitude is >= -90 and <= 90
-           && coord.Longitude is >= -180 and <= 180;
-
-    /// <summary>
-    /// 计算与另一点的球面距离（单位：米）
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="other">目标坐标</param>
-    /// <returns>距离（米）</returns>
-    public static double DistanceTo(this GeoCoordinate coord, GeoCoordinate other)
-        => coord.GetDistanceTo(other);
-
-    /// <summary>
-    /// 计算与一组点的球面距离（单位：米）
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="others">目标坐标集合</param>
-    /// <returns>距离集合（米）</returns>
-    public static IEnumerable<double> DistancesTo(this GeoCoordinate coord, IEnumerable<GeoCoordinate> others)
-        => others.Select(coord.GetDistanceTo);
-
-    /// <summary>
-    /// 计算一组点中距离当前点最近的点
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="points">目标坐标集合</param>
-    /// <returns>最近的点，若集合为空则返回 null</returns>
-    public static GeoCoordinate? NearestTo(this GeoCoordinate coord, IEnumerable<GeoCoordinate> points)
+    extension(GeoCoordinate coord)
     {
-        GeoCoordinate? nearest = null;
-        var minDist = double.MaxValue;
-        foreach (var p in points)
+        /// <summary>
+        /// 校验经纬度是否合法
+        /// </summary>
+        /// <param name="coord">地理坐标</param>
+        /// <returns>经纬度均为合法数值时返回 true</returns>
+        public bool IsValid()
+            => coord is not null
+               && !double.IsNaN(coord.Latitude)
+               && !double.IsNaN(coord.Longitude)
+               && coord.Latitude is >= -90 and <= 90
+               && coord.Longitude is >= -180 and <= 180;
+
+        /// <summary>
+        /// 计算与另一点的球面距离（单位：米）
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="other">目标坐标</param>
+        /// <returns>距离（米）</returns>
+        public double DistanceTo(GeoCoordinate other)
+            => coord.GetDistanceTo(other);
+
+        /// <summary>
+        /// 计算与一组点的球面距离（单位：米）
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="others">目标坐标集合</param>
+        /// <returns>距离集合（米）</returns>
+        public IEnumerable<double> DistancesTo(IEnumerable<GeoCoordinate> others)
+            => others.Select(coord.GetDistanceTo);
+
+        /// <summary>
+        /// 计算一组点中距离当前点最近的点
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="points">目标坐标集合</param>
+        /// <returns>最近的点，若集合为空则返回 null</returns>
+        public GeoCoordinate? NearestTo(IEnumerable<GeoCoordinate> points)
         {
-            var dist = coord.GetDistanceTo(p);
-            if (dist < minDist)
+            GeoCoordinate? nearest = null;
+            var minDist = double.MaxValue;
+            foreach (var p in points)
             {
-                minDist = dist;
-                nearest = p;
+                var dist = coord.GetDistanceTo(p);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    nearest = p;
+                }
             }
+            return nearest;
         }
-        return nearest;
-    }
 
-    /// <summary>
-    /// 判断当前点是否在指定半径（米）范围内
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="center">圆心坐标</param>
-    /// <param name="radiusMeters">半径（米）</param>
-    /// <returns>在范围内返回 true</returns>
-    public static bool IsWithin(this GeoCoordinate coord, GeoCoordinate center, double radiusMeters)
-        => coord.GetDistanceTo(center) <= radiusMeters;
+        /// <summary>
+        /// 判断当前点是否在指定半径（米）范围内
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="center">圆心坐标</param>
+        /// <param name="radiusMeters">半径（米）</param>
+        /// <returns>在范围内返回 true</returns>
+        public bool IsWithin(GeoCoordinate center, double radiusMeters)
+            => coord.GetDistanceTo(center) <= radiusMeters;
 
-    /// <summary>
-    /// 输出度分秒格式字符串（如 31°12'45.123"N, 121°30'15.456"E）
-    /// </summary>
-    /// <param name="coord">地理坐标</param>
-    /// <returns>度分秒格式字符串</returns>
-    public static string ToDmsString(this GeoCoordinate coord)
-    {
-        // 将经纬度转换为度分秒字符串
-        return $"{Dms(coord.Latitude, "N", "S")}, {Dms(coord.Longitude, "E", "W")}";
+        /// <summary>
+        /// 输出度分秒格式字符串（如 31°12'45.123"N, 121°30'15.456"E）
+        /// </summary>
+        /// <param name="coord">地理坐标</param>
+        /// <returns>度分秒格式字符串</returns>
+        public string ToDmsString()
+        {
+            // 将经纬度转换为度分秒字符串
+            return $"{Dms(coord.Latitude, "N", "S")}, {Dms(coord.Longitude, "E", "W")}";
+        }
+
+        /// <summary>
+        /// 判断当前点是否在指定矩形区域内
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="leftTop">矩形左上角</param>
+        /// <param name="rightBottom">矩形右下角</param>
+        /// <returns>在区域内返回 true</returns>
+        public bool IsInRectangle(GeoCoordinate leftTop, GeoCoordinate rightBottom)
+        {
+            if (!coord.IsValid() || !leftTop.IsValid() || !rightBottom.IsValid()) return false;
+            return coord.Latitude <= leftTop.Latitude && coord.Latitude >= rightBottom.Latitude
+                && coord.Longitude >= leftTop.Longitude && coord.Longitude <= rightBottom.Longitude;
+        }
+
+        /// <summary>
+        /// 判断当前点是否在多边形内（射线法，适用于经纬度简单多边形）
+        /// </summary>
+        /// <param name="coord">当前坐标</param>
+        /// <param name="polygon">多边形顶点集合（顺序闭合）</param>
+        /// <returns>在多边形内返回 true</returns>
+        public bool IsInPolygon(IEnumerable<GeoCoordinate> polygon)
+        {
+            if (!coord.IsValid() || polygon is null) return false;
+            var points = polygon.ToList();
+            var n = points.Count;
+            if (n < 3) return false;
+            var inside = false;
+            double x = coord.Longitude, y = coord.Latitude;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                double xi = points[i].Longitude, yi = points[i].Latitude;
+                double xj = points[j].Longitude, yj = points[j].Latitude;
+                // 射线法判断
+                if (((yi > y) != (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi + double.Epsilon) + xi))
+                    inside = !inside;
+            }
+            return inside;
+        }
     }
 
     /// <summary>
@@ -93,46 +136,6 @@ public static class GeoCoordinateExtensions
         var sec = (abs - deg - min / 60.0) * 3600;
         var dir = value >= 0 ? pos : neg;
         return $"{deg}°{min}'{sec:0.###}\"{dir}";
-    }
-
-    /// <summary>
-    /// 判断当前点是否在指定矩形区域内
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="leftTop">矩形左上角</param>
-    /// <param name="rightBottom">矩形右下角</param>
-    /// <returns>在区域内返回 true</returns>
-    public static bool IsInRectangle(this GeoCoordinate coord, GeoCoordinate leftTop, GeoCoordinate rightBottom)
-    {
-        if (!coord.IsValid() || !leftTop.IsValid() || !rightBottom.IsValid()) return false;
-        return coord.Latitude <= leftTop.Latitude && coord.Latitude >= rightBottom.Latitude
-            && coord.Longitude >= leftTop.Longitude && coord.Longitude <= rightBottom.Longitude;
-    }
-
-    /// <summary>
-    /// 判断当前点是否在多边形内（射线法，适用于经纬度简单多边形）
-    /// </summary>
-    /// <param name="coord">当前坐标</param>
-    /// <param name="polygon">多边形顶点集合（顺序闭合）</param>
-    /// <returns>在多边形内返回 true</returns>
-    public static bool IsInPolygon(this GeoCoordinate coord, IEnumerable<GeoCoordinate> polygon)
-    {
-        if (!coord.IsValid() || polygon is null) return false;
-        var points = polygon.ToList();
-        var n = points.Count;
-        if (n < 3) return false;
-        var inside = false;
-        double x = coord.Longitude, y = coord.Latitude;
-        for (int i = 0, j = n - 1; i < n; j = i++)
-        {
-            double xi = points[i].Longitude, yi = points[i].Latitude;
-            double xj = points[j].Longitude, yj = points[j].Latitude;
-            // 射线法判断
-            if (((yi > y) != (yj > y)) &&
-                (x < (xj - xi) * (y - yi) / (yj - yi + double.Epsilon) + xi))
-                inside = !inside;
-        }
-        return inside;
     }
 
     /// <summary>
