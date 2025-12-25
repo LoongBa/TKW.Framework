@@ -9,7 +9,7 @@ namespace TKWF.ExcelImporter;
 /// <summary>
 /// 动态验证器（基于模板配置）
 /// </summary>
-public partial class DynamicValidator<T> : AbstractValidator<T>
+public class DynamicValidator<T> : AbstractValidator<T>
 {
     private readonly IExpressionEvaluator _ExpressionEvaluator;
 
@@ -97,6 +97,7 @@ public partial class DynamicValidator<T> : AbstractValidator<T>
         }
         else if (rule.StartsWith("MaxLength") && property.PropertyType == typeof(string))
         {
+            // 尝试将泛型规则构建器转换为字符串专用的构建器
             if (ruleBuilder is IRuleBuilderInitial<T, string> stringRuleBuilder)
             {
                 var length = int.Parse(MaxLengthRegex().Match(rule).Groups[1].Value);
@@ -114,6 +115,7 @@ public partial class DynamicValidator<T> : AbstractValidator<T>
                 .First(m => m.Name == "InclusiveBetween" && m.GetParameters().Length == 3);
 
             var genericMethod = inclusiveBetweenMethod.MakeGenericMethod(typeof(T), property.PropertyType);
+            // 修正：使用 new object[] 而不是方括号语法
             var ruleBuilderWithCondition = genericMethod.Invoke(null, [ruleBuilder, min, max]);
 
             // 设置错误消息（通过反射调用 WithMessage 方法）
@@ -181,15 +183,23 @@ public partial class DynamicValidator<T> : AbstractValidator<T>
         return RuleFor(lambda);
     }
 
-    [GeneratedRegex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", RegexOptions.Compiled | RegexOptions.CultureInvariant)]
-    private static partial Regex EmailRegex();
+    // 使用缓存的 Regex 实例，去掉 partial 与 GeneratedRegex
+    private static readonly Regex _emailRegex = new(@"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    public static Regex EmailRegex() => _emailRegex;
 
-    [GeneratedRegex(@"MaxLength\((\d+)\)", RegexOptions.Compiled | RegexOptions.CultureInvariant)]
-    private static partial Regex MaxLengthRegex();
+    private static readonly Regex _maxLengthRegex = new(@"MaxLength\((\d+)\)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    [GeneratedRegex(@"Range\((.*?),", RegexOptions.Compiled | RegexOptions.CultureInvariant)]
-    private static partial Regex RangeMinRegex();
+    public static Regex MaxLengthRegex() => _maxLengthRegex;
 
-    [GeneratedRegex(@",(.*?)\)", RegexOptions.Compiled | RegexOptions.CultureInvariant)]
-    private static partial Regex RangeMaxRegex();
+    private static readonly Regex _rangeMinRegex = new(@"Range\((.*?),",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    public static Regex RangeMinRegex() => _rangeMinRegex;
+
+    private static readonly Regex _rangeMaxRegex = new(@",(.*?)\)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    public static Regex RangeMaxRegex() => _rangeMaxRegex;
 }

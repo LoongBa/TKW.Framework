@@ -1,15 +1,17 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Extensions
+namespace TKW.Framework.Common.Extensions;
+
+public static class DateTimeUtility
 {
-    public static class DateTimeUtility
+    /// <param name="date"></param>
+    extension(DateTime date)
     {
         /// <summary>
         /// 获取当前日期实例的0点副本
         /// </summary>
-        /// <param name="date"></param>
         /// <returns></returns>
-        public static DateTime GetDayStart(this DateTime date)
+        public DateTime GetDayStart()
         {
             return new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, 0);
         }
@@ -17,9 +19,8 @@ namespace TKW.Framework.Common.Extensions
         /// <summary>
         /// 获取当前日期实例的24点副本
         /// </summary>
-        /// <param name="date"></param>
         /// <returns></returns>
-        public static DateTime GetDayEnd(this DateTime date)
+        public DateTime GetDayEnd()
         {
             return new DateTime(date.Year, date.Month, date.Day, 23, 59, 59, 999);
         }
@@ -27,9 +28,8 @@ namespace TKW.Framework.Common.Extensions
         /// <summary>
         /// 获取当前时间对应的时间戳
         /// </summary>
-        /// <param name="date"></param>
         /// <returns></returns>
-        public static ulong TimeStamp(this DateTime date)
+        public ulong TimeStamp()
         {
             var baseDate = new DateTime(1970, 1, 1, 0, 0, 0);
             if (date < baseDate) throw new ArgumentOutOfRangeException(nameof(date), "时间参数不能早于1970年1月1日0时0分0秒");
@@ -40,10 +40,9 @@ namespace TKW.Framework.Common.Extensions
         /// <summary>
         /// 获取当前时间对应的时间戳
         /// </summary>
-        /// <param name="date"></param>
         /// <returns></returns>
         // HACK：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Date
-        public static ulong UTCTimeStampForJavaScript(this DateTime date)
+        public ulong UTCTimeStampForJavaScript()
         {
             var baseDate = new DateTime(1970, 1, 1, 0, 0, 0);
             if (date < baseDate) throw new ArgumentOutOfRangeException(nameof(date), "时间参数不能早于1970年1月1日0时0分0秒");

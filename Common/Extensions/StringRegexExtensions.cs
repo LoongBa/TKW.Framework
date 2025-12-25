@@ -1,22 +1,24 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace TKW.Framework.Common.Extensions
-{
-    public static class StringRegexExtensions
-    {
-        #region Regex
+namespace TKW.Framework.Common.Extensions;
 
+public static class StringRegexExtensions
+{
+    #region Regex
+
+    /// <param name="left">字符串</param>
+    extension(string left)
+    {
         /// <summary>
         /// 断言字符串符合规则
         /// </summary>
-        /// <param name="left">字符串</param>
         /// <param name="regexPattern"></param>
         /// <param name="message">自定义消息</param>
         /// <param name="name">自定义参数名</param>
         /// <param name="toTrim">是否去掉头尾包含的空字符串（默认去掉）</param>
         /// <exception cref="ArgumentException"></exception>
-        public static string AssertValueIsMatch(this string left, string regexPattern, string message = null, string name = null,
+        public string AssertValueIsMatch(string regexPattern, string message = null, string name = null,
             bool toTrim = true)
         {
             name = name.HasValue() ? name : nameof(left);
@@ -28,32 +30,32 @@ namespace TKW.Framework.Common.Extensions
             return toTrim ? left.Trim() : left;
         }
 
-        public static bool IsMatch(this string left, string regexPattern)
+        public bool IsMatch(string regexPattern)
             => Regex.IsMatch(left.EnsureHasValue(), regexPattern.EnsureHasValue());
 
-        public static string Replace(this string left, string regexPattern, string replacement)
+        public string Replace(string regexPattern, string replacement)
             => Regex.Replace(
                 left.EnsureHasValue(),
                 regexPattern.EnsureHasValue(),
                 replacement.EnsureHasValue());
 
-        public static bool IsMatch(this string left, Regex regexPattern)
+        public bool IsMatch(Regex regexPattern)
         {
             return regexPattern.IsMatch(left.EnsureHasValue());
         }
 
-        public static string RegexMatch(this string s, Regex regex)
+        public string RegexMatch(Regex regex)
         {
-            if (string.IsNullOrEmpty(s)) throw new ArgumentNullException();
-            return regex.Match(s).Value;
+            if (string.IsNullOrEmpty(left)) throw new ArgumentNullException();
+            return regex.Match(left).Value;
         }
 
-        public static string Replace(this string left, Regex regex, string replacement)
+        public string Replace(Regex regex, string replacement)
         {
             if (string.IsNullOrEmpty(left)) throw new ArgumentNullException();
             return regex.AssertNotNull().Replace(left, replacement);
         }
-
-        #endregion
     }
+
+    #endregion
 }

@@ -6,42 +6,44 @@ using System.Reflection;
 using TKW.Framework.Common.DataType;
 //using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.Extensions
+namespace TKW.Framework.Common.Extensions;
+
+public static class ObjectExtensions
 {
-    public static class ObjectExtensions
+    public static T AssertNotNull<T>(this T left, string name = null, string message = null)
+        //where T : class
     {
-        public static T AssertNotNull<T>(this T left, string name = null, string message = null)
-            //where T : class
-        {
-            name = name.HasValue() ? name : left.GetType().Name;
-            if (left == null)
-                throw new ArgumentNullException(
-                    message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
-            return left;
-        }
-        public static string AssertNotEmptyOrNull(this string left, string name = null, string message = null)
-        {
-            name = name.HasValue() ? name : left.GetType().Name;
-            if (left == null)
-                throw new ArgumentNullException(
-                    message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
-            return left;
-        }
-        public static object AssertNotNull(this object left, string name = null, string message = null)
-        {
-            name = name.HasValue() ? name : left.GetType().Name;
-            if (left == null)
-                throw new ArgumentNullException(
-                    message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
-            return left;
-        }
+        name = name.HasValue() ? name : left.GetType().Name;
+        if (left == null)
+            throw new ArgumentNullException(
+                message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
+        return left;
+    }
+    public static string AssertNotEmptyOrNull(this string left, string name = null, string message = null)
+    {
+        name = name.HasValue() ? name : left.GetType().Name;
+        if (left == null)
+            throw new ArgumentNullException(
+                message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
+        return left;
+    }
+    public static object AssertNotNull(this object left, string name = null, string message = null)
+    {
+        name = name.HasValue() ? name : left.GetType().Name;
+        if (left == null)
+            throw new ArgumentNullException(
+                message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
+        return left;
+    }
 
-        #region 反射相关
+    #region 反射相关
 
+    extension<TEntity>(TEntity left)
+    {
         /// <summary>
         /// 复制同名属性的值（采用反射，影响性能，不推荐使用）
         /// </summary>
-        public static TEntity CopySamePropertiesValue<TEntity, TModel>(this TEntity left, TModel copyFrom)
+        public TEntity CopySamePropertiesValue<TModel>(TModel copyFrom)
         {
             left.AssertNotNull();
             copyFrom.AssertNotNull();
@@ -53,8 +55,8 @@ namespace TKW.Framework.Common.Extensions
                 if (!copyFromProperty.CanRead) continue;
                 //赋值
                 var leftProperty = left.GetType()
-                                       .GetProperties()
-                                       .FirstOrDefault(p => p.Name.Equals(copyFromProperty.Name, StringComparison.Ordinal) && p.CanWrite);
+                    .GetProperties()
+                    .FirstOrDefault(p => p.Name.Equals(copyFromProperty.Name, StringComparison.Ordinal) && p.CanWrite);
                 leftProperty?.SetValue(left, copyFromProperty.GetValue(copyFrom));
             }
             return left;
@@ -63,7 +65,7 @@ namespace TKW.Framework.Common.Extensions
         /// <summary>
         /// 比较同名属性的差异
         /// </summary>
-        public static IEnumerable<ValueDifference> CompareSamePropertiesDifference<TEntity, TModel>(this TEntity left, TModel comparedWith)
+        public IEnumerable<ValueDifference> CompareSamePropertiesDifference<TModel>(TModel comparedWith)
         {
             comparedWith.AssertNotNull();
 
@@ -81,8 +83,8 @@ namespace TKW.Framework.Common.Extensions
 
                 //赋值
                 var leftProperty = left.GetType()
-                                       .GetProperties()
-                                       .FirstOrDefault(p => p.Name.Equals(fromProperty.Name, StringComparison.Ordinal) && p.CanWrite);
+                    .GetProperties()
+                    .FirstOrDefault(p => p.Name.Equals(fromProperty.Name, StringComparison.Ordinal) && p.CanWrite);
                 if (leftProperty == null) continue;
 
                 //比较值
@@ -98,23 +100,23 @@ namespace TKW.Framework.Common.Extensions
             }
             return differences;
         }
-
-        #endregion
-
-        #region Attribute 相关
-
-        /// <summary>
-        /// 获取指定对象/属性的 System.ComponentModel.DataAnnotations.DisplayAttribute
-        /// </summary>
-        /// <see cref="DisplayAttribute"/>
-        public static DisplayAttribute GetDisplayAttribute<TEnum>(this TEnum left)
-        {
-            var type = left.GetType();
-            if (type.IsEnum)
-                return type.GetMember(left.ToString()).FirstOrDefault()?.GetCustomAttributes(typeof(DisplayAttribute), false).FirstOrDefault() as DisplayAttribute;
-            return type.GetCustomAttributes().FirstOrDefault(a => a is DisplayAttribute) as DisplayAttribute;
-        }
-
-        #endregion
     }
+
+    #endregion
+
+    #region Attribute 相关
+
+    /// <summary>
+    /// 获取指定对象/属性的 System.ComponentModel.DataAnnotations.DisplayAttribute
+    /// </summary>
+    /// <see cref="DisplayAttribute"/>
+    public static DisplayAttribute GetDisplayAttribute<TEnum>(this TEnum left)
+    {
+        var type = left.GetType();
+        if (type.IsEnum)
+            return type.GetMember(left.ToString()).FirstOrDefault()?.GetCustomAttributes(typeof(DisplayAttribute), false).FirstOrDefault() as DisplayAttribute;
+        return type.GetCustomAttributes().FirstOrDefault(a => a is DisplayAttribute) as DisplayAttribute;
+    }
+
+    #endregion
 }
