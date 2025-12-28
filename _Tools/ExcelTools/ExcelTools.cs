@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using ExcelDataReader;
+using System.Collections.Specialized;
 using System.Dynamic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -6,7 +7,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using ExcelDataReader;
+using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.Extensions;
 
 namespace TKWF.Tools.ExcelTools
@@ -106,8 +107,8 @@ namespace TKWF.Tools.ExcelTools
             StringDictionary columnMapping,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0,
-            IDictionary<string, object?>? batchProperties = null,
-            IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
+            Dictionary<string, object>? batchProperties = null,
+            IDictionary<string, Func<int, object>>? dynamicBatchProperties = null,
             bool batchOverridesExcel = false,
             Action<T, int>? onRecordCreated = null,
             Action<string>? log = null,
@@ -585,8 +586,8 @@ namespace TKWF.Tools.ExcelTools
             IExcelDataReader reader,
             IDictionary<string, string> columnMapping, // ExcelHeader -> PropertyName
             PropertyInfo? otherColumnProperty,
-            IDictionary<string, object?>? batchProperties,
-            IDictionary<string, Func<int, object?>>? dynamicBatchProperties,
+            Dictionary<string, object>? batchProperties,
+            IDictionary<string, Func<int, object>>? dynamicBatchProperties,
             bool batchOverridesExcel,
             Action<T, int>? onRecordCreated,
             Action<string>? log,
@@ -862,8 +863,8 @@ namespace TKWF.Tools.ExcelTools
 
         private static void ApplyBatchProperties<T>(
             T instance,
-            IDictionary<string, object?> batchStatic,
-            IDictionary<string, Func<int, object?>>? batchDynamic,
+            IDictionary<string, object> batchStatic,
+            IDictionary<string, Func<int, object>>? batchDynamic,
             int rowIndex,
             Dictionary<string, PropertyInfo> propertyCache,
             Dictionary<string, Action<object, object?>> setterCache,
@@ -1021,8 +1022,26 @@ namespace TKWF.Tools.ExcelTools
 
             if (nonNullable.IsEnum)
             {
-                if (value is string s2) return Enum.Parse(nonNullable, s2, true);
-                return Enum.ToObject(nonNullable, value);
+                try
+                {
+                    // 1. 将 value 转为字符串（统一匹配入口，兼容数值/英文名/DisplayName）
+                    var input = value.ToString()!.Trim();
+
+                    // 2. 反射调用 EnumHelper.ParseEnum<T> 泛型方法（多维度匹配）
+                    // 先获取 EnumHelper 的 ParseEnum 泛型方法（无自定义默认值，使用兜底默认值）
+                    var parseEnumMethod = typeof(EnumHelper)
+                        .GetMethod(nameof(EnumHelper.ParseEnum), new[] { typeof(string) })!
+                        .MakeGenericMethod(nonNullable);
+
+                    // 3. 调用方法并返回枚举值
+                    var enumValue = parseEnumMethod.Invoke(null, new object[] { input })!;
+                    return enumValue;
+                }
+                catch (Exception ex)
+                {
+                    // 转换失败时返回枚举默认值（兜底，避免整行导入失败）
+                    return GetDefaultOrNull(targetType);
+                }
             }
 
             if (nonNullable == typeof(Guid))
