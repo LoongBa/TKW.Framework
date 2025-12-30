@@ -20,7 +20,7 @@ namespace TKW.Framework.Domain
     }
 
     /// <summary>
-    /// 领域控制器：可选，一般情况下用 DomainService + IAopContract 即可。
+    /// 领域控制器：可选，封装 DomainService + IAopContract
     /// </summary>
     public class DomainController(DomainUser user) : DomainService(user), IAopContract;
 }

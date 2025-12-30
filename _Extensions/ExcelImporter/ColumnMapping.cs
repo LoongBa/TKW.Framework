@@ -14,13 +14,12 @@ public class ColumnMapping
     public string FormatPattern { get; set; } = string.Empty;
     public string DefaultValue { get; set; } = string.Empty;
 
-    public static List<ColumnMapping> CreateFrom(StringDictionary columns)
+    public static List<ColumnMapping> CreateFrom(Dictionary<string, string> columns)
     {
         List<ColumnMapping> columnMappings = new();
         foreach (var column in columns.Keys)
         {
-            if (column == null) continue;
-            var columnName = column.ToString();
+            var columnName = column;
             columnMappings.Add(new ColumnMapping()
             {
                 ExcelColumnName = columnName,

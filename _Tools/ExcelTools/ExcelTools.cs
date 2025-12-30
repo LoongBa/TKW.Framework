@@ -149,7 +149,7 @@ namespace TKWF.Tools.ExcelTools
         /// <returns>导入的实体列表</returns>
         public static async Task<IEnumerable<T>> ImportDataFromExcel<T>(
             string filename,
-            StringDictionary columnMapping,
+            Dictionary<string, string> columnMapping,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0)
             where T : new()
@@ -179,7 +179,7 @@ namespace TKWF.Tools.ExcelTools
         /// <returns>导入的动态对象列表</returns>
         public static async Task<IEnumerable<dynamic>> ImportDynamicObjectFromExcel(
             string filename,
-            StringDictionary? columnMapping = null,
+            Dictionary<string, string> columnMapping,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0)
         {
@@ -223,7 +223,7 @@ namespace TKWF.Tools.ExcelTools
         /// <returns>Excel导入结果（含成功数据与失败明细）</returns>
         public static async Task<ExcelImportResult<T>> ImportDataFromExcelWithResult<T>(
             string filename,
-            StringDictionary columnMapping,
+            Dictionary<string, string> columnMapping,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0,
             Dictionary<string, object>? batchProperties = null,
@@ -350,7 +350,7 @@ namespace TKWF.Tools.ExcelTools
         /// <returns>Excel导入结果（含成功动态对象与失败明细）</returns>
         public static async Task<ExcelImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(
             string filename,
-            StringDictionary? columnMapping = null,
+            Dictionary<string, string> columnMapping = null,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0,
             bool stopOnFirstError = false,
