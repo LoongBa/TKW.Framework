@@ -1,129 +1,15 @@
 ﻿using ExcelDataReader;
-using System.Collections.Specialized;
 using System.Dynamic;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-
-// 注意：保留你原有项目的枚举引用（如 TKW.Framework 相关）
 using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.Extensions;
 
 namespace TKWF.Tools.ExcelTools
 {
-    /// <summary>
-    /// Excel记录验证/处理状态（回调返回值，用于控制流程走向）
-    /// </summary>
-    public enum ExcelRecordProcessStatus
-    {
-        /// <summary>
-        /// 继续处理（本条正常校验，符合条件则加入成功列表）
-        /// </summary>
-        Continue = 0,
-
-        /// <summary>
-        /// 忽略本条（不加入成功列表，也不记入失败明细，直接跳过）
-        /// </summary>
-        Skip = 1,
-
-        /// <summary>
-        /// 本条失败（记入失败明细，继续处理后续行）
-        /// </summary>
-        Fail = 2,
-
-        /// <summary>
-        /// 终止所有处理（本条记入失败明细，立即停止后续所有行的处理）
-        /// </summary>
-        Abort = 3
-    }
-
-    /// <summary>
-    /// 泛型Excel记录验证回调（处理前/处理中，用于业务校验并控制流程）
-    /// </summary>
-    /// <typeparam name="T">目标类型</typeparam>
-    /// <param name="rowIndex">当前行索引（从0开始）</param>
-    /// <param name="record">当前创建的对象实例（已完成属性赋值）</param>
-    /// <param name="rowValues">当前行原始值字典（Excel列名->单元格值）</param>
-    /// <param name="otherColumnValues">未映射列的原始值字典</param>
-    /// <param name="failure">失败信息对象（用户可自定义赋值错误信息/异常）</param>
-    /// <returns>处理状态指令</returns>
-    public delegate ExcelRecordProcessStatus ExcelRecordValidatingCallback<T>(
-        int rowIndex,
-        T record,
-        Dictionary<string, object?> rowValues,
-        Dictionary<string, object?> otherColumnValues,
-        ref ExcelImportFailure failure);
-
-    /// <summary>
-    /// 动态Excel记录验证回调（处理前/处理中，用于业务校验并控制流程）
-    /// </summary>
-    /// <param name="rowIndex">当前行索引（从0开始）</param>
-    /// <param name="dynamicRecord">当前创建的动态对象实例（已完成属性赋值）</param>
-    /// <param name="rowValues">当前行原始值字典（Excel列名->单元格值）</param>
-    /// <param name="failure">失败信息对象（用户可自定义赋值错误信息/异常）</param>
-    /// <returns>处理状态指令</returns>
-    public delegate ExcelRecordProcessStatus ExcelDynamicRecordValidatingCallback(
-        int rowIndex,
-        dynamic dynamicRecord,
-        Dictionary<string, object?> rowValues,
-        ref ExcelImportFailure failure);
-
-    /// <summary>
-    /// 导入失败明细
-    /// </summary>
-    public class ExcelImportFailure
-    {
-        /// <summary>
-        /// 失败行索引（从0开始）
-        /// </summary>
-        public int RowIndex { get; set; }
-
-        /// <summary>
-        /// 错误描述信息
-        /// </summary>
-        public string? ErrorMessage { get; set; }
-
-        /// <summary>
-        /// 异常对象（可选）
-        /// </summary>
-        public Exception? Exception { get; set; }
-
-        /// <summary>
-        /// 失败行的原始值字典
-        /// </summary>
-        public Dictionary<string, object?> RowValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// 导入结果（包含成功项与失败明细）
-    /// </summary>
-    /// <typeparam name="T">数据类型</typeparam>
-    public class ExcelImportResult<T>
-    {
-        /// <summary>
-        /// 成功导入的数据列表
-        /// </summary>
-        public List<T> Items { get; } = [];
-
-        /// <summary>
-        /// 导入失败的明细列表
-        /// </summary>
-        public List<ExcelImportFailure> Failures { get; } = [];
-
-        /// <summary>
-        /// 成功导入数量
-        /// </summary>
-        public int SuccessCount => Items.Count;
-
-        /// <summary>
-        /// 导入失败数量
-        /// </summary>
-        public int FailedCount => Failures.Count;
-    }
-
     /// <summary>
     /// Excel 导入工具（保留兼容方法并提供增强方法）
     /// 主要特性：
@@ -136,8 +22,251 @@ namespace TKWF.Tools.ExcelTools
     /// </summary>
     public static class ExcelTools
     {
-        #region 兼容原始签名（保持行为一致）
+        #region 开放工具方法（公开可见，供外部调用）
+        /// <summary>
+        /// 判断指定的 sheetIndex 是否有效（无需遍历所有 Sheet，仅遍历到 sheetIndex 即可）
+        /// </summary>
+        /// <param name="filePath">Excel 文件路径</param>
+        /// <param name="sheetIndex">待校验的 Sheet 索引（从 0 开始）</param>
+        /// <returns>true=有效，false=无效</returns>
+        /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
+        /// <exception cref="ArgumentOutOfRangeException">sheetIndex 为负数时抛出</exception>
+        public static bool IsSheetIndexValid(string filePath, int sheetIndex)
+        {
+            // 参数校验
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentNullException(nameof(filePath), "文件路径不能为空");
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"文件不存在：{filePath}", filePath);
+            switch (sheetIndex)
+            {
+                case < 0:
+                    throw new ArgumentOutOfRangeException(nameof(sheetIndex), "Sheet 索引不能为负数");
+                // 特殊情况：sheetIndex == 0，直接返回有效（无需遍历）
+                case 0:
+                    return true;
+            }
 
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            IExcelDataReader? reader = null;
+            try
+            {
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                // 创建 Reader
+                reader = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                    ? ExcelReaderFactory.CreateCsvReader(stream)
+                    : ExcelReaderFactory.CreateReader(stream);
+
+                var currentSheetIndex = 0;
+                // 仅遍历到 sheetIndex 即可，无需遍历所有 Sheet
+                do
+                {
+                    // 若当前索引已等于目标索引，说明有效
+                    if (currentSheetIndex == sheetIndex)
+                        return true;
+
+                    currentSheetIndex++;
+                    // 若已无下一个 Sheet，终止循环
+                } while (reader.NextResult());
+
+                // 循环结束仍未找到，说明索引无效
+                return false;
+            }
+            finally
+            {
+                // 安全释放 Reader
+                if (reader != null)
+                {
+                    try { reader.Close(); reader.Dispose(); }
+                    catch { /* 忽略释放异常 */ }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 获取 Excel 文件的 Sheet 总数 + 所有 Sheet 名称（遍历全量，供其他场景复用）
+        /// </summary>
+        /// <param name="filePath">Excel 文件路径</param>
+        /// <returns>键=Sheet索引，值=Sheet名称；字典.Count 即为 Sheet 总数</returns>
+        /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
+        public static Dictionary<int, string> GetExcelSheetInfo(string filePath)
+        {
+            // 参数校验
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentNullException(nameof(filePath), "文件路径不能为空");
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"文件不存在：{filePath}", filePath);
+
+            var sheetInfoDict = new Dictionary<int, string>();
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            IExcelDataReader? reader = null;
+
+            try
+            {
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                // 创建 Reader
+                reader = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                    ? ExcelReaderFactory.CreateCsvReader(stream)
+                    : ExcelReaderFactory.CreateReader(stream);
+
+                var currentSheetIndex = 0;
+                // 遍历所有 Sheet，收集索引和名称
+                do
+                {
+                    sheetInfoDict.Add(currentSheetIndex, reader.Name);
+                    currentSheetIndex++;
+                } while (reader.NextResult());
+
+                return sheetInfoDict;
+            }
+            finally
+            {
+                // 安全释放 Reader
+                if (reader != null)
+                {
+                    try { reader.Close(); reader.Dispose(); }
+                    catch { /* 忽略释放异常 */ }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 重载：获取 Excel 文件的 Sheet 总数（基于 GetExcelSheetInfo）
+        /// </summary>
+        /// <param name="filePath">Excel 文件路径</param>
+        /// <returns>Sheet 总数</returns>
+        public static int GetExcelSheetCount(string filePath)
+        {
+            return GetExcelSheetInfo(filePath).Count;
+        }
+
+        /// <summary>
+        /// 类型转换工具：将原始值转换为目标类型（公开方法，供外部复用）
+        /// </summary>
+        /// <param name="value">原始值</param>
+        /// <param name="targetType">目标类型</param>
+        /// <returns>转换后的值</returns>
+        public static object? ConvertToTarget(object? value, Type targetType)
+        {
+            if (value == null) return GetDefaultOrNull(targetType);
+
+            if (targetType.IsInstanceOfType(value)) return value;
+
+            var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+            if (value is string s && string.IsNullOrWhiteSpace(s))
+                return GetDefaultOrNull(targetType);
+
+            // 枚举类型转换
+            if (nonNullable.IsEnum)
+            {
+                try
+                {
+                    var input = value.ToString()!.Trim();
+                    var parseEnumMethod = typeof(EnumHelper)
+                        .GetMethod(nameof(EnumHelper.ParseEnum), [typeof(string)])!
+                        .MakeGenericMethod(nonNullable);
+                    var enumValue = parseEnumMethod.Invoke(null, [input])!;
+                    return enumValue;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"枚举转换失败：{ex.Message}，返回默认值");
+                    return GetDefaultOrNull(targetType);
+                }
+            }
+
+            // Guid类型转换
+            if (nonNullable == typeof(Guid))
+            {
+                if (value is Guid g) return g;
+                if (value is string gs && Guid.TryParse(gs, out var guid)) return guid;
+            }
+
+            // DateTime类型转换
+            if (nonNullable == typeof(DateTime))
+            {
+                if (value is DateTime dt) return dt;
+                if (value is string ds && DateTime.TryParse(ds, out var date)) return date;
+            }
+
+            // Boolean类型转换
+            if (nonNullable == typeof(bool))
+            {
+                if (value is bool b) return b;
+                if (value is string bs && bool.TryParse(bs, out var flag)) return flag;
+                if (value is int i) return i != 0;
+            }
+
+            // 通用类型转换
+            try
+            {
+                var converted = Convert.ChangeType(value, nonNullable);
+                return converted;
+            }
+            catch
+            {
+                // 尝试通过构造函数转换
+                if (value is string vs)
+                {
+                    var ctor = nonNullable.GetConstructor([typeof(string)]);
+                    if (ctor != null)
+                        return ctor.Invoke([vs]);
+                }
+                return GetDefaultOrNull(targetType);
+            }
+        }
+
+        /// <summary>
+        /// 获取类型默认值（公开方法，供外部复用）
+        /// </summary>
+        /// <param name="type">目标类型</param>
+        /// <returns>类型默认值</returns>
+        public static object? GetDefaultValue(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
+
+        /// <summary>
+        /// 获取可空类型/值类型的默认值（公开方法，供外部复用）
+        /// </summary>
+        /// <param name="type">目标类型</param>
+        /// <returns>默认值（null或类型默认值）</returns>
+        public static object? GetDefaultOrNull(Type type)
+        {
+            if (!type.IsValueType) return null;
+            if (Nullable.GetUnderlyingType(type) != null) return null;
+            return Activator.CreateInstance(type);
+        }
+
+        /// <summary>
+        /// 给动态对象（ExpandoObject）应用批量属性（公开方法，供外部复用）
+        /// </summary>
+        /// <param name="expando">动态对象</param>
+        /// <param name="batchStatic">固定批量属性</param>
+        /// <param name="batchDynamic">动态批量属性</param>
+        /// <param name="rowIndex">当前行索引</param>
+        public static void ApplyBatchPropertiesToExpando(
+            IDictionary<string, object?> expando,
+            IDictionary<string, object?> batchStatic,
+            IDictionary<string, Func<int, object?>>? batchDynamic,
+            int rowIndex)
+        {
+            // 应用固定属性
+            foreach (var kv in batchStatic)
+            {
+                expando[kv.Key] = kv.Value;
+            }
+
+            // 应用动态属性
+            if (batchDynamic != null)
+            {
+                foreach (var kv in batchDynamic)
+                {
+                    expando[kv.Key] = kv.Value(rowIndex);
+                }
+            }
+        }
+        #endregion
+
+        #region 兼容原始签名（保持行为一致，内部调用增强版）
         /// <summary>
         /// 兼容原始签名：返回 IEnumerable<T>（内部调用增强版并返回 Items）
         /// </summary>
@@ -199,11 +328,9 @@ namespace TKWF.Tools.ExcelTools
 
             return res.Items;
         }
-
         #endregion
 
-        #region 增强版：泛型导入并返回结果（含可控回调）
-
+        #region 增强版：泛型导入（强类型）- 统一逻辑，修复冗余
         /// <summary>
         /// 增强版：导入并返回 ExcelImportResult<T>（包含成功列表与失败明细）
         /// 支持批量属性、动态属性、可控流程回调、普通通知回调、日志记录、遇错策略
@@ -235,18 +362,30 @@ namespace TKWF.Tools.ExcelTools
             ExcelRecordValidatingCallback<T>? onRecordValidating = null)
             where T : new()
         {
-            // 参数校验
+            // 统一参数校验（与动态类型方法保持一致）
             columnMapping.AssertNotNull();
-            filename.EnsureHasValue().TrimSelf();
+            filename = filename.EnsureHasValue().TrimSelf();
             if (!File.Exists(filename))
                 throw new FileNotFoundException($"文件不存在：{filename}", filename);
 
             if (sheetIndex < 0)
                 throw new ArgumentOutOfRangeException(nameof(sheetIndex), "sheetIndex 不能为负数");
 
+            // Sheet索引有效性校验（与动态类型方法逻辑统一，非0校验，无效抛异常）
+            if (sheetIndex != 0)
+            {
+                bool isSheetValid = IsSheetIndexValid(filename, sheetIndex);
+                if (!isSheetValid)
+                {
+                    var sheetCount = GetExcelSheetCount(filename);
+                    throw new ArgumentOutOfRangeException(nameof(sheetIndex),
+                        $"指定的Sheet索引 {sheetIndex} 无效，该Excel文件共有 {sheetCount} 个Sheet（有效索引范围：0 - {sheetCount - 1}）");
+                }
+            }
+
             // 转成字典，去掉空项（大小写不敏感）
             var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (string key in columnMapping.Keys)
+            foreach (var key in columnMapping.Keys)
             {
                 if (string.IsNullOrWhiteSpace(key)) continue;
                 var val = columnMapping[key];
@@ -269,15 +408,16 @@ namespace TKWF.Tools.ExcelTools
             var importResult = new ExcelImportResult<T>();
 
             await using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
+            IExcelDataReader? reader = null;
 
-            IExcelDataReader reader = null!;
             try
             {
+                // 仅创建一次Reader（与动态类型方法一致，避免文件关闭异常）
                 reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
                     ? ExcelReaderFactory.CreateCsvReader(stream)
                     : ExcelReaderFactory.CreateReader(stream);
 
-                log?.Invoke($"已打开文件：{filename}，开始读取。");
+                log?.Invoke($"已打开文件：{filename}，开始读取目标Sheet（索引：{sheetIndex}）。");
 
                 var currentSheet = 0;
                 var processed = false;
@@ -286,7 +426,7 @@ namespace TKWF.Tools.ExcelTools
                     if (currentSheet == sheetIndex)
                     {
                         processed = true;
-                        // 流式处理目标工作表（核心逻辑）
+                        // 流式处理目标工作表（核心逻辑，提取复用）
                         ProcessSheetStreaming(reader, mapping, otherColumnProperty, batchProperties, dynamicBatchProperties,
                             batchOverridesExcel, onRecordCreated, log, importResult, stopOnFirstError, onRecordValidating);
                         break;
@@ -294,18 +434,10 @@ namespace TKWF.Tools.ExcelTools
                     currentSheet++;
                 } while (reader.NextResult());
 
-                // 若指定Sheet索引超出范围，回退到第一个Sheet读取
+                // 兜底提示（与动态类型方法一致）
                 if (!processed)
                 {
-                    log?.Invoke($"指定 sheetIndex={sheetIndex} 超出范围，回退到第一个 Sheet 读取。");
-                    reader.Close();
-                    stream.Seek(0, SeekOrigin.Begin);
-                    reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
-                        ? ExcelReaderFactory.CreateCsvReader(stream)
-                        : ExcelReaderFactory.CreateReader(stream);
-
-                    ProcessSheetStreaming(reader, mapping, otherColumnProperty, batchProperties, dynamicBatchProperties,
-                        batchOverridesExcel, onRecordCreated, log, importResult, stopOnFirstError, onRecordValidating);
+                    log?.Invoke($"警告：未找到Sheet索引 {sheetIndex}，未处理任何数据");
                 }
 
                 log?.Invoke($"读取完成，共导入成功：{importResult.SuccessCount}，失败：{importResult.FailedCount}");
@@ -321,17 +453,18 @@ namespace TKWF.Tools.ExcelTools
             {
                 try
                 {
-                    reader?.Close();
-                    reader?.Dispose();
+                    if (reader != null)
+                    {
+                        reader.Close();
+                        reader.Dispose();
+                    }
                 }
                 catch { /* 忽略资源释放异常 */ }
             }
         }
-
         #endregion
 
-        #region 增强版：动态导入并返回结果（含可控回调）
-
+        #region 增强版：动态导入（ExpandoObject）- 修复变量错误，统一逻辑
         /// <summary>
         /// 动态对象导入（增强版），返回 ExcelImportResult<dynamic>（包含成功项与失败明细）
         /// 支持可控流程回调、批量属性、动态属性、遇错策略、日志记录
@@ -349,36 +482,53 @@ namespace TKWF.Tools.ExcelTools
         /// <param name="onRecordValidating">可控验证回调（用于业务校验，支持控制流程走向）</param>
         /// <returns>Excel导入结果（含成功动态对象与失败明细）</returns>
         public static async Task<ExcelImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(
-            string filename,
-            Dictionary<string, string> columnMapping = null,
-            string? otherColumnsMappingName = null,
-            int sheetIndex = 0,
-            bool stopOnFirstError = false,
-            Action<string>? log = null,
-            IDictionary<string, object?>? batchProperties = null,
-            IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
-            bool batchOverridesExcel = false,
-            Action<dynamic, int>? onRecordCreated = null,
-            ExcelDynamicRecordValidatingCallback? onRecordValidating = null)
+                string filename,
+                Dictionary<string, string>? columnMapping = null,
+                string? otherColumnsMappingName = null,
+                int sheetIndex = 0,
+                bool stopOnFirstError = false,
+                Action<string>? log = null,
+                IDictionary<string, object?>? batchProperties = null,
+                IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
+                bool batchOverridesExcel = false,
+                Action<dynamic, int>? onRecordCreated = null,
+                ExcelDynamicRecordValidatingCallback? onRecordValidating = null)
         {
-            filename.EnsureHasValue().TrimSelf();
+            // 1. 基础参数校验（与泛型方法逻辑完全统一）
+            filename = filename.EnsureHasValue().TrimSelf();
             if (!File.Exists(filename))
                 throw new FileNotFoundException($"文件不存在：{filename}", filename);
 
             if (sheetIndex < 0)
                 throw new ArgumentOutOfRangeException(nameof(sheetIndex), "sheetIndex 不能为负数");
 
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            // 2. Sheet 索引有效性校验（与泛型方法完全一致）
+            if (sheetIndex != 0)
+            {
+                bool isSheetValid = IsSheetIndexValid(filename, sheetIndex);
+                if (!isSheetValid)
+                {
+                    var sheetCount = GetExcelSheetCount(filename);
+                    throw new ArgumentOutOfRangeException(nameof(sheetIndex),
+                        $"指定的Sheet索引 {sheetIndex} 无效，该Excel文件共有 {sheetCount} 个Sheet（有效索引范围：0 - {sheetCount - 1}）");
+                }
+            }
 
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             var result = new ExcelImportResult<dynamic>();
 
             await using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
-                ? ExcelReaderFactory.CreateCsvReader(stream)
-                : ExcelReaderFactory.CreateReader(stream);
+            IExcelDataReader? reader = null;
 
             try
             {
+                // 仅创建一次Reader（与泛型方法一致，避免文件关闭异常）
+                reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                    ? ExcelReaderFactory.CreateCsvReader(stream)
+                    : ExcelReaderFactory.CreateReader(stream);
+
+                log?.Invoke($"已成功打开Excel文件：{filename}，准备读取Sheet索引 {sheetIndex} 的动态对象数据");
+
                 var currentSheet = 0;
                 var processed = false;
 
@@ -387,442 +537,42 @@ namespace TKWF.Tools.ExcelTools
                     if (currentSheet == sheetIndex)
                     {
                         processed = true;
-
-                        if (!reader.Read())
-                        {
-                            log?.Invoke("Sheet 为空或无可读行，直接返回。");
-                            return result;
-                        }
-
-                        var fieldCount = reader.FieldCount;
-                        var headers = new string[fieldCount];
-                        for (var i = 0; i < fieldCount; i++)
-                        {
-                            var raw = reader.GetValue(i);
-                            headers[i] = raw.ToString()!.Trim();
-                        }
-
-                        var headerToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        for (var i = 0; i < headers.Length; i++)
-                        {
-                            var h = headers[i];
-                            headerToIndex.TryAdd(h, i);
-                        }
-
-                        // 构建映射：PropertyName -> columnIndex
-                        var columnIndexMapping = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        if (columnMapping != null)
-                        {
-                            foreach (string excelCol in columnMapping.Keys)
-                            {
-                                if (string.IsNullOrWhiteSpace(excelCol)) continue;
-                                var propName = columnMapping[excelCol];
-                                if (string.IsNullOrWhiteSpace(propName)) continue;
-
-                                if (headerToIndex.TryGetValue(excelCol, out var idx))
-                                    columnIndexMapping[propName] = idx;
-                                else
-                                {
-                                    var found = headerToIndex.Keys.FirstOrDefault(k => string.Equals(k.Trim(), excelCol.Trim(), StringComparison.OrdinalIgnoreCase));
-                                    if (found != null)
-                                        columnIndexMapping[propName] = headerToIndex[found];
-                                    else
-                                        log?.Invoke($"列映射警告：未找到 Excel 列 \"{excelCol}\" 映射到属性 {propName}");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // 没有 columnMapping：若 otherColumnsMappingName 非空，按列名作为属性名映射
-                            if (!string.IsNullOrEmpty(otherColumnsMappingName))
-                            {
-                                for (var i = 0; i < headers.Length; i++)
-                                {
-                                    var prop = headers[i];
-                                    if (string.IsNullOrWhiteSpace(prop)) continue;
-                                    columnIndexMapping[prop] = i;
-                                }
-                            }
-                        }
-
-                        // 逐行读取并构建 ExpandoObject
-                        var rowIndex = 0;
-                        while (reader.Read())
-                        {
-                            var rowValues = new object?[fieldCount];
-                            for (var i = 0; i < fieldCount; i++)
-                            {
-                                var v = reader.GetValue(i);
-                                rowValues[i] = v == DBNull.Value ? null : v;
-                            }
-
-                            var expando = new ExpandoObject() as IDictionary<string, object?>;
-                            var failure = new ExcelImportFailure { RowIndex = rowIndex };
-
-                            try
-                            {
-                                // 1) 先应用批量属性（不覆盖Excel值）
-                                if (batchProperties != null && !batchOverridesExcel)
-                                {
-                                    try
-                                    {
-                                        ApplyBatchPropertiesToExpando(expando, batchProperties, dynamicBatchProperties, rowIndex);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        var msg = $"行 {rowIndex} 批量属性设置失败：{ex.Message}";
-                                        log?.Invoke(msg);
-                                        failure.ErrorMessage ??= string.Empty;
-                                        failure.ErrorMessage += msg + "; ";
-                                    }
-                                }
-
-                                // 2) 映射 Excel 列到 expando
-                                foreach (var (key, colIdx) in columnIndexMapping)
-                                {
-                                    var val = colIdx >= 0 && colIdx < rowValues.Length ? rowValues[colIdx] : null;
-                                    expando[key] = val;
-                                }
-
-                                // 3) 应用批量属性并覆盖Excel值
-                                if (batchProperties != null && batchOverridesExcel)
-                                {
-                                    try
-                                    {
-                                        ApplyBatchPropertiesToExpando(expando, batchProperties, dynamicBatchProperties, rowIndex);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        var msg = $"行 {rowIndex} 批量属性设置失败：{ex.Message}";
-                                        log?.Invoke(msg);
-                                        failure.ErrorMessage ??= string.Empty;
-                                        failure.ErrorMessage += msg + "; ";
-                                    }
-                                }
-
-                                // 4) 构建 otherColumns JSON 并写入 expando
-                                if (!string.IsNullOrEmpty(otherColumnsMappingName))
-                                {
-                                    var jsonObj = new JsonObject();
-                                    for (var i = 0; i < fieldCount; i++)
-                                    {
-                                        if (columnIndexMapping.Values.Contains(i)) continue;
-                                        var header = headers[i];
-                                        var v = rowValues[i];
-                                        jsonObj[header] = v?.ToString();
-                                    }
-                                    expando[otherColumnsMappingName] = jsonObj;
-                                }
-
-                                // 5) 普通通知回调
-                                try
-                                {
-                                    onRecordCreated?.Invoke(expando, rowIndex);
-                                }
-                                catch (Exception ex)
-                                {
-                                    var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
-                                    log?.Invoke(msg);
-                                    failure.ErrorMessage ??= string.Empty;
-                                    failure.ErrorMessage += msg + "; ";
-                                }
-
-                                // 6) 可控验证回调处理（核心新增逻辑）
-                                ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
-                                if (onRecordValidating != null)
-                                {
-                                    try
-                                    {
-                                        processStatus = onRecordValidating(rowIndex, expando, failure.RowValues, ref failure);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        var msg = $"行 {rowIndex} 验证回调 onRecordValidating 抛异常：{ex.Message}";
-                                        log?.Invoke(msg);
-                                        failure.ErrorMessage ??= string.Empty;
-                                        failure.ErrorMessage += msg + "; ";
-                                        failure.Exception = ex;
-                                        processStatus = ExcelRecordProcessStatus.Fail;
-                                    }
-                                }
-
-                                // 根据验证状态分支处理
-                                switch (processStatus)
-                                {
-                                    case ExcelRecordProcessStatus.Skip:
-                                        log?.Invoke($"行 {rowIndex} 已被业务验证忽略");
-                                        rowIndex++;
-                                        continue;
-                                    case ExcelRecordProcessStatus.Fail:
-                                        if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                                        {
-                                            failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，标记为失败";
-                                        }
-                                        break;
-                                    case ExcelRecordProcessStatus.Abort:
-                                        if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                                        {
-                                            failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，终止所有导入处理";
-                                        }
-                                        log?.Invoke(failure.ErrorMessage);
-                                        // 填充原始行值
-                                        for (var i = 0; i < fieldCount; i++)
-                                        {
-                                            var header = headers[i];
-                                            if (!failure.RowValues.ContainsKey(header))
-                                                failure.RowValues[header] = rowValues[i];
-                                        }
-                                        result.Failures.Add(failure);
-                                        if (stopOnFirstError)
-                                        {
-                                            throw new InvalidOperationException(failure.ErrorMessage, failure.Exception);
-                                        }
-                                        else
-                                        {
-                                            log?.Invoke("已触发Abort指令，终止后续行处理");
-                                            return result;
-                                        }
-                                    case ExcelRecordProcessStatus.Continue:
-                                    default:
-                                        break;
-                                }
-
-                                // 7) 结果分类
-                                if (!string.IsNullOrWhiteSpace(failure.ErrorMessage) || failure.Exception != null)
-                                {
-                                    // 填充原始列值
-                                    for (var i = 0; i < fieldCount; i++)
-                                    {
-                                        var header = headers[i];
-                                        if (!failure.RowValues.ContainsKey(header))
-                                            failure.RowValues[header] = rowValues[i];
-                                    }
-
-                                    result.Failures.Add(failure);
-                                    if (stopOnFirstError)
-                                    {
-                                        throw new InvalidOperationException($"在导入时检测到错误（行 {rowIndex}）：{failure.ErrorMessage}", failure.Exception);
-                                    }
-                                }
-                                else
-                                {
-                                    result.Items.Add(expando);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                failure.Exception = ex;
-                                failure.ErrorMessage ??= ex.Message;
-                                for (var i = 0; i < fieldCount; i++)
-                                {
-                                    var header = headers[i];
-                                    if (!failure.RowValues.ContainsKey(header))
-                                        failure.RowValues[header] = rowValues[i];
-                                }
-
-                                result.Failures.Add(failure);
-                                log?.Invoke($"行 {rowIndex} 处理失败：{ex.Message}");
-                                if (stopOnFirstError)
-                                {
-                                    throw new InvalidOperationException($"在导入时检测到错误（行 {rowIndex}）：{ex.Message}", ex);
-                                }
-                            }
-
-                            rowIndex++;
-                        }
-
-                        break; // 已处理目标 sheet
+                        // 修复变量引用错误：移除无效的 rowIndex 参数（原代码误传）
+                        ProcessDynamicSheetData(reader, columnMapping, otherColumnsMappingName, stopOnFirstError, log,
+                            batchProperties, dynamicBatchProperties, batchOverridesExcel, onRecordCreated, onRecordValidating, result);
+                        break; // 已处理目标sheet，跳出循环
                     }
 
                     currentSheet++;
                 } while (reader.NextResult());
 
-                // 若未处理任何 sheet，回退第一个 sheet
+                // 兜底提示（与泛型方法一致）
                 if (!processed)
                 {
-                    reader.Close();
-                    stream.Seek(0, SeekOrigin.Begin);
-                    reader = filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
-                        ? ExcelReaderFactory.CreateCsvReader(stream)
-                        : ExcelReaderFactory.CreateReader(stream);
-
-                    if (!reader.Read()) return result;
-
-                    var fieldCount = reader.FieldCount;
-                    var headers = new string[fieldCount];
-                    for (var i = 0; i < fieldCount; i++)
-                    {
-                        var raw = reader.GetValue(i);
-                        headers[i] = raw.ToString()!.Trim();
-                    }
-
-                    var headerToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                    for (var i = 0; i < headers.Length; i++)
-                    {
-                        var h = headers[i];
-                        headerToIndex.TryAdd(h, i);
-                    }
-
-                    var columnIndexMapping = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                    if (columnMapping != null)
-                    {
-                        foreach (string excelCol in columnMapping.Keys)
-                        {
-                            if (string.IsNullOrWhiteSpace(excelCol)) continue;
-                            var propName = columnMapping[excelCol];
-                            if (string.IsNullOrWhiteSpace(propName)) continue;
-
-                            if (headerToIndex.TryGetValue(excelCol, out var idx))
-                                columnIndexMapping[propName] = idx;
-                            else
-                            {
-                                var found = headerToIndex.Keys.FirstOrDefault(k => string.Equals(k.Trim(), excelCol.Trim(), StringComparison.OrdinalIgnoreCase));
-                                if (found != null)
-                                    columnIndexMapping[propName] = headerToIndex[found];
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (!string.IsNullOrEmpty(otherColumnsMappingName))
-                        {
-                            for (var i = 0; i < headers.Length; i++)
-                            {
-                                var prop = headers[i];
-                                if (string.IsNullOrWhiteSpace(prop)) continue;
-                                columnIndexMapping[prop] = i;
-                            }
-                        }
-                    }
-
-                    var rowIndex = 0;
-                    while (reader.Read())
-                    {
-                        var rowValues = new object?[fieldCount];
-                        for (var i = 0; i < fieldCount; i++)
-                        {
-                            var v = reader.GetValue(i);
-                            rowValues[i] = v == DBNull.Value ? null : v;
-                        }
-
-                        var expando = new ExpandoObject() as IDictionary<string, object?>;
-                        var failure = new ExcelImportFailure { RowIndex = rowIndex };
-
-                        try
-                        {
-                            if (batchProperties != null && !batchOverridesExcel)
-                                ApplyBatchPropertiesToExpando(expando, batchProperties, dynamicBatchProperties, rowIndex);
-
-                            foreach (var (propName, colIdx) in columnIndexMapping)
-                            {
-                                var val = colIdx >= 0 && colIdx < rowValues.Length ? rowValues[colIdx] : null;
-                                expando[propName] = val;
-                            }
-
-                            if (batchProperties != null && batchOverridesExcel)
-                                ApplyBatchPropertiesToExpando(expando, batchProperties, dynamicBatchProperties, rowIndex);
-
-                            if (!string.IsNullOrEmpty(otherColumnsMappingName))
-                            {
-                                var jsonObj = new JsonObject();
-                                for (var i = 0; i < fieldCount; i++)
-                                {
-                                    if (columnIndexMapping.Values.Contains(i)) continue;
-                                    var header = headers[i];
-                                    var v = rowValues[i];
-                                    jsonObj[header] = v?.ToString();
-                                }
-                                expando[otherColumnsMappingName] = jsonObj;
-                            }
-
-                            onRecordCreated?.Invoke(expando, rowIndex);
-
-                            // 可控验证回调
-                            ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
-                            if (onRecordValidating != null)
-                            {
-                                try
-                                {
-                                    processStatus = onRecordValidating(rowIndex, expando, failure.RowValues, ref failure);
-                                }
-                                catch (Exception ex)
-                                {
-                                    var msg = $"行 {rowIndex} 动态对象验证回调抛异常：{ex.Message}";
-                                    log?.Invoke(msg);
-                                    failure.ErrorMessage ??= string.Empty;
-                                    failure.ErrorMessage += msg + "; ";
-                                    failure.Exception = ex;
-                                    processStatus = ExcelRecordProcessStatus.Fail;
-                                }
-                            }
-
-                            switch (processStatus)
-                            {
-                                case ExcelRecordProcessStatus.Skip:
-                                    log?.Invoke($"行 {rowIndex} 动态对象已被忽略");
-                                    rowIndex++;
-                                    continue;
-                                case ExcelRecordProcessStatus.Fail:
-                                    if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                                    {
-                                        failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证失败";
-                                    }
-                                    break;
-                                case ExcelRecordProcessStatus.Abort:
-                                    if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                                    {
-                                        failure.ErrorMessage = $"行 {rowIndex} 动态对象验证失败，终止导入";
-                                    }
-                                    log?.Invoke(failure.ErrorMessage);
-                                    for (var i = 0; i < fieldCount; i++)
-                                    {
-                                        var header = headers[i];
-                                        if (!failure.RowValues.ContainsKey(header))
-                                            failure.RowValues[header] = rowValues[i];
-                                    }
-                                    result.Failures.Add(failure);
-                                    return result;
-                                default:
-                                    break;
-                            }
-
-                            result.Items.Add(expando);
-                        }
-                        catch (Exception ex)
-                        {
-                            failure.Exception = ex;
-                            failure.ErrorMessage ??= ex.Message;
-                            for (var i = 0; i < fieldCount; i++)
-                            {
-                                var header = headers[i];
-                                if (!failure.RowValues.ContainsKey(header))
-                                    failure.RowValues[header] = rowValues[i];
-                            }
-                            result.Failures.Add(failure);
-                            log?.Invoke($"行 {rowIndex} 动态对象处理失败：{ex.Message}");
-                            if (stopOnFirstError)
-                                throw new InvalidOperationException($"行 {rowIndex} 处理失败：{ex.Message}", ex);
-                        }
-
-                        rowIndex++;
-                    }
+                    log?.Invoke($"警告：未找到Sheet索引 {sheetIndex}，未处理任何数据");
                 }
 
+                log?.Invoke($"动态对象Excel导入完成！成功导入 {result.SuccessCount} 条数据，失败 {result.FailedCount} 条数据");
                 return result;
+            }
+            catch (Exception ex)
+            {
+                var errorMsg = $"从Excel文件 {filename} 导入动态对象时发生异常：{ex.Message}";
+                log?.Invoke(errorMsg);
+                throw new InvalidOperationException(errorMsg, ex);
             }
             finally
             {
+                // 安全释放Reader资源（与泛型方法一致）
                 try { reader?.Close(); reader?.Dispose(); }
-                catch { /* 忽略资源释放异常 */ }
+                catch { /* 忽略资源释放异常，避免影响主流程 */ }
             }
         }
-
         #endregion
 
-        #region 内部：流式处理 sheet（泛型实现复用，含可控回调逻辑）
-
+        #region 内部核心处理方法（泛型+动态，逻辑对齐，提取复用）
         /// <summary>
-        /// 流式处理Excel工作表（泛型核心逻辑）
+        /// 流式处理Excel工作表（泛型核心逻辑，强类型专用）
         /// </summary>
         /// <typeparam name="T">目标实体类型</typeparam>
         /// <param name="reader">Excel数据读取器</param>
@@ -952,7 +702,7 @@ namespace TKWF.Tools.ExcelTools
                         object? converted;
                         try
                         {
-                            converted = ConvertToTarget(rawValue, propInfo.PropertyType, log);
+                            converted = ConvertToTarget(rawValue, propInfo.PropertyType);
                         }
                         catch (Exception ex)
                         {
@@ -1040,7 +790,7 @@ namespace TKWF.Tools.ExcelTools
                         failure.ErrorMessage += msg + "; ";
                     }
 
-                    // 6) 可控验证回调（核心新增逻辑）
+                    // 6) 可控验证回调（核心逻辑）
                     ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
                     if (onRecordValidating != null)
                     {
@@ -1059,7 +809,7 @@ namespace TKWF.Tools.ExcelTools
                         }
                     }
 
-                    // 根据验证状态分支处理
+                    // 根据验证状态分支处理（与动态类型方法逻辑一致）
                     switch (processStatus)
                     {
                         case ExcelRecordProcessStatus.Skip:
@@ -1161,12 +911,285 @@ namespace TKWF.Tools.ExcelTools
                     log?.Invoke($"警告：类型 {typeof(T).FullName} 不存在属性 {propertyName}");
                 }
             }
+
+            log?.Invoke($"当前Sheet强类型数据处理完成，共遍历 {rowIndex} 行数据");
         }
 
+        /// <summary>
+        /// 处理单个Sheet的动态对象数据（动态类型专用，修复变量错误，与泛型逻辑对齐）
+        /// </summary>
+        /// <param name="reader">ExcelDataReader实例</param>
+        /// <param name="columnMapping">列映射关系</param>
+        /// <param name="otherColumnsMappingName">未映射列属性名</param>
+        /// <param name="stopOnFirstError">遇错即停</param>
+        /// <param name="log">日志委托</param>
+        /// <param name="batchProperties">批量固定属性</param>
+        /// <param name="dynamicBatchProperties">动态批量属性</param>
+        /// <param name="batchOverridesExcel">批量属性是否覆盖Excel值</param>
+        /// <param name="onRecordCreated">创建回调</param>
+        /// <param name="onRecordValidating">验证回调</param>
+        /// <param name="result">导入结果对象</param>
+        private static void ProcessDynamicSheetData(
+            IExcelDataReader reader,
+            Dictionary<string, string>? columnMapping,
+            string? otherColumnsMappingName,
+            bool stopOnFirstError, // 修复：移除无效参数，统一参数顺序
+            Action<string>? log,
+            IDictionary<string, object?>? batchProperties,
+            IDictionary<string, Func<int, object?>>? dynamicBatchProperties,
+            bool batchOverridesExcel,
+            Action<dynamic, int>? onRecordCreated,
+            ExcelDynamicRecordValidatingCallback? onRecordValidating,
+            ExcelImportResult<dynamic> result)
+        {
+            if (!reader.Read())
+            {
+                log?.Invoke("当前Sheet为空或无可读行，直接返回空结果");
+                return;
+            }
+
+            var fieldCount = reader.FieldCount;
+            var headers = new string[fieldCount];
+            for (var i = 0; i < fieldCount; i++)
+            {
+                var raw = reader.GetValue(i);
+                headers[i] = raw.ToString()?.Trim() ?? $"UnnamedColumn_{i}";
+            }
+
+            var headerToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < headers.Length; i++)
+            {
+                var h = headers[i];
+                headerToIndex.TryAdd(h, i);
+            }
+
+            // 构建映射：PropertyName -> columnIndex
+            var columnIndexMapping = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (columnMapping != null)
+            {
+                foreach (string excelCol in columnMapping.Keys)
+                {
+                    if (string.IsNullOrWhiteSpace(excelCol)) continue;
+                    var propName = columnMapping[excelCol];
+                    if (string.IsNullOrWhiteSpace(propName)) continue;
+
+                    if (headerToIndex.TryGetValue(excelCol, out var idx))
+                        columnIndexMapping[propName] = idx;
+                    else
+                    {
+                        var found = headerToIndex.Keys.FirstOrDefault(k => string.Equals(k.Trim(), excelCol.Trim(), StringComparison.OrdinalIgnoreCase));
+                        if (found != null)
+                            columnIndexMapping[propName] = headerToIndex[found];
+                        else
+                            log?.Invoke($"列映射警告：未找到 Excel 列 \"{excelCol}\" 映射到动态对象属性 {propName}");
+                    }
+                }
+            }
+            else
+            {
+                // 没有 columnMapping：若 otherColumnsMappingName 非空，按列名作为属性名映射
+                if (!string.IsNullOrEmpty(otherColumnsMappingName))
+                {
+                    for (var i = 0; i < headers.Length; i++)
+                    {
+                        var prop = headers[i];
+                        if (string.IsNullOrWhiteSpace(prop)) continue;
+                        columnIndexMapping[prop] = i;
+                    }
+                }
+            }
+
+            // 逐行读取并构建 ExpandoObject
+            var rowIndex = 0;
+            while (reader.Read())
+            {
+                var rowValuesArray = new object?[fieldCount];
+                for (var i = 0; i < fieldCount; i++)
+                {
+                    var v = reader.GetValue(i);
+                    rowValuesArray[i] = v == DBNull.Value ? null : v;
+                }
+
+                // 初始化动态对象和失败信息
+                dynamic expando = new ExpandoObject();
+                var expandoDict = expando as IDictionary<string, object?>;
+                var failure = new ExcelImportFailure { RowIndex = rowIndex };
+                // 先填充原始行值到failure（提前初始化，避免后续遗漏）
+                for (var i = 0; i < fieldCount; i++)
+                {
+                    var header = headers[i];
+                    if (!failure.RowValues.ContainsKey(header))
+                        failure.RowValues[header] = rowValuesArray[i];
+                }
+
+                try
+                {
+                    // 1) 先应用批量属性（不覆盖Excel值）
+                    if (batchProperties != null && !batchOverridesExcel)
+                    {
+                        try
+                        {
+                            ApplyBatchPropertiesToExpando(expandoDict, batchProperties, dynamicBatchProperties, rowIndex);
+                        }
+                        catch (Exception ex)
+                        {
+                            var msg = $"行 {rowIndex} 批量属性设置失败：{ex.Message}";
+                            log?.Invoke(msg);
+                            failure.ErrorMessage ??= string.Empty;
+                            failure.ErrorMessage += msg + "; ";
+                        }
+                    }
+
+                    // 2) 映射 Excel 列到 expando
+                    foreach (var (key, colIdx) in columnIndexMapping)
+                    {
+                        var val = colIdx >= 0 && colIdx < rowValuesArray.Length ? rowValuesArray[colIdx] : null;
+                        expandoDict?[key] = val;
+                    }
+
+                    // 3) 应用批量属性并覆盖Excel值
+                    if (batchProperties != null && batchOverridesExcel)
+                    {
+                        try
+                        {
+                            ApplyBatchPropertiesToExpando(expandoDict, batchProperties, dynamicBatchProperties, rowIndex);
+                        }
+                        catch (Exception ex)
+                        {
+                            var msg = $"行 {rowIndex} 批量属性（覆盖模式）设置失败：{ex.Message}";
+                            log?.Invoke(msg);
+                            failure.ErrorMessage ??= string.Empty;
+                            failure.ErrorMessage += msg + "; ";
+                        }
+                    }
+
+                    // 4) 构建 otherColumns JSON 并写入 expando
+                    if (!string.IsNullOrEmpty(otherColumnsMappingName))
+                    {
+                        var jsonObj = new ExpandoObject() as IDictionary<string, object?>;
+                        for (var i = 0; i < fieldCount; i++)
+                        {
+                            if (columnIndexMapping.Values.Contains(i)) continue;
+                            var header = headers[i];
+                            var v = rowValuesArray[i];
+                            jsonObj[header] = v?.ToString();
+                        }
+                        expandoDict[otherColumnsMappingName] = jsonObj;
+                    }
+
+                    // 5) 普通通知回调
+                    try
+                    {
+                        onRecordCreated?.Invoke(expando, rowIndex);
+                    }
+                    catch (Exception ex)
+                    {
+                        var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
+                        log?.Invoke(msg);
+                        failure.ErrorMessage ??= string.Empty;
+                        failure.ErrorMessage += msg + "; ";
+                    }
+
+                    // 6) 可控验证回调处理（与泛型方法逻辑一致）
+                    ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
+                    if (onRecordValidating != null)
+                    {
+                        try
+                        {
+                            processStatus = onRecordValidating(rowIndex, expando, failure.RowValues, ref failure);
+                        }
+                        catch (Exception ex)
+                        {
+                            var msg = $"行 {rowIndex} 验证回调 onRecordValidating 抛异常：{ex.Message}";
+                            log?.Invoke(msg);
+                            failure.ErrorMessage ??= string.Empty;
+                            failure.ErrorMessage += msg + "; ";
+                            failure.Exception = ex;
+                            processStatus = ExcelRecordProcessStatus.Fail;
+                        }
+                    }
+
+                    // 根据验证状态分支处理（与泛型方法完全对齐）
+                    switch (processStatus)
+                    {
+                        case ExcelRecordProcessStatus.Skip:
+                            log?.Invoke($"行 {rowIndex} 动态对象已被业务验证忽略");
+                            rowIndex++;
+                            continue; // 跳过本条，不记录成功/失败
+                        case ExcelRecordProcessStatus.Fail:
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
+                            {
+                                failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，标记为失败";
+                            }
+                            // 记录失败明细
+                            result.Failures.Add(failure);
+                            log?.Invoke($"行 {rowIndex} 动态对象处理失败：{failure.ErrorMessage}");
+                            // 遇错即停
+                            if (stopOnFirstError)
+                            {
+                                log?.Invoke("已开启遇错即停模式，停止后续动态对象数据处理");
+                                return;
+                            }
+                            break;
+                        case ExcelRecordProcessStatus.Abort:
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
+                            {
+                                failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，终止所有导入处理";
+                            }
+                            log?.Invoke(failure.ErrorMessage);
+                            // 记录失败并终止所有处理
+                            result.Failures.Add(failure);
+                            return;
+                        case ExcelRecordProcessStatus.Continue:
+                        default:
+                            // 验证通过，加入成功列表
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage) && failure.Exception == null)
+                            {
+                                result.Items.Add(expando);
+                            }
+                            else
+                            {
+                                // 存在隐性错误，记录失败
+                                result.Failures.Add(failure);
+                                if (stopOnFirstError)
+                                {
+                                    log?.Invoke("已开启遇错即停模式，停止后续动态对象数据处理");
+                                    return;
+                                }
+                            }
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 捕获未知异常，记录失败明细（与泛型方法逻辑一致）
+                    failure.Exception = ex;
+                    failure.ErrorMessage ??= ex.Message;
+                    // 确保原始行值已填充
+                    for (var i = 0; i < fieldCount; i++)
+                    {
+                        var header = headers[i];
+                        if (!failure.RowValues.ContainsKey(header))
+                            failure.RowValues[header] = rowValuesArray[i];
+                    }
+
+                    result.Failures.Add(failure);
+                    log?.Invoke($"行 {rowIndex} 动态对象处理失败：{ex.Message}");
+                    // 遇错即停
+                    if (stopOnFirstError)
+                    {
+                        throw new InvalidOperationException($"在导入动态对象时检测到错误（行 {rowIndex}）：{ex.Message}", ex);
+                    }
+                }
+
+                rowIndex++;
+            }
+
+            log?.Invoke($"当前Sheet动态对象数据处理完成，共遍历 {rowIndex} 行数据");
+        }
         #endregion
 
-        #region 批量属性应用（泛型与 dynamic 辅助方法）
-
+        #region 内部辅助方法（批量属性应用+Setter创建，逻辑复用）
         /// <summary>
         /// 给泛型实体应用批量属性（固定+动态）
         /// </summary>
@@ -1210,7 +1233,7 @@ namespace TKWF.Tools.ExcelTools
                 object? converted;
                 try
                 {
-                    converted = ConvertToTarget(rawVal, propInfo.PropertyType, log);
+                    converted = ConvertToTarget(rawVal, propInfo.PropertyType);
                 }
                 catch (Exception ex)
                 {
@@ -1274,7 +1297,7 @@ namespace TKWF.Tools.ExcelTools
                 object? converted;
                 try
                 {
-                    converted = ConvertToTarget(rawVal, propInfo.PropertyType, log);
+                    converted = ConvertToTarget(rawVal, propInfo.PropertyType);
                 }
                 catch (Exception ex)
                 {
@@ -1303,137 +1326,7 @@ namespace TKWF.Tools.ExcelTools
         }
 
         /// <summary>
-        /// 给动态对象（ExpandoObject）应用批量属性
-        /// </summary>
-        /// <param name="expando">动态对象</param>
-        /// <param name="batchStatic">固定批量属性</param>
-        /// <param name="batchDynamic">动态批量属性</param>
-        /// <param name="rowIndex">当前行索引</param>
-        private static void ApplyBatchPropertiesToExpando(
-            IDictionary<string, object?> expando,
-            IDictionary<string, object?> batchStatic,
-            IDictionary<string, Func<int, object?>>? batchDynamic,
-            int rowIndex)
-        {
-            // 应用固定属性
-            foreach (var kv in batchStatic)
-            {
-                expando[kv.Key] = kv.Value;
-            }
-
-            // 应用动态属性
-            if (batchDynamic != null)
-            {
-                foreach (var kv in batchDynamic)
-                {
-                    expando[kv.Key] = kv.Value(rowIndex);
-                }
-            }
-        }
-
-        #endregion
-
-        #region 类型转换 / 默认值 / 动态 setter 帮助方法
-
-        /// <summary>
-        /// 将原始值转换为目标属性类型
-        /// </summary>
-        /// <param name="value">原始值</param>
-        /// <param name="targetType">目标类型</param>
-        /// <param name="log"></param>
-        /// <returns>转换后的值</returns>
-        private static object? ConvertToTarget(object? value, Type targetType, Action<string>? log = null)
-        {
-            if (value == null) return GetDefaultOrNull(targetType);
-
-            if (targetType.IsInstanceOfType(value)) return value;
-
-            var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-            if (value is string s && string.IsNullOrWhiteSpace(s))
-                return GetDefaultOrNull(targetType);
-
-            // 枚举类型转换
-            if (nonNullable.IsEnum)
-            {
-                try
-                {
-                    var input = value.ToString()!.Trim();
-                    var parseEnumMethod = typeof(EnumHelper)
-                        .GetMethod(nameof(EnumHelper.ParseEnum), [typeof(string)])!
-                        .MakeGenericMethod(nonNullable);
-                    var enumValue = parseEnumMethod.Invoke(null, [input])!;
-                    return enumValue;
-                }
-                catch (Exception ex)
-                {
-                    log?.Invoke($"枚举转换失败：{ex.Message}，返回默认值");
-                    return GetDefaultOrNull(targetType);
-                }
-            }
-
-            // Guid类型转换
-            if (nonNullable == typeof(Guid))
-            {
-                if (value is Guid g) return g;
-                if (value is string gs && Guid.TryParse(gs, out var guid)) return guid;
-            }
-
-            // DateTime类型转换
-            if (nonNullable == typeof(DateTime))
-            {
-                if (value is DateTime dt) return dt;
-                if (value is string ds && DateTime.TryParse(ds, out var date)) return date;
-            }
-
-            // Boolean类型转换
-            if (nonNullable == typeof(bool))
-            {
-                if (value is bool b) return b;
-                if (value is string bs && bool.TryParse(bs, out var flag)) return flag;
-                if (value is int i) return i != 0;
-            }
-
-            // 通用类型转换
-            try
-            {
-                var converted = Convert.ChangeType(value, nonNullable);
-                return converted;
-            }
-            catch
-            {
-                // 尝试通过构造函数转换
-                if (value is string vs)
-                {
-                    var ctor = nonNullable.GetConstructor([typeof(string)]);
-                    if (ctor != null)
-                        return ctor.Invoke([vs]);
-                }
-                return GetDefaultOrNull(targetType);
-            }
-        }
-
-        /// <summary>
-        /// 获取类型的默认值
-        /// </summary>
-        /// <param name="type">目标类型</param>
-        /// <returns>类型默认值</returns>
-        private static object? GetDefaultValue(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
-
-        /// <summary>
-        /// 获取可空类型/值类型的默认值（null或类型默认值）
-        /// </summary>
-        /// <param name="type">目标类型</param>
-        /// <returns>默认值</returns>
-        private static object? GetDefaultOrNull(Type type)
-        {
-            if (!type.IsValueType) return null;
-            if (Nullable.GetUnderlyingType(type) != null) return null;
-            return Activator.CreateInstance(type);
-        }
-
-        /// <summary>
-        /// 动态创建属性Setter委托（编译表达式，提升反射性能）
+        /// 动态创建属性Setter委托（编译表达式，提升反射性能，内部复用）
         /// </summary>
         /// <param name="prop">属性信息</param>
         /// <returns>Setter委托</returns>
@@ -1443,7 +1336,7 @@ namespace TKWF.Tools.ExcelTools
             var valueParam = Expression.Parameter(typeof(object), "value");
             var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
 
-            var convertMethod = typeof(ExcelTools).GetMethod(nameof(ConvertToTarget), BindingFlags.NonPublic | BindingFlags.Static)!;
+            var convertMethod = typeof(ExcelTools).GetMethod(nameof(ConvertToTarget), BindingFlags.Public | BindingFlags.Static)!;
             var convertCall = Expression.Call(convertMethod, valueParam, Expression.Constant(prop.PropertyType, typeof(Type)));
             var converted = Expression.Convert(convertCall, prop.PropertyType);
 
@@ -1451,7 +1344,6 @@ namespace TKWF.Tools.ExcelTools
             var lambda = Expression.Lambda<Action<object, object?>>(call, instanceParam, valueParam);
             return lambda.Compile();
         }
-
         #endregion
     }
 }
