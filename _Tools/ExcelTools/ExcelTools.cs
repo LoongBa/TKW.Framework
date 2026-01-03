@@ -374,7 +374,7 @@ namespace TKWF.Tools.ExcelTools
             // Sheet索引有效性校验（与动态类型方法逻辑统一，非0校验，无效抛异常）
             if (sheetIndex != 0)
             {
-                bool isSheetValid = IsSheetIndexValid(filename, sheetIndex);
+                var isSheetValid = IsSheetIndexValid(filename, sheetIndex);
                 if (!isSheetValid)
                 {
                     var sheetCount = GetExcelSheetCount(filename);
@@ -505,7 +505,7 @@ namespace TKWF.Tools.ExcelTools
             // 2. Sheet 索引有效性校验（与泛型方法完全一致）
             if (sheetIndex != 0)
             {
-                bool isSheetValid = IsSheetIndexValid(filename, sheetIndex);
+                var isSheetValid = IsSheetIndexValid(filename, sheetIndex);
                 if (!isSheetValid)
                 {
                     var sheetCount = GetExcelSheetCount(filename);
@@ -777,21 +777,8 @@ namespace TKWF.Tools.ExcelTools
                         }
                     }
 
-                    // 5) 普通通知回调
-                    try
-                    {
-                        onRecordCreated?.Invoke(rowIndex, record, otherDict);
-                    }
-                    catch (Exception ex)
-                    {
-                        var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
-                        log?.Invoke(msg);
-                        failure.ErrorMessage ??= string.Empty;
-                        failure.ErrorMessage += msg + "; ";
-                    }
-
-                    // 6) 可控验证回调（核心逻辑）
-                    ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
+                    // 5) 验证数据，并决定是否继续
+                    var processStatus = ExcelRecordProcessStatus.Continue;
                     if (onRecordValidating != null)
                     {
                         try
@@ -808,25 +795,20 @@ namespace TKWF.Tools.ExcelTools
                             processStatus = ExcelRecordProcessStatus.Fail;
                         }
                     }
-
+                    
                     // 根据验证状态分支处理（与动态类型方法逻辑一致）
                     switch (processStatus)
                     {
                         case ExcelRecordProcessStatus.Skip:
-                            log?.Invoke($"行 {rowIndex} 已被业务验证忽略");
                             rowIndex++;
                             continue;
                         case ExcelRecordProcessStatus.Fail:
-                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                            {
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，标记为失败";
-                            }
                             break;
                         case ExcelRecordProcessStatus.Abort:
-                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
-                            {
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，终止所有导入处理";
-                            }
                             log?.Invoke(failure.ErrorMessage);
                             // 填充原始行值
                             for (var i = 0; i < fieldCount; i++)
@@ -848,6 +830,19 @@ namespace TKWF.Tools.ExcelTools
                         case ExcelRecordProcessStatus.Continue:
                         default:
                             break;
+                    }
+
+                    // 6) 完成转换后，继续处理数据
+                    try
+                    {
+                        onRecordCreated?.Invoke(rowIndex, record, otherDict);
+                    }
+                    catch (Exception ex)
+                    {
+                        var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
+                        log?.Invoke(msg);
+                        failure.ErrorMessage ??= string.Empty;
+                        failure.ErrorMessage += msg + "; ";
                     }
 
                     // 7) 结果分类
@@ -967,7 +962,7 @@ namespace TKWF.Tools.ExcelTools
             var columnIndexMapping = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             if (columnMapping != null)
             {
-                foreach (string excelCol in columnMapping.Keys)
+                foreach (var excelCol in columnMapping.Keys)
                 {
                     if (string.IsNullOrWhiteSpace(excelCol)) continue;
                     var propName = columnMapping[excelCol];
@@ -1091,7 +1086,7 @@ namespace TKWF.Tools.ExcelTools
                     }
 
                     // 6) 可控验证回调处理（与泛型方法逻辑一致）
-                    ExcelRecordProcessStatus processStatus = ExcelRecordProcessStatus.Continue;
+                    var processStatus = ExcelRecordProcessStatus.Continue;
                     if (onRecordValidating != null)
                     {
                         try
