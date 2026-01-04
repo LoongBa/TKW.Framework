@@ -3,7 +3,7 @@
 /// <summary>
 /// Excel记录验证/处理状态（回调返回值，用于控制流程走向）
 /// </summary>
-public enum ExcelRecordProcessStatus
+public enum ImportDataProcessStatusEnum
 {
     /// <summary>
     /// 继续处理（本条正常校验，符合条件则加入成功列表）

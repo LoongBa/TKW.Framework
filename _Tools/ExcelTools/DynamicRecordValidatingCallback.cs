@@ -8,8 +8,8 @@
 /// <param name="rowValues">当前行原始值字典（Excel列名->单元格值）</param>
 /// <param name="failure">失败信息对象（用户可自定义赋值错误信息/异常）</param>
 /// <returns>处理状态指令</returns>
-public delegate ExcelRecordProcessStatus ExcelDynamicRecordValidatingCallback(
+public delegate ImportDataProcessStatusEnum DynamicRecordValidatingCallback(
     int rowIndex,
     dynamic dynamicRecord,
     Dictionary<string, object?> rowValues,
-    ref ExcelImportFailure failure);
+    ref ImportFailure failure);

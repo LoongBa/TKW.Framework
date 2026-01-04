@@ -3,7 +3,7 @@
 /// <summary>
 /// 导入失败明细
 /// </summary>
-public class ExcelImportFailure
+public class ImportFailure
 {
     /// <summary>
     /// 失败行索引（从0开始）

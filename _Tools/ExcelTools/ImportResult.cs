@@ -4,7 +4,7 @@
 /// 导入结果（包含成功项与失败明细）
 /// </summary>
 /// <typeparam name="T">数据类型</typeparam>
-public class ExcelImportResult<T>
+public class ImportResult<T>
 {
     /// <summary>
     /// 成功导入的数据列表
@@ -14,7 +14,7 @@ public class ExcelImportResult<T>
     /// <summary>
     /// 导入失败的明细列表
     /// </summary>
-    public List<ExcelImportFailure> Failures { get; } = [];
+    public List<ImportFailure> Failures { get; } = [];
 
     /// <summary>
     /// 成功导入数量

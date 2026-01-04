@@ -14,10 +14,10 @@ namespace TKWF.Tools.ExcelTools
     /// Excel 导入工具（保留兼容方法并提供增强方法）
     /// 主要特性：
     /// - 保留兼容的 ImportDataFromExcel / ImportDynamicObjectFromExcel 签名
-    /// - 增强版本返回 ExcelImportResult<T> / ExcelImportResult<dynamic>
+    /// - 增强版本返回 ImportResult<T> / ImportResult<dynamic>
     /// - 流式读取（ExcelDataReader）、属性 setter 编译缓存、批量属性/动态属性
-    /// - 可控回调（onRecordValidating）：支持忽略/失败/终止流程控制
-    /// - 普通回调（onRecordCreated）：通知型回调，用于数据补充/日志记录
+    /// - 可控回调（onValidateData）：支持忽略/失败/终止流程控制
+    /// - 普通回调（onConvertData）：通知型回调，用于数据补充/日志记录
     /// - 可配置遇错策略、日志记录
     /// </summary>
     public static class ExcelTools
@@ -291,10 +291,10 @@ namespace TKWF.Tools.ExcelTools
                 batchProperties: null,
                 dynamicBatchProperties: null,
                 batchOverridesExcel: false,
-                onRecordCreated: null,
+                onConvertData: null,
                 log: null,
                 stopOnFirstError: false,
-                onRecordValidating: null);
+                onValidateData: null);
             return result.Items;
         }
 
@@ -332,7 +332,7 @@ namespace TKWF.Tools.ExcelTools
 
         #region 增强版：泛型导入（强类型）- 统一逻辑，修复冗余
         /// <summary>
-        /// 增强版：导入并返回 ExcelImportResult<T>（包含成功列表与失败明细）
+        /// 增强版：导入并返回 ImportResult<T>（包含成功列表与失败明细）
         /// 支持批量属性、动态属性、可控流程回调、普通通知回调、日志记录、遇错策略
         /// </summary>
         /// <typeparam name="T">目标实体类型</typeparam>
@@ -343,12 +343,12 @@ namespace TKWF.Tools.ExcelTools
         /// <param name="batchProperties">批量设置的固定属性（属性名->固定值）</param>
         /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
         /// <param name="batchOverridesExcel">批量属性是否覆盖Excel中的同名属性值</param>
-        /// <param name="onRecordCreated">普通通知回调（记录创建后触发，无流程控制能力）</param>
+        /// <param name="onConvertData">普通通知回调（记录创建后触发，无流程控制能力）</param>
         /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
         /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
-        /// <param name="onRecordValidating">可控验证回调（用于业务校验，支持控制流程走向）</param>
+        /// <param name="onValidateData">可控验证回调（用于业务校验，支持控制流程走向）</param>
         /// <returns>Excel导入结果（含成功数据与失败明细）</returns>
-        public static async Task<ExcelImportResult<T>> ImportDataFromExcelWithResult<T>(
+        public static async Task<ImportResult<T>> ImportDataFromExcelWithResult<T>(
             string filename,
             Dictionary<string, string> columnMapping,
             string? otherColumnsMappingName = null,
@@ -356,10 +356,10 @@ namespace TKWF.Tools.ExcelTools
             Dictionary<string, object>? batchProperties = null,
             IDictionary<string, Func<int, object>>? dynamicBatchProperties = null,
             bool batchOverridesExcel = false,
-            Action<int, T, Dictionary<string, object?>>? onRecordCreated = null,
+            Action<int, T, Dictionary<string, object?>>? onConvertData = null,
             Action<string>? log = null,
             bool stopOnFirstError = false,
-            ExcelRecordValidatingCallback<T>? onRecordValidating = null)
+            RecordValidatingCallback<T>? onValidateData = null)
             where T : new()
         {
             // 统一参数校验（与动态类型方法保持一致）
@@ -405,7 +405,7 @@ namespace TKWF.Tools.ExcelTools
             }
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            var importResult = new ExcelImportResult<T>();
+            var importResult = new ImportResult<T>();
 
             await using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
             IExcelDataReader? reader = null;
@@ -428,7 +428,7 @@ namespace TKWF.Tools.ExcelTools
                         processed = true;
                         // 流式处理目标工作表（核心逻辑，提取复用）
                         ProcessSheetStreaming(reader, mapping, otherColumnProperty, batchProperties, dynamicBatchProperties,
-                            batchOverridesExcel, onRecordCreated, log, importResult, stopOnFirstError, onRecordValidating);
+                            batchOverridesExcel, onConvertData, log, importResult, stopOnFirstError, onValidateData);
                         break;
                     }
                     currentSheet++;
@@ -466,7 +466,7 @@ namespace TKWF.Tools.ExcelTools
 
         #region 增强版：动态导入（ExpandoObject）- 修复变量错误，统一逻辑
         /// <summary>
-        /// 动态对象导入（增强版），返回 ExcelImportResult<dynamic>（包含成功项与失败明细）
+        /// 动态对象导入（增强版），返回 ImportResult<dynamic>（包含成功项与失败明细）
         /// 支持可控流程回调、批量属性、动态属性、遇错策略、日志记录
         /// </summary>
         /// <param name="filename">Excel文件路径</param>
@@ -481,7 +481,7 @@ namespace TKWF.Tools.ExcelTools
         /// <param name="onRecordCreated">普通通知回调（动态对象创建后触发，无流程控制能力）</param>
         /// <param name="onRecordValidating">可控验证回调（用于业务校验，支持控制流程走向）</param>
         /// <returns>Excel导入结果（含成功动态对象与失败明细）</returns>
-        public static async Task<ExcelImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(
+        public static async Task<ImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(
                 string filename,
                 Dictionary<string, string>? columnMapping = null,
                 string? otherColumnsMappingName = null,
@@ -492,7 +492,7 @@ namespace TKWF.Tools.ExcelTools
                 IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
                 bool batchOverridesExcel = false,
                 Action<dynamic, int>? onRecordCreated = null,
-                ExcelDynamicRecordValidatingCallback? onRecordValidating = null)
+                DynamicRecordValidatingCallback? onRecordValidating = null)
         {
             // 1. 基础参数校验（与泛型方法逻辑完全统一）
             filename = filename.EnsureHasValue().TrimSelf();
@@ -515,7 +515,7 @@ namespace TKWF.Tools.ExcelTools
             }
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            var result = new ExcelImportResult<dynamic>();
+            var result = new ImportResult<dynamic>();
 
             await using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
             IExcelDataReader? reader = null;
@@ -595,9 +595,9 @@ namespace TKWF.Tools.ExcelTools
             bool batchOverridesExcel,
             Action<int, T, Dictionary<string, object?>>? onRecordCreated,
             Action<string>? log,
-            ExcelImportResult<T> importResult,
+            ImportResult<T> importResult,
             bool stopOnFirstError,
-            ExcelRecordValidatingCallback<T>? onRecordValidating)
+            RecordValidatingCallback<T>? onRecordValidating)
             where T : new()
         {
             // 读取header行（第一行作为列名）
@@ -675,7 +675,7 @@ namespace TKWF.Tools.ExcelTools
                 }
 
                 var record = new T();
-                var failure = new ExcelImportFailure { RowIndex = rowIndex };
+                var failure = new ImportFailure { RowIndex = rowIndex };
                 var otherDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
                 try
@@ -778,7 +778,7 @@ namespace TKWF.Tools.ExcelTools
                     }
 
                     // 5) 验证数据，并决定是否继续
-                    var processStatus = ExcelRecordProcessStatus.Continue;
+                    var processStatus = ImportDataProcessStatusEnum.Continue;
                     if (onRecordValidating != null)
                     {
                         try
@@ -787,26 +787,26 @@ namespace TKWF.Tools.ExcelTools
                         }
                         catch (Exception ex)
                         {
-                            var msg = $"行 {rowIndex} 验证回调 onRecordValidating 抛异常：{ex.Message}";
+                            var msg = $"行 {rowIndex} 验证回调 onValidateData 抛异常：{ex.Message}";
                             log?.Invoke(msg);
                             failure.ErrorMessage ??= string.Empty;
                             failure.ErrorMessage += msg + "; ";
                             failure.Exception = ex;
-                            processStatus = ExcelRecordProcessStatus.Fail;
+                            processStatus = ImportDataProcessStatusEnum.Fail;
                         }
                     }
                     
                     // 根据验证状态分支处理（与动态类型方法逻辑一致）
                     switch (processStatus)
                     {
-                        case ExcelRecordProcessStatus.Skip:
+                        case ImportDataProcessStatusEnum.Skip:
                             rowIndex++;
                             continue;
-                        case ExcelRecordProcessStatus.Fail:
+                        case ImportDataProcessStatusEnum.Fail:
                             if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，标记为失败";
                             break;
-                        case ExcelRecordProcessStatus.Abort:
+                        case ImportDataProcessStatusEnum.Abort:
                             if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，终止所有导入处理";
                             log?.Invoke(failure.ErrorMessage);
@@ -827,7 +827,7 @@ namespace TKWF.Tools.ExcelTools
                                 log?.Invoke("已触发Abort指令，终止后续行处理");
                                 return;
                             }
-                        case ExcelRecordProcessStatus.Continue:
+                        case ImportDataProcessStatusEnum.Continue:
                         default:
                             break;
                     }
@@ -839,7 +839,7 @@ namespace TKWF.Tools.ExcelTools
                     }
                     catch (Exception ex)
                     {
-                        var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
+                        var msg = $"行 {rowIndex} 回调 onConvertData 抛异常：{ex.Message}";
                         log?.Invoke(msg);
                         failure.ErrorMessage ??= string.Empty;
                         failure.ErrorMessage += msg + "; ";
@@ -934,8 +934,8 @@ namespace TKWF.Tools.ExcelTools
             IDictionary<string, Func<int, object?>>? dynamicBatchProperties,
             bool batchOverridesExcel,
             Action<dynamic, int>? onRecordCreated,
-            ExcelDynamicRecordValidatingCallback? onRecordValidating,
-            ExcelImportResult<dynamic> result)
+            DynamicRecordValidatingCallback? onRecordValidating,
+            ImportResult<dynamic> result)
         {
             if (!reader.Read())
             {
@@ -1008,7 +1008,7 @@ namespace TKWF.Tools.ExcelTools
                 // 初始化动态对象和失败信息
                 dynamic expando = new ExpandoObject();
                 var expandoDict = expando as IDictionary<string, object?>;
-                var failure = new ExcelImportFailure { RowIndex = rowIndex };
+                var failure = new ImportFailure { RowIndex = rowIndex };
                 // 先填充原始行值到failure（提前初始化，避免后续遗漏）
                 for (var i = 0; i < fieldCount; i++)
                 {
@@ -1079,14 +1079,14 @@ namespace TKWF.Tools.ExcelTools
                     }
                     catch (Exception ex)
                     {
-                        var msg = $"行 {rowIndex} 回调 onRecordCreated 抛异常：{ex.Message}";
+                        var msg = $"行 {rowIndex} 回调 onConvertData 抛异常：{ex.Message}";
                         log?.Invoke(msg);
                         failure.ErrorMessage ??= string.Empty;
                         failure.ErrorMessage += msg + "; ";
                     }
 
                     // 6) 可控验证回调处理（与泛型方法逻辑一致）
-                    var processStatus = ExcelRecordProcessStatus.Continue;
+                    var processStatus = ImportDataProcessStatusEnum.Continue;
                     if (onRecordValidating != null)
                     {
                         try
@@ -1095,23 +1095,23 @@ namespace TKWF.Tools.ExcelTools
                         }
                         catch (Exception ex)
                         {
-                            var msg = $"行 {rowIndex} 验证回调 onRecordValidating 抛异常：{ex.Message}";
+                            var msg = $"行 {rowIndex} 验证回调 onValidateData 抛异常：{ex.Message}";
                             log?.Invoke(msg);
                             failure.ErrorMessage ??= string.Empty;
                             failure.ErrorMessage += msg + "; ";
                             failure.Exception = ex;
-                            processStatus = ExcelRecordProcessStatus.Fail;
+                            processStatus = ImportDataProcessStatusEnum.Fail;
                         }
                     }
 
                     // 根据验证状态分支处理（与泛型方法完全对齐）
                     switch (processStatus)
                     {
-                        case ExcelRecordProcessStatus.Skip:
+                        case ImportDataProcessStatusEnum.Skip:
                             log?.Invoke($"行 {rowIndex} 动态对象已被业务验证忽略");
                             rowIndex++;
                             continue; // 跳过本条，不记录成功/失败
-                        case ExcelRecordProcessStatus.Fail:
+                        case ImportDataProcessStatusEnum.Fail:
                             if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
                             {
                                 failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，标记为失败";
@@ -1126,7 +1126,7 @@ namespace TKWF.Tools.ExcelTools
                                 return;
                             }
                             break;
-                        case ExcelRecordProcessStatus.Abort:
+                        case ImportDataProcessStatusEnum.Abort:
                             if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
                             {
                                 failure.ErrorMessage = $"行 {rowIndex} 动态对象业务验证不通过，终止所有导入处理";
@@ -1135,7 +1135,7 @@ namespace TKWF.Tools.ExcelTools
                             // 记录失败并终止所有处理
                             result.Failures.Add(failure);
                             return;
-                        case ExcelRecordProcessStatus.Continue:
+                        case ImportDataProcessStatusEnum.Continue:
                         default:
                             // 验证通过，加入成功列表
                             if (string.IsNullOrWhiteSpace(failure.ErrorMessage) && failure.Exception == null)
@@ -1205,7 +1205,7 @@ namespace TKWF.Tools.ExcelTools
             Dictionary<string, PropertyInfo> propertyCache,
             Dictionary<string, Action<object, object?>> setterCache,
             Action<string>? log,
-            ref ExcelImportFailure failure)
+            ref ImportFailure failure)
         {
             // 应用固定批量属性
             foreach (var (propName, rawVal) in batchStatic)

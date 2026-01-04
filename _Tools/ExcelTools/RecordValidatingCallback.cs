@@ -10,9 +10,9 @@
 /// <param name="otherColumnValues">未映射列的原始值字典</param>
 /// <param name="failure">失败信息对象（用户可自定义赋值错误信息/异常）</param>
 /// <returns>处理状态指令</returns>
-public delegate ExcelRecordProcessStatus ExcelRecordValidatingCallback<T>(
+public delegate ImportDataProcessStatusEnum RecordValidatingCallback<T>(
     int rowIndex,
     T record,
     Dictionary<string, object?> rowValues,
     Dictionary<string, object?> otherColumnValues,
-    ref ExcelImportFailure failure);
+    ref ImportFailure failure);
