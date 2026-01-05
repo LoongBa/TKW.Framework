@@ -289,12 +289,8 @@ namespace TKWF.Tools.ExcelTools
                 otherColumnsMappingName,
                 sheetIndex,
                 batchProperties: null,
-                dynamicBatchProperties: null,
                 batchOverridesExcel: false,
-                onConvertData: null,
-                log: null,
-                stopOnFirstError: false,
-                onValidateData: null);
+                dynamicBatchProperties: null, onValidateData: null, onConvertData: null, stopOnFirstError: false, log: null);
             return result.Items;
         }
 
@@ -318,19 +314,54 @@ namespace TKWF.Tools.ExcelTools
                 columnMapping,
                 otherColumnsMappingName,
                 sheetIndex,
-                stopOnFirstError: false,
-                log: null,
                 batchProperties: null,
-                dynamicBatchProperties: null,
                 batchOverridesExcel: false,
-                onRecordCreated: null,
-                onRecordValidating: null);
+                dynamicBatchProperties: null,
+                onRecordCreated: null, onRecordValidating: null, stopOnFirstError: false, log: null);
 
             return res.Items;
         }
         #endregion
 
         #region 增强版：泛型导入（强类型）- 统一逻辑，修复冗余
+
+        /// <summary>
+        /// 增强版：导入并返回 ImportResult<T>（包含成功列表与失败明细）
+        /// 支持批量属性、动态属性、可控流程回调、普通通知回调、日志记录、遇错策略
+        /// </summary>
+        /// <typeparam name="T">目标实体类型</typeparam>
+        /// <param name="filename">Excel 文件路径</param>
+        /// <param name="dataAdapter">数据适配器</param>
+        /// <param name="otherColumnsMappingName">其他未映射列的属性名（存储JSON字符串）</param>
+        /// <param name="sheetIndex">工作表索引（从0开始）</param>
+        /// <param name="batchProperties">批量设置的固定属性（属性名->固定值）</param>
+        /// <param name="batchOverridesExcel">批量属性是否覆盖Excel中的同名属性值</param>
+        /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
+        /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
+        /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
+        /// <returns>Excel导入结果（含成功数据与失败明细）</returns>
+        public static async Task<ImportResult<T>> ImportDataFromExcelWithResult<T>(string filename,
+            IImportDataAdapter<T> dataAdapter,
+            string? otherColumnsMappingName = null,
+            int sheetIndex = 0,
+            Dictionary<string, object>? batchProperties = null,
+            bool batchOverridesExcel = false,
+            IDictionary<string, Func<int, object>>? dynamicBatchProperties = null,
+            bool stopOnFirstError = false,
+            Action<string>? log = null)
+            where T : new()
+        {
+            // 调用通用方法：传入适配器的列映射关系与验证回调
+            return await ImportDataFromExcelWithResult<T>(
+                filename,
+                dataAdapter.ColumnMapping,
+                otherColumnsMappingName,
+                sheetIndex,
+                batchProperties,
+                batchOverridesExcel,
+                dynamicBatchProperties, dataAdapter.ValidateData, dataAdapter.ConvertData, stopOnFirstError, log);
+        }
+
         /// <summary>
         /// 增强版：导入并返回 ImportResult<T>（包含成功列表与失败明细）
         /// 支持批量属性、动态属性、可控流程回调、普通通知回调、日志记录、遇错策略
@@ -341,25 +372,24 @@ namespace TKWF.Tools.ExcelTools
         /// <param name="otherColumnsMappingName">其他未映射列的属性名（存储JSON字符串）</param>
         /// <param name="sheetIndex">工作表索引（从0开始）</param>
         /// <param name="batchProperties">批量设置的固定属性（属性名->固定值）</param>
-        /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
         /// <param name="batchOverridesExcel">批量属性是否覆盖Excel中的同名属性值</param>
-        /// <param name="onConvertData">普通通知回调（记录创建后触发，无流程控制能力）</param>
-        /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
-        /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
+        /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
         /// <param name="onValidateData">可控验证回调（用于业务校验，支持控制流程走向）</param>
+        /// <param name="onConvertData">普通通知回调（记录创建后触发，无流程控制能力）</param>
+        /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
+        /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
         /// <returns>Excel导入结果（含成功数据与失败明细）</returns>
-        public static async Task<ImportResult<T>> ImportDataFromExcelWithResult<T>(
-            string filename,
+        public static async Task<ImportResult<T>> ImportDataFromExcelWithResult<T>(string filename,
             Dictionary<string, string> columnMapping,
             string? otherColumnsMappingName = null,
             int sheetIndex = 0,
             Dictionary<string, object>? batchProperties = null,
-            IDictionary<string, Func<int, object>>? dynamicBatchProperties = null,
             bool batchOverridesExcel = false,
+            IDictionary<string, Func<int, object>>? dynamicBatchProperties = null,
+            RecordValidatingCallback<T>? onValidateData = null,
             Action<int, T, Dictionary<string, object?>>? onConvertData = null,
-            Action<string>? log = null,
             bool stopOnFirstError = false,
-            RecordValidatingCallback<T>? onValidateData = null)
+            Action<string>? log = null)
             where T : new()
         {
             // 统一参数校验（与动态类型方法保持一致）
@@ -465,6 +495,7 @@ namespace TKWF.Tools.ExcelTools
         #endregion
 
         #region 增强版：动态导入（ExpandoObject）- 修复变量错误，统一逻辑
+
         /// <summary>
         /// 动态对象导入（增强版），返回 ImportResult<dynamic>（包含成功项与失败明细）
         /// 支持可控流程回调、批量属性、动态属性、遇错策略、日志记录
@@ -473,26 +504,25 @@ namespace TKWF.Tools.ExcelTools
         /// <param name="columnMapping">列映射关系（Excel列名->动态对象属性名）</param>
         /// <param name="otherColumnsMappingName">其他未映射列的属性名（存储JSON对象）</param>
         /// <param name="sheetIndex">工作表索引（从0开始）</param>
-        /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
-        /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
         /// <param name="batchProperties">批量设置的固定属性（属性名->固定值）</param>
-        /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
         /// <param name="batchOverridesExcel">批量属性是否覆盖Excel中的同名属性值</param>
+        /// <param name="dynamicBatchProperties">动态批量属性（属性名->行索引关联的取值方法）</param>
         /// <param name="onRecordCreated">普通通知回调（动态对象创建后触发，无流程控制能力）</param>
         /// <param name="onRecordValidating">可控验证回调（用于业务校验，支持控制流程走向）</param>
+        /// <param name="stopOnFirstError">遇到第一个错误时是否停止导入</param>
+        /// <param name="log">日志记录委托（用于输出导入过程信息）</param>
         /// <returns>Excel导入结果（含成功动态对象与失败明细）</returns>
-        public static async Task<ImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(
-                string filename,
-                Dictionary<string, string>? columnMapping = null,
-                string? otherColumnsMappingName = null,
-                int sheetIndex = 0,
-                bool stopOnFirstError = false,
-                Action<string>? log = null,
-                IDictionary<string, object?>? batchProperties = null,
-                IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
-                bool batchOverridesExcel = false,
-                Action<dynamic, int>? onRecordCreated = null,
-                DynamicRecordValidatingCallback? onRecordValidating = null)
+        public static async Task<ImportResult<dynamic>> ImportDynamicObjectFromExcelWithResult(string filename,
+            Dictionary<string, string>? columnMapping = null,
+            string? otherColumnsMappingName = null,
+            int sheetIndex = 0,
+            IDictionary<string, object?>? batchProperties = null,
+            bool batchOverridesExcel = false,
+            IDictionary<string, Func<int, object?>>? dynamicBatchProperties = null,
+            Action<dynamic, int>? onRecordCreated = null,
+            DynamicRecordValidatingCallback? onRecordValidating = null,
+            bool stopOnFirstError = false,
+            Action<string>? log = null)
         {
             // 1. 基础参数校验（与泛型方法逻辑完全统一）
             filename = filename.EnsureHasValue().TrimSelf();
@@ -795,7 +825,7 @@ namespace TKWF.Tools.ExcelTools
                             processStatus = ImportDataProcessStatusEnum.Fail;
                         }
                     }
-                    
+
                     // 根据验证状态分支处理（与动态类型方法逻辑一致）
                     switch (processStatus)
                     {
@@ -803,11 +833,11 @@ namespace TKWF.Tools.ExcelTools
                             rowIndex++;
                             continue;
                         case ImportDataProcessStatusEnum.Fail:
-                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，标记为失败";
                             break;
                         case ImportDataProcessStatusEnum.Abort:
-                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage)) 
+                            if (string.IsNullOrWhiteSpace(failure.ErrorMessage))
                                 failure.ErrorMessage = $"行 {rowIndex} 业务验证不通过，终止所有导入处理";
                             log?.Invoke(failure.ErrorMessage);
                             // 填充原始行值
