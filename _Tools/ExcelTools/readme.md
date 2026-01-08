@@ -15,7 +15,7 @@ ExcelTool 提供了一组从 Excel/CSV 导入数据到 .NET 对象的实用方法。目标是：
 
 - ExcelTools.cs
   - 导出的主要方法：
-    - Task<IEnumerable<T>> ImportDataFromExcel<T>(string filename, StringDictionary columnMapping, string? otherColumnsMappingName = null, int sheetIndex = 0)
+    - Task<IEnumerable<T>> ImportDataFromExcel<T>(string filename, StringDictionary columnMapping, string? unmappedJsonColumnName = null, int sheetIndex = 0)
       - 保持与旧代码的签名和行为兼容（默认遇错不停止）。
     - Task<ImportResult<T>> ImportDataFromExcelWithResult<T>(...)
       - 增强版本，返回 ExcelImportResult<T>，包含成功项和失败明细，并提供更多配置项（batchProperties、dynamicBatchProperties、batchOverridesExcel、onRecordCreated、log、stopOnFirstError）。
@@ -46,7 +46,7 @@ ExcelTool 提供了一组从 Excel/CSV 导入数据到 .NET 对象的实用方法。目标是：
    var result = await ExcelTools.ImportDataFromExcelWithResult<MyDto>(
     filename,
     columnMapping,
-    otherColumnsMappingName: "OtherColumns",
+    unmappedJsonColumnName: "OtherColumns",
     sheetIndex: 0,
     batchProperties: new Dictionary<string, object?> { ["Creator"] = "admin", ["CreateTime"] = DateTime.UtcNow },
     dynamicBatchProperties: new Dictionary<string, Func<int, object?>> { ["RowNumber"] = idx => idx + 1 },
