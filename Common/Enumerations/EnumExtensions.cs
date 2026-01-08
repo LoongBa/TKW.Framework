@@ -15,7 +15,7 @@ public static class EnumExtensions
         /// 获取枚举值的 DisplayName 特性值。
         /// </summary>
         /// <returns>DisplayName。</returns>
-        public string GetEnumValueDisplay() => EnumHelper.GetEnumValueDisplayName(value);
+        public string GetDisplayName() => EnumHelper.GetEnumValueDisplayName(value);
 
         /// <summary>
         /// 获取枚举值对应的整数值。
