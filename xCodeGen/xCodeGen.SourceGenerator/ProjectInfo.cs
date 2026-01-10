@@ -2,7 +2,6 @@
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Core;
 using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator

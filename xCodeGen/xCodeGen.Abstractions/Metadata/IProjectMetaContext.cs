@@ -1,7 +1,6 @@
 ﻿// IProjectMetaContext.cs - 兼容 C# 7.3
 
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 
 namespace xCodeGen.Abstractions.Metadata
 {

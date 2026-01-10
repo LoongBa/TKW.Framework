@@ -6,133 +6,11 @@ using System.Reflection;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Enumerations;
 
 namespace TKWF.Tools.ExcelTools;
 
 #region 核心枚举/委托/数据结构
-/// <summary>
-/// 验证结果枚举
-/// </summary>
-public enum RecordValidateResultEnum
-{
-    /// <summary>保留当前记录</summary>
-    Keep = 0,
-    /// <summary>跳过当前记录</summary>
-    Skip = 1,
-    /// <summary>终止整个导入流程</summary>
-    Terminate = 2
-}
-
-/// <summary>
-/// 数据转换回调（通知型）
-/// </summary>
-/// <typeparam name="T">实体类型</typeparam>
-/// <param name="rowIndex">行索引</param>
-/// <param name="entity">当前实体</param>
-/// <param name="rawData">原始行数据</param>
-public delegate void RecordConvertingCallback<in T>(int rowIndex, T entity, Dictionary<string, object?> rawData);
-
-/// <summary>
-/// 数据验证回调（可控流程）
-/// </summary>
-/// <typeparam name="T">实体类型</typeparam>
-/// <param name="rowIndex">行索引</param>
-/// <param name="entity">当前实体</param>
-/// <param name="rawData">原始行数据</param>
-/// <param name="failure">失败信息</param>
-/// <returns>验证结果（决定是否保留/跳过/终止）</returns>
-public delegate RecordValidateResultEnum RecordValidatingCallback<in T>(
-    int rowIndex, T entity, Dictionary<string, object?> rawData, out ImportFailure? failure);
-
-/// <summary>
-/// 导入失败明细
-/// </summary>
-public class ImportFailure
-{
-    /// <summary>
-    /// 失败行索引（从0开始）
-    /// </summary>
-    public int RowIndex { get; set; }
-
-    /// <summary>
-    /// 错误描述信息
-    /// </summary>
-    public string? ErrorMessage { get; set; }
-
-    /// <summary>
-    /// 异常对象（可选）
-    /// </summary>
-    public Exception? Exception { get; set; }
-
-    /// <summary>
-    /// 失败行的原始值字典
-    /// </summary>
-    public Dictionary<string, object?> RowValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-}
-
-/// <summary>
-/// 转换结果封装（包含是否成功+值+错误信息）
-/// </summary>
-public class ConvertResult
-{
-    /// <summary>是否转换成功</summary>
-    public bool Success { get; set; }
-
-    /// <summary>转换后的值（失败则为默认值）</summary>
-    public object? Value { get; set; }
-
-    /// <summary>失败原因（便于调用者收集）</summary>
-    public string? ErrorMessage { get; set; }
-}
-
-/// <summary>
-/// 导入结果（包含成功项与失败明细）
-/// </summary>
-/// <typeparam name="T">数据类型</typeparam>
-public class ImportResult<T>
-{
-    /// <summary>
-    /// 成功导入的数据列表
-    /// </summary>
-    public List<T> Items { get; } = [];
-
-    /// <summary>
-    /// 导入失败的明细列表
-    /// </summary>
-    public List<ImportFailure> Failures { get; } = [];
-
-    /// <summary>
-    /// 成功导入数量
-    /// </summary>
-    public int SuccessCount => Items.Count;
-
-    /// <summary>
-    /// 导入失败数量
-    /// </summary>
-    public int FailedCount => Failures.Count;
-}
-
-/// <summary>
-/// 行级转换结果（内部核心结构，流式返回每行结果）
-/// </summary>
-/// <typeparam name="T">实体类型</typeparam>
-public class EntityConvertResult<T>
-{
-    /// <summary>是否处理成功</summary>
-    public bool Success { get; set; }
-
-    /// <summary>处理成功的实体（失败时为null）</summary>
-    public T? Entity { get; set; }
-
-    /// <summary>失败信息（成功时为null）</summary>
-    public ImportFailure? Failure { get; set; }
-
-    /// <summary>行索引</summary>
-    public int RowIndex { get; set; }
-}
 
 /// <summary>
 /// 通用导入数据适配器接口
@@ -257,8 +135,7 @@ public static class ExcelTools
     /// <param name="autoMappingProperties">自动映射的列名与属性名的映射（用于支持更多的列映射），在回调之前执行</param>
     /// <param name="log">日志委托</param>
     /// <returns>每行的处理结果迭代器（EntityConvertResult）</returns>
-    public static async IAsyncEnumerable<EntityConvertResult<T>> ReadExcelAsResultsAsync<T>(
-        string filename,
+    public static async IAsyncEnumerable<EntityConvertResult<T>> ReadExcelAsResultsAsync<T>(string filename,
         Dictionary<string, string> columnMapping,
         int sheetIndex = 0,
         string? unmappedJsonColumnName = null,
@@ -385,12 +262,18 @@ public static class ExcelTools
                         if (rawData.ContainsKey(property.Key))
                             rawData[property.Key] = property.Value;
 
+                var validateResult = RecordValidateResultEnum.Skip;
                 // 初始化实体
                 var entity = new T();
                 var isProcessSuccess = PopulateEntity(entity, rawData, mapping, rowIndex, propertySetters, log, out var errorMessage);
 
+                // 执行验证回调
+                ImportFailure? validateFailure = null;
+                if (isProcessSuccess && onValidateData != null)
+                    validateResult = onValidateData(rowIndex, entity, rawData, out validateFailure);
+
                 // 执行转换回调
-                if (isProcessSuccess && onConvertData != null)
+                if (validateResult == RecordValidateResultEnum.Keep && onConvertData != null)
                 {
                     try
                     {
@@ -403,16 +286,8 @@ public static class ExcelTools
                     }
                 }
 
-                // 执行验证回调
-                var validateResult = RecordValidateResultEnum.Keep;
-                ImportFailure? validateFailure = null;
-                if (isProcessSuccess && onValidateData != null)
-                {
-                    validateResult = onValidateData(rowIndex, entity, rawData, out validateFailure);
-                }
-
                 // 封装行级结果
-                if (isProcessSuccess)
+                if (validateResult == RecordValidateResultEnum.Keep)
                 {
                     rowResult = ProcessValidateResult(entity, rawData, rowIndex, validateResult, validateFailure);
                 }
@@ -526,9 +401,9 @@ public static class ExcelTools
     {
         // 基于核心迭代器，仅过滤返回成功的实体
         await foreach (var result in ReadExcelAsResultsAsync(
-                           filename, columnMapping, sheetIndex, unmappedJsonColumnName, 
-                           onValidateData, onConvertData, 
-                           autoMappingProperties, log))
+                           filename, columnMapping, sheetIndex, unmappedJsonColumnName,
+                           onValidateData, onConvertData,
+                           autoMappingProperties, log: log))
         {
             if (result.Success && result.Entity != null)
             {
@@ -632,7 +507,7 @@ public static class ExcelTools
         // 基于核心迭代器汇总所有结果
         await foreach (var rowResult in ReadExcelAsResultsAsync(
                            filename, columnMapping, sheetIndex, unmappedJsonColumnName, onValidateData, onConvertData,
-                           autoMappingProperties, log))
+                           autoMappingProperties, log: log))
         {
             if (rowResult.Success && rowResult.Entity != null)
             {
@@ -644,7 +519,7 @@ public static class ExcelTools
             }
         }
 
-        log?.Invoke($"Excel读取汇总完成，成功：{importResult.SuccessCount}，失败：{importResult.FailedCount}");
+        log?.Invoke($"Excel 读取汇总完成，成功：{importResult.SuccessCount}，失败：{importResult.FailedCount}");
         return importResult;
     }
 
@@ -1237,150 +1112,3 @@ public static class ExcelTools
     #endregion
 }
 #endregion
-/// <summary>
-/// 导入适配器通用基类（封装未映射数据存储+敏感字段过滤，与具体数据源无关）
-/// </summary>
-/// <typeparam name="TEntity">目标实体类型</typeparam>
-public abstract class ImportAdapterBase<TEntity> : IImportDataAdapter<TEntity>
-    where TEntity : class, new()
-{
-    /// <summary>
-    /// 日志记录器（可选）
-    /// </summary>
-    protected ILogger? Logger { get; set; }
-
-    public abstract string DataSourceName { get; }
-    public abstract string Version { get; }
-    public abstract string Remark { get; }
-    public abstract Dictionary<string, string> ColumnMapping { get; }
-
-    /// <inheritdoc/>
-    public virtual string? UnmappedDataStoragePropertyName { get; set; } = "RawDataJson";
-
-    /// <inheritdoc/>
-    public virtual IReadOnlyCollection<string> SensitiveFieldNames { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        // 默认敏感字段（所有适配器通用）
-        "MerchantKey", "Password", "AppSecret", "ApiKey", "Token"
-    };
-
-    /// <inheritdoc/>
-    public abstract RecordValidateResultEnum ValidateData(int rowIndex, TEntity targetEntity,
-        Dictionary<string, object?> rowValues, out ImportFailure? failure);
-
-    /// <inheritdoc/>
-    public abstract void ConvertData(int rowIndex, TEntity targetEntity,
-        Dictionary<string, object?> otherDict, Dictionary<string, string>? autoMapping = null);
-
-    /// <inheritdoc/>
-    public abstract IAsyncEnumerable<EntityConvertResult<TEntity>> LoadDataAsync(
-        string filename, Dictionary<string, string>? autoMapping = null);
-
-    /// <inheritdoc/>
-    public abstract Task<ImportResult<TEntity>> LoadDataToResultAsync(string filename, Dictionary<string, string>? autoMapping = null);
-
-    /// <summary>
-    /// 通用方法：提取未映射数据并序列化为JSON，存入指定实体属性（与Excel无关）
-    /// </summary>
-    /// <param name="rowIndex">行索引（用于日志定位）</param>
-    /// <param name="targetEntity">目标实体</param>
-    /// <param name="rawRowData">原始行数据</param>
-    protected void StoreUnmappedDataAsJson(int rowIndex, TEntity targetEntity, Dictionary<string, object?> rawRowData)
-    {
-        // 前置校验：未配置存储属性则直接返回
-        if (string.IsNullOrWhiteSpace(UnmappedDataStoragePropertyName))
-        {
-            Logger?.LogDebug("未配置未映射数据存储属性名，跳过存储 | 行号：{RowIndex}", rowIndex);
-            return;
-        }
-
-        try
-        {
-            // 步骤1：筛选未映射字段（排除ColumnMapping中的目标字段）
-            var mappedTargetFieldNames = ColumnMapping.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var unmappedData = rawRowData
-                .Where(kv => !mappedTargetFieldNames.Contains(kv.Key))
-                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-
-            // 步骤2：过滤敏感字段（保护隐私/安全数据）
-            if (SensitiveFieldNames.Any())
-            {
-                var filteredFields = unmappedData.Keys.Intersect(SensitiveFieldNames).ToList();
-                foreach (var field in filteredFields)
-                {
-                    unmappedData[field] = "***敏感数据已过滤***"; // 替换为占位符，而非删除（保留字段存在性）
-                    Logger?.LogDebug("敏感字段已过滤 | 行号：{RowIndex} | 字段名：{FieldName}", rowIndex, field);
-                }
-            }
-
-            // 步骤3：序列化为JSON（处理特殊类型）
-            var jsonOptions = new JsonSerializerOptions
-            {
-                WriteIndented = false,
-                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                Converters = { new JsonStringEnumConverter(), new DateTimeConverter() },
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
-            var json = JsonSerializer.Serialize(unmappedData, jsonOptions);
-
-            // 步骤4：反射赋值到指定实体属性
-            var property = typeof(TEntity).GetProperty(
-                UnmappedDataStoragePropertyName,
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
-            if (property == null)
-            {
-                Logger?.LogWarning(
-                    "未映射数据存储失败 | 行号：{RowIndex} | 实体{EntityType}不存在属性{PropertyName}",
-                    rowIndex, typeof(TEntity).Name, UnmappedDataStoragePropertyName);
-                return;
-            }
-
-            if (!property.CanWrite)
-            {
-                Logger?.LogWarning(
-                    "未映射数据存储失败 | 行号：{RowIndex} | 实体{EntityType}的属性{PropertyName}不可写",
-                    rowIndex, typeof(TEntity).Name, UnmappedDataStoragePropertyName);
-                return;
-            }
-
-            if (property.PropertyType != typeof(string))
-            {
-                Logger?.LogWarning(
-                    "未映射数据存储失败 | 行号：{RowIndex} | 实体{EntityType}的属性{PropertyName}类型不是字符串（当前：{PropertyType}）",
-                    rowIndex, typeof(TEntity).Name, UnmappedDataStoragePropertyName, property.PropertyType.Name);
-                return;
-            }
-
-            // 最终赋值
-            property.SetValue(targetEntity, json);
-            Logger?.LogDebug(
-                "未映射数据存储成功 | 行号：{RowIndex} | 实体{EntityType} | 属性{PropertyName} | 字段数：{FieldCount}",
-                rowIndex, typeof(TEntity).Name, UnmappedDataStoragePropertyName, unmappedData.Count);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogError(
-                ex,
-                "未映射数据JSON序列化/存储失败 | 行号：{RowIndex} | 实体{EntityType} | 属性{PropertyName}",
-                rowIndex, typeof(TEntity).Name, UnmappedDataStoragePropertyName);
-            // 不抛出异常，避免影响核心转换逻辑
-        }
-    }
-
-    /// <summary>
-    /// DateTime类型JSON转换器（统一格式）
-    /// </summary>
-    private class DateTimeConverter : JsonConverter<DateTime>
-    {
-        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return DateTime.Parse(reader.GetString()!);
-        }
-
-        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
-        {
-            writer.WriteStringValue(value.ToString("yyyy-MM-dd HH:mm:ss"));
-        }
-    }
-}
