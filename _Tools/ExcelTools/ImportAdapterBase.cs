@@ -39,7 +39,7 @@ public abstract class ImportAdapterBase<TEntity> : IImportDataAdapter<TEntity>
 
     /// <inheritdoc/>
     public abstract void ConvertData(int rowIndex, TEntity targetEntity,
-        Dictionary<string, object?> otherDict, Dictionary<string, string>? autoMapping = null);
+        Dictionary<string, object?> rawDict, Dictionary<string, object?> unmappedDict);
 
     /// <inheritdoc/>
     public abstract IAsyncEnumerable<EntityConvertResult<TEntity>> LoadDataAsync(

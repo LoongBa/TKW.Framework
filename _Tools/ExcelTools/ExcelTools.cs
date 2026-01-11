@@ -68,10 +68,10 @@ public interface IImportDataAdapter<TEntity>
     /// </summary>
     /// <param name="rowIndex">数据行索引（用于定位错误数据位置）</param>
     /// <param name="targetEntity">待赋值的目标实体对象</param>
-    /// <param name="otherDict">未参与映射的原始数据键值对字典</param>
-    /// <param name="autoMapping">上下文参数字典（键值对，自动替换）</param>
+    /// <param name="rawDict">未参与映射的原始数据键值对字典</param>
+    /// <param name="unmappedDict">上下文参数字典（键值对，自动替换）</param>
     void ConvertData(int rowIndex, TEntity targetEntity,
-        Dictionary<string, object?> otherDict, Dictionary<string, string>? autoMapping = null);
+        Dictionary<string, object?> rawDict, Dictionary<string, object?> unmappedDict);
 
     /// <summary>
     /// 核心加载方法（返回完整转换结果，流式处理）
@@ -180,7 +180,6 @@ public static class ExcelTools
         Stream? stream = null;
         IExcelDataReader? reader = null;
         List<string>? headers = null;
-        Dictionary<string, int>? headerIndexMap = null;
         EntityConvertResult<T>? initErrorResult = null;
 
         // 资源初始化的try块（内部无任何yield）
@@ -210,7 +209,7 @@ public static class ExcelTools
             else
             {
                 // 创建表头索引映射
-                headerIndexMap = CreateHeaderIndexMap(headers);
+                CreateHeaderIndexMap(headers);
             }
         }
         catch (Exception ex)
@@ -249,13 +248,14 @@ public static class ExcelTools
         while (!isTerminated && reader!.Read())
         {
             EntityConvertResult<T> rowResult;
-            Dictionary<string, object?> rawData = new();
 
             // 行处理的try块（内部无yield）
             try
             {
                 // 读取原始数据
-                rawData = ReadRowRawData(reader, headers!, headerIndexMap!, unmappedJsonColumnName);
+                var (rawData, unmappedDict) = ReadRowRawData(reader, headers!, mapping, unmappedJsonColumnName);
+                if (unmappedJsonColumnName != null)
+                    mapping.TryAdd(unmappedJsonColumnName, unmappedJsonColumnName);
                 //处理批量替换的内容
                 if (autoMappingProperties != null)
                     foreach (var property in autoMappingProperties)
@@ -265,11 +265,11 @@ public static class ExcelTools
                 var validateResult = RecordValidateResultEnum.Skip;
                 // 初始化实体
                 var entity = new T();
-                var isProcessSuccess = PopulateEntity(entity, rawData, mapping, rowIndex, propertySetters, log, out var errorMessage);
+                var success = PopulateEntity(entity, rawData, mapping, rowIndex, propertySetters, log, out var errorMessage);
 
                 // 执行验证回调
                 ImportFailure? validateFailure = null;
-                if (isProcessSuccess && onValidateData != null)
+                if (success && onValidateData != null)
                     validateResult = onValidateData(rowIndex, entity, rawData, out validateFailure);
 
                 // 执行转换回调
@@ -277,11 +277,10 @@ public static class ExcelTools
                 {
                     try
                     {
-                        onConvertData(rowIndex, entity, rawData);
+                        onConvertData(rowIndex, entity, rawData, unmappedDict);
                     }
                     catch (Exception ex)
                     {
-                        isProcessSuccess = false;
                         errorMessage = $"转换回调执行失败：{ex.Message}";
                     }
                 }
@@ -321,7 +320,7 @@ public static class ExcelTools
                         RowIndex = rowIndex,
                         ErrorMessage = $"行处理异常：{ex.Message}",
                         Exception = ex,
-                        RowValues = rawData
+                        RowValues = new Dictionary<string, object?>()
                     }
                 };
             }
@@ -365,7 +364,7 @@ public static class ExcelTools
                            adapter.UnmappedDataStoragePropertyName,
                            onValidateData: (rowIndex, entity, rawData, out failure)
                                => adapter.ValidateData(rowIndex, entity, rawData, out failure),
-                           onConvertData: (rowIndex, entity, otherDict) => adapter.ConvertData(rowIndex, entity, otherDict),
+                           onConvertData: adapter.ConvertData,
                            autoMappingProperties: null,
                            log: log))
         {
@@ -720,10 +719,10 @@ public static class ExcelTools
     /// <summary>
     /// 读取行原始数据
     /// </summary>
-    private static Dictionary<string, object?> ReadRowRawData(
+    private static (Dictionary<string, object?> rawDataDict, Dictionary<string, object?> unmappedDict) ReadRowRawData(
         IExcelDataReader reader,
         List<string> headers,
-        Dictionary<string, int> headerIndexMap,
+        Dictionary<string, string> mapping,
         string? unmappedJsonColumnName)
     {
         var rawData = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -734,23 +733,19 @@ public static class ExcelTools
             var header = headers[i];
             var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
 
-            if (headerIndexMap.ContainsKey(header))
-            {
+            if (mapping.ContainsKey(header))
                 rawData[header] = value;
-            }
             else if (!string.IsNullOrWhiteSpace(unmappedJsonColumnName))
-            {
                 unmappedColumns[header] = value;
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(unmappedJsonColumnName) && unmappedColumns.Count > 0)
         {
             rawData[unmappedJsonColumnName] = JsonSerializer.Serialize(
-                unmappedColumns, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                unmappedColumns, options: new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
         }
 
-        return rawData;
+        return (rawData, unmappedColumns);
     }
 
     /// <summary>
