@@ -49,5 +49,26 @@ public static class DateTimeUtility
 
             return (ulong)(date.ToUniversalTime() - baseDate).TotalMilliseconds;
         }
+
+        public DateOnly ToDateOnly()
+        {
+            return new DateOnly(date.Year, date.Month, date.Day);
+        }
+
+        public TimeOnly ToTimeOnly()
+        {
+            return new TimeOnly(date.Hour, date.Minute, date.Second, date.Millisecond);
+        }
+
+        /// <summary>
+        /// 转换为业务日期，例如营业日
+        /// </summary>
+        /// <param name="hourOfNewDayStart">从几点开始算作新的一天</param>
+        public DateOnly ToBisDateOnly(uint hourOfNewDayStart)
+        {
+            return date.Hour >= hourOfNewDayStart 
+                ? new DateOnly(date.Year, date.Month, date.Day) 
+                : new DateOnly(date.Year, date.Month, date.Day - 1);
+        }
     }
 }
