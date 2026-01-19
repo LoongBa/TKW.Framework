@@ -286,24 +286,7 @@ public static class ExcelTools
                 }
 
                 // 封装行级结果
-                if (validateResult == RecordValidateResultEnum.Keep)
-                {
-                    rowResult = ProcessValidateResult(entity, rawData, rowIndex, validateResult, validateFailure);
-                }
-                else
-                {
-                    rowResult = new EntityConvertResult<T>
-                    {
-                        Success = false,
-                        RowIndex = rowIndex,
-                        Failure = new ImportFailure
-                        {
-                            RowIndex = rowIndex,
-                            ErrorMessage = errorMessage,
-                            RowValues = rawData
-                        }
-                    };
-                }
+                rowResult = ProcessValidateResult(entity, rawData, rowIndex, validateResult, validateFailure);
 
                 // 标记是否终止
                 isTerminated = validateResult == RecordValidateResultEnum.Terminate;
