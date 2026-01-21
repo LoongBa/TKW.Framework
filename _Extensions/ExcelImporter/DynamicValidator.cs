@@ -2,7 +2,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentValidation;
-using TKW.Framework.Common.Validation;
 
 namespace TKWF.ExcelImporter;
 
@@ -137,14 +136,6 @@ public class DynamicValidator<T> : AbstractValidator<T>
                 .WithMessage("{PropertyName}不是有效的日期格式");
         }
         // 可扩展更多验证规则...
-    }
-
-    /// <summary>
-    /// 验证电子邮件地址是否有效
-    /// </summary>
-    public static bool IsValidEmail(string email)
-    {
-        return email.IsValidEmail();
     }
 
     /// <summary>

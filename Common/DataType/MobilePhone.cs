@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Text.RegularExpressions;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Common.Tools;
 
 namespace TKW.Framework.Common.DataType
 {
@@ -28,7 +28,7 @@ namespace TKW.Framework.Common.DataType
             if (mobilePhone == null) throw new ArgumentNullException(nameof(mobilePhone));
             Numbers = mobilePhone.Numbers;
             //TODO: 复制值
-            _Regex.CopySamePropertiesValue(mobilePhone._Regex);
+            _Regex.CopyValuesFrom(mobilePhone._Regex);
         }
 
         public string Numbers { get; set; }
