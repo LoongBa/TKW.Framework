@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Security.Principal;
 using TKW.Framework.Common.Extensions;
+using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Permission;
 
 namespace TKW.Framework.Domain
@@ -35,7 +36,7 @@ namespace TKW.Framework.Domain
         /// </summary>
         /// <remarks>注意：必须在 DomainHost.Initial() 中注册领域服务</remarks>
         /// <typeparam name="TDomainService">领域服务的接口类型</typeparam>
-        public TDomainService Use<TDomainService>() where TDomainService : DomainService
+        public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase
         {
             return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
         }

@@ -1,3 +1,3 @@
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Domain.Interfaces;
 
 public interface IAopContract: IDomainService { }

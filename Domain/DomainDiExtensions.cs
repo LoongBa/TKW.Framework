@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
+using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain
@@ -75,42 +76,46 @@ namespace TKW.Framework.Domain
 
         #region 控制器
 
-        /// <summary>
-        /// 注册服务（不受拦截器影响）
-        /// </summary>
-        public static IRegistrationBuilder<TDomainService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddService<TDomainService>(this ContainerBuilder left)
-            where TDomainService : class, IDomainService
-        {
-            return left.RegisterType<TDomainService>();
-        }
-
-        /// <summary>
-        /// 注册多个服务（不受拦截器影响）
-        /// </summary>
-        public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
-            AddDomainServices<TDomainService>(this ContainerBuilder left, Type[] controllers)
-            where TDomainService : class, IDomainService
-        {
-            var list = controllers.Where(c => c.IsAssignableFrom(typeof(TDomainService))).ToArray();
-            return left.RegisterTypes(list);
-        }
-
-        /// <summary>
-        /// 注册受拦截的控制器
-        /// </summary>
-        /// <typeparam name="TContractInterface"></typeparam>
-        /// <typeparam name="TAopContract"></typeparam>
         /// <param name="left"></param>
-        public static IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddAopService<TContractInterface, TAopContract>(this ContainerBuilder left)
-            where TAopContract : class, Domain.IAopContract
+        extension(ContainerBuilder left)
         {
-            return left.RegisterType<TAopContract>()
-                       .As<TContractInterface>()
-                       .EnableInterfaceInterceptors()
-                       .InterceptedBy(typeof(DomainInterceptor)); //TKW Domain 领域框架拦截器
+            /// <summary>
+            /// 注册服务（不受拦截器影响）
+            /// </summary>
+            public IRegistrationBuilder<TDomainService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+                AddService<TDomainService>()
+                where TDomainService : class, IDomainService
+            {
+                return left.RegisterType<TDomainService>();
+            }
+
+            /// <summary>
+            /// 注册多个服务（不受拦截器影响）
+            /// </summary>
+            public IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
+                AddDomainServices<TDomainService>(Type[] controllers)
+                where TDomainService : class, IDomainService
+            {
+                var list = controllers.Where(c => c.IsAssignableFrom(typeof(TDomainService))).ToArray();
+                return left.RegisterTypes(list);
+            }
+
+            /// <summary>
+            /// 注册受拦截的控制器
+            /// </summary>
+            /// <typeparam name="TContractInterface"></typeparam>
+            /// <typeparam name="TAopContract"></typeparam>
+            public IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+                AddAopService<TContractInterface, TAopContract>()
+                where TAopContract : class, IAopContract
+            {
+                return left.RegisterType<TAopContract>()
+                    .As<TContractInterface>()
+                    .EnableInterfaceInterceptors()
+                    .InterceptedBy(typeof(DomainInterceptor)); //TKW Domain 领域框架拦截器
+            }
         }
+
         #endregion
     }
 }

@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Security.Authentication;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain
 {
@@ -191,7 +192,7 @@ namespace TKW.Framework.Domain
             }
             // 解析领域上下文实例
             var context = lifetimeScope.Resolve<DomainContext>(
-                TypedParameter.From(((DomainService)invocation.InvocationTarget).User),
+                TypedParameter.From(((DomainServiceBase)invocation.InvocationTarget).User),
                 TypedParameter.From(invocation),
                 TypedParameter.From(methodContract));
             return context;
