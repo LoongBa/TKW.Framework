@@ -41,9 +41,9 @@ namespace TKW.Framework.Domain.Session
         public SessionUser(DomainUserSession domainUserSession, string sessionKeyName)
         {
             domainUserSession.AssertNotNull(name: nameof(domainUserSession));
-            Username = domainUserSession.User.Identity.Name;
+            Username = domainUserSession.User.Identity?.Name ?? string.Empty;
             UserId = domainUserSession.User.UserIdString;
-            RoleName = string.Join(",", domainUserSession.User.RoleNameStringArray);
+            RoleName = string.Join(",", domainUserSession.User.RoleNames);
             SessionKey = domainUserSession.Key;
             sessionKeyName.EnsureHasValue();
             SessionKeyName = sessionKeyName;

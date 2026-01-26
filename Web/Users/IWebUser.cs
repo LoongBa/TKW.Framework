@@ -1,5 +1,3 @@
-using TKW.Framework.Domain;
-
 namespace TKW.Framework.Web.Users
 {
     public interface IWebUser
@@ -7,7 +5,6 @@ namespace TKW.Framework.Web.Users
         WebContainer Container { get; }
         string UserAgent { get; }
 
-        UserAuthenticationType AuthenticationType { get; }
         void SetContainer(string userAgent);
     }
 }

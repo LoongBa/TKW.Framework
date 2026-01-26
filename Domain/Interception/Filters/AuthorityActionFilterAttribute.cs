@@ -27,8 +27,8 @@ namespace TKW.Framework.Domain.Interception.Filters
         public override void PreProceed(DomainInvocationWhereType method, DomainContext context)
         {
             var user = context.DomainUser;
-            if (!user.Identity.IsAuthenticated) 
-                throw new AuthenticationException($"用户 '{user.Identity.Name}' 未认证。");
+            if (user.Identity is { IsAuthenticated: false }) 
+                throw new AuthenticationException($"用户 '{user.Identity?.Name}' 未认证。");
         }
 
         public override void PostProceed(DomainInvocationWhereType method, DomainContext context)

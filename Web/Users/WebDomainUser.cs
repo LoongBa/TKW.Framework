@@ -1,4 +1,5 @@
-﻿using TKW.Framework.Domain;
+﻿using TKW.Framework.Common.Tools;
+using TKW.Framework.Domain;
 
 namespace TKW.Framework.Web.Users
 {
@@ -6,12 +7,9 @@ namespace TKW.Framework.Web.Users
     {
         protected WebDomainUser(DomainUser domainUser) : base(domainUser.DomainHostFactory)
         {
-            SetIdentity(
-                domainUser.Identity?.Name,
-                domainUser.AuthenticationType.ToString(),
-                domainUser.Identity is { IsAuthenticated: true });
-            AuthenticationType = domainUser.AuthenticationType;
             Container = new WebContainer { Type = WebContainerType.UnSet };
+            // 复制 DomainUser 信息
+            this.CopyValuesFrom(domainUser);
         }
 
         #region Implementation of IWebUser

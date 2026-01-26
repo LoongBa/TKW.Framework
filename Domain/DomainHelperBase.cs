@@ -31,10 +31,10 @@ namespace TKW.Framework.Domain
             user.SetDomainHostFactory(DomainHostFactory);
             return user;
         }
-        protected virtual DomainUser CreateUserInstance(string userName, UserAuthenticationType authenticationType = UserAuthenticationType.Guest, bool isAuthenticated = false)
+        protected virtual DomainUser CreateUserInstance(string userName, UserAuthenticationType authenticationType = UserAuthenticationType.Unset)
         {
             var user = CreateUserInstance();
-            user.SetIdentity(userName, authenticationType.ToString(), isAuthenticated);
+            user.AddUserIdentity(userName, authenticationType);
             return user;
         }
 

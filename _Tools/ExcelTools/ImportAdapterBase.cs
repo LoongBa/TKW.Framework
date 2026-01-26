@@ -46,8 +46,27 @@ public abstract class ImportAdapterBase<TEntity> : IImportDataAdapter<TEntity>
         string filename, Dictionary<string, string>? autoMapping = null);
 
     /// <inheritdoc/>
-    public abstract Task<ImportResult<TEntity>> LoadDataToResultAsync(string filename, Dictionary<string, string>? autoMapping = null);
+    public virtual async Task<ImportResult<TEntity>> LoadDataToResultAsync(string filename, Dictionary<string, string>? autoMapping = null)
+    {
+        var result = new ImportResult<TEntity>();
 
+        await foreach (var record in LoadDataAsync(filename: filename, autoMapping: autoMapping))
+        {
+            if (record.Success)
+            {
+                // 注意：这里假设 ImportResult 内部处理了具体的 Entity 类型
+                // 如果 Entity 是 object 类型，可能需要根据实际情况调整
+                if (record.Entity != null)
+                    result.Items.Add(record.Entity);
+            }
+            else if (record.Failure != null)
+            {
+                result.Failures.Add(record.Failure);
+            }
+        }
+
+        return result;
+    }
     /// <summary>
     /// 通用方法：提取未映射数据并序列化为JSON，存入指定实体属性（与Excel无关）
     /// </summary>
