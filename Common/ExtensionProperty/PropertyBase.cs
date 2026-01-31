@@ -19,7 +19,7 @@ namespace TKW.Framework.Common.ExtensionProperty
 
         public virtual void FromPropertyString(string propertyString)
         {
-            propertyString.AssertNotNull();
+            propertyString.EnsureNotNull();
             CopyValues(propertyString.ToObjectFromJson<T>());
         }
 

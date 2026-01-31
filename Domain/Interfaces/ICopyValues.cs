@@ -1,9 +1,8 @@
 using System;
 
-namespace TKW.Framework.Domain.Interfaces
+namespace TKW.Framework.Domain.Interfaces;
+
+public interface ICopyValues<TValue> : ICloneable
 {
-    public interface ICopyValues<TValue> : ICloneable
-    {
-        TValue CopyValuesFrom(TValue fromObject);
-    }
+    TValue CopyValuesFrom(TValue fromObject);
 }

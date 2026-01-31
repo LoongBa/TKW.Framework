@@ -1,12 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 //using TKW.Framework.EntityFramework;
 
-namespace TKW.Framework.Domain
+namespace TKW.Framework.Domain;
+
+public interface IDomainDataAccessHelper
 {
-    public interface IDomainDataAccessHelper
-    {
-        TDbContext CreateDbContextInstance<TDbContext>()
-            //where TDbContext : DbContext, IEntityDbContext;
-            where TDbContext : DbContext;
-    }
+    TDbContext CreateDbContextInstance<TDbContext>()
+        //where TDbContext : DbContext, IEntityDbContext;
+        where TDbContext : DbContext;
 }

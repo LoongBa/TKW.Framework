@@ -53,7 +53,7 @@ public static class StringRegexExtensions
         public string Replace(Regex regex, string replacement)
         {
             if (string.IsNullOrEmpty(left)) throw new ArgumentNullException();
-            return regex.AssertNotNull().Replace(left, replacement);
+            return regex.EnsureNotNull().Replace(left, replacement);
         }
     }
 

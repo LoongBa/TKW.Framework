@@ -1,16 +1,15 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
-using TKW.Framework.Common.DataType;
+
 //using System.Text.Json.Serialization;
 
 namespace TKW.Framework.Common.Extensions;
 
 public static class ObjectExtensions
 {
-    public static T AssertNotNull<T>(this T left, string name = null, string message = null)
+    public static T EnsureNotNull<T>(this T left, string name = null, string message = null)
         //where T : class
     {
         name = name.HasValue() ? name : left.GetType().Name;
@@ -19,7 +18,7 @@ public static class ObjectExtensions
                 message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
         return left;
     }
-    public static string AssertNotEmptyOrNull(this string left, string name = null, string message = null)
+    public static string EnsureNotEmptyOrNull(this string left, string name = null, string message = null)
     {
         name = name.HasValue() ? name : left.GetType().Name;
         if (left == null)
@@ -27,7 +26,7 @@ public static class ObjectExtensions
                 message.HasValue() ? message : "参数 '{0}' 值不能为 null", name);
         return left;
     }
-    public static object AssertNotNull(this object left, string name = null, string message = null)
+    public static object EnsureNotNull(this object left, string name = null, string message = null)
     {
         name = name.HasValue() ? name : left.GetType().Name;
         if (left == null)

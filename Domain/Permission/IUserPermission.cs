@@ -1,26 +1,25 @@
 using System;
 using TKW.Framework.Common.DataType;
 
-namespace TKW.Framework.Domain.Permission
+namespace TKW.Framework.Domain.Permission;
+
+public interface IUserPermission
 {
-    public interface IUserPermission
-    {
-        Operator Operator { get; }
-        Enum PermissionType { get; }
+    Operator Operator { get; }
+    Enum PermissionType { get; }
 
-        /// <summary>
-        /// Id
-        /// </summary>
-        string Id { get; }
+    /// <summary>
+    /// Id
+    /// </summary>
+    string Id { get; }
 
-        /// <summary>
-        /// 名字
-        /// </summary>
-        string Name { get; }
+    /// <summary>
+    /// 名字
+    /// </summary>
+    string Name { get; }
 
-        /// <summary>
-        /// 菜单文字
-        /// </summary>
-        string Text { get; }
-    }
+    /// <summary>
+    /// 菜单文字
+    /// </summary>
+    string Text { get; }
 }

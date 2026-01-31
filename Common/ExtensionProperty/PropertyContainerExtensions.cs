@@ -6,13 +6,13 @@ namespace TKW.Framework.Common.ExtensionProperty {
         public static T ToProperty<T>(this string left)
             where T : IProperty<T>, new()
         {
-            left.AssertNotNull(name: nameof(left));
+            left.EnsureNotNull(name: nameof(left));
             return new PropertyContainer<T>(left).Content;
         }
         public static PropertyContainer<T> ToPropertyContainer<T>(this string left)
             where T : IProperty<T>, new()
         {
-            return new PropertyContainer<T>(left.AssertNotNull());
+            return new PropertyContainer<T>(left.EnsureNotNull());
         }
 
         public static PropertyContainer<T> ToPropertyContainer<T>(this T left)

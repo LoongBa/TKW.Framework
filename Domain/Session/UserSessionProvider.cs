@@ -1,4 +1,5 @@
-using System;
+/*using System;
+using System.Threading.Tasks;
 
 namespace TKW.Framework.Domain.Session {
     /// <summary>
@@ -16,15 +17,29 @@ namespace TKW.Framework.Domain.Session {
             _UserHelper = userHelper ?? throw new ArgumentNullException(nameof(userHelper));
         }
 
-        public string SessionKey_KeyName => _UserHelper.SessionKey_KeyName;
+        public string SessionKey_KeyName => "session:";
+        public Task<SessionInfo> NewGuestSessionAsync()
+        {
+            throw new NotImplementedException();
+        }
 
-        public DomainUserSession RetrieveAndActiveUserSession(string sessionKey)
+        public Task<SessionInfo> RetrieveAndActiveUserSessionAsync(DomainUser user)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task GuestOrUserLogoutAsync(DomainUser user)
+        {
+            throw new NotImplementedException();
+        }
+
+        public SessionInfo RetrieveAndActiveUserSession(string sessionKey)
         {
             var session = _UserHelper.RetrieveAndActiveUserSession(sessionKey);
             return session.ToUserSession();
         }
 
-        public DomainUserSession NewGuestSession()
+        public SessionInfo NewGuestSession()
         {
             var session = _UserHelper.NewGuestSession();
             return session.ToUserSession();
@@ -35,4 +50,4 @@ namespace TKW.Framework.Domain.Session {
             _UserHelper.GuestOrUserLogout(sessionKey);
         }
     }
-}
+}*/

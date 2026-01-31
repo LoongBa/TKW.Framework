@@ -1,10 +1,9 @@
-namespace TKW.Framework.Web.Users
-{
-    public interface IWebUser
-    {
-        WebContainer Container { get; }
-        string UserAgent { get; }
+namespace TKW.Framework.Web.Users;
 
-        void SetContainer(string userAgent);
-    }
+public interface IWebUser
+{
+    WebContainer Container { get; }
+    string UserAgent { get; }
+
+    void SetContainer(string userAgent);
 }

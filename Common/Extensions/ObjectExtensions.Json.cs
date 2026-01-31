@@ -34,7 +34,7 @@ public static class StringToJsonExtensions
     public static string ToJson(this object json, JsonSerializerOptions options = null)
     {
         options ??= DefaultOptions;
-        return JsonSerializer.Serialize(json.AssertNotNull(), options);
+        return JsonSerializer.Serialize(json.EnsureNotNull(), options);
     }
 
     extension(string json)

@@ -5,11 +5,14 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TKW.Framework.Web.Results;
 
-namespace TKW.Framework.Web
+namespace TKW.Framework.Web;
+
+public static class ControllerExtension
 {
-    public static class ControllerExtension
+    /// <param name="controller"></param>
+    extension(Controller controller)
     {
-        public static T GetCurrentUser<T>(this Controller controller) where T : class, IPrincipal
+        public T GetCurrentUser<T>() where T : class, IPrincipal
         {
             var user = controller.User as T;
             if (user == null)
@@ -17,14 +20,12 @@ namespace TKW.Framework.Web
             return user;
         }
 
-
         /// <summary>
         /// 客户端（浏览器）转向
         /// </summary>
-        /// <param name="controller"></param>
         /// <param name="redirectUrl">转向地址</param>
         /// <returns></returns>
-        public static ClientRedirectResult ClientRedirect(this Controller controller, string redirectUrl)
+        public ClientRedirectResult ClientRedirect(string redirectUrl)
         {
             return new ClientRedirectResult(redirectUrl);
         }
@@ -33,7 +34,7 @@ namespace TKW.Framework.Web
         /// 设置Cookies
         /// </summary>
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
-        public static void SetCookies(this Controller controller, string name, string value)
+        public void SetCookies(string name, string value)
         {
             SetCookies(controller, name, value, TimeSpan.FromMinutes(5));
         }
@@ -42,7 +43,7 @@ namespace TKW.Framework.Web
         /// 设置Cookies
         /// </summary>
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
-        public static void SetCookies(this Controller controller, string name, string value, TimeSpan expires)
+        public void SetCookies(string name, string value, TimeSpan expires)
         {
             controller.Response.Cookies.Append(name, value, new CookieOptions { Expires = DateTime.Now.Add(expires) });
         }
@@ -51,7 +52,7 @@ namespace TKW.Framework.Web
         /// 设置Cookies到指定域
         /// </summary>
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
-        public static void SetCookiesForDomain(this Controller controller, string name, string value, string domain)
+        public void SetCookiesForDomain(string name, string value, string domain)
         {
             SetCookiesForDomain(controller, name, value, domain, TimeSpan.FromMinutes(5));
         }
@@ -60,7 +61,7 @@ namespace TKW.Framework.Web
         /// 设置Cookies到指定域
         /// </summary>
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
-        public static void SetCookiesForDomain(this Controller controller, string name, string value, string domain, TimeSpan expires)
+        public void SetCookiesForDomain(string name, string value, string domain, TimeSpan expires)
         {
             controller.Response.Cookies.Append(name, value, new CookieOptions { Expires = DateTime.Now.Add(expires), Domain = domain });
         }
@@ -68,7 +69,7 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 通过名称读取Cookies对象
         /// </summary>
-        public static string Cookies(this Controller controller, string name)
+        public string Cookies(string name)
         {
             return controller.Request.Cookies[name];
         }
@@ -76,7 +77,7 @@ namespace TKW.Framework.Web
         /// <summary>
         /// 读取Cookies集合
         /// </summary>
-        public static IRequestCookieCollection Cookies(this Controller controller)
+        public IRequestCookieCollection Cookies()
         {
             return controller.Request.Cookies;
         }

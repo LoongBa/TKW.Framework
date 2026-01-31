@@ -1,212 +1,206 @@
-﻿using System;
-using System.Linq;
-using System.Text;
-using Microsoft.Extensions.Caching.Memory;
-using TKW.Framework.Common.Extensions;
+﻿#nullable enable
+using Microsoft.Extensions.Caching.Hybrid;
+using System;
+using System.Threading.Tasks;
+using TKW.Framework.Common.Tools;
 
-namespace TKW.Framework.Domain.Session
+namespace TKW.Framework.Domain.Session;
+
+/// <summary>
+/// 会话管理器，负责处理用户会话的创建、获取、更新和废弃等操作
+/// </summary>
+public class SessionManager(
+    HybridCache cache,
+    string sessionKeyPrefix = "session:",
+    TimeSpan? sessionExpiredTimeSpan = null,
+    string sessionKeyKeyName = "SessionKey") : ISessionManager
 {
-    public class SessionManager : ISessionCache 
+    /// <summary>
+    /// 混合缓存实例，用于存储会话数据
+    /// </summary>
+    private readonly HybridCache _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
+
+    /// <summary>
+    /// 会话过期时间跨度，默认为10分钟
+    /// </summary>
+    public TimeSpan SessionExpiredTimeSpan { get; } = sessionExpiredTimeSpan ?? TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// 会话键的名称
+    /// </summary>
+    public string SessionKey_KeyName { get; } = sessionKeyKeyName;
+
+    #region 实现 ISessionManager
+
+    /// <inheritdoc/>
+    public event SessionCreated? SessionCreated;
+
+    /// <inheritdoc/>
+    public event SessionAbandon? SessionAbandon;
+
+    // 暂不支持分布式可靠触发，建议移除或用 FusionCache
+    // public event SessionRemoved? SessionTimeout;
+
+    /// <inheritdoc/>
+    public Task<SessionInfo> NewSessionAsync()
     {
-        public event SessionCreated SessionCreated;
-        public event SessionAbandon SessionAbandon;
-        public event SessionRemoved SessionTimeout;
-        private readonly IMemoryCache _MemoryCache;
-        private readonly string _CacheKeySalt;
-        public const uint _SecondsCheckingIntervalDefault_ = 3;
-        public const uint _SecondsTimeoutDefault_ = 10 * 60;
+        return CreateSessionAsync(null, null);
+    }
 
-        /// <exception cref="ArgumentOutOfRangeException"></exception>
-        /// <exception cref="OverflowException">
-        /// <paramref name="secondsTimeOut" /> 是小于 <see cref="F:System.TimeSpan.MinValue" /> 或大于 <see cref="F:System.TimeSpan.MaxValue" />。
-        /// - 或 -<paramref name="secondsTimeOut" /> 为 <see cref="F:System.Double.PositiveInfinity" />。- 或 -<paramref name="secondsTimeOut" /> 为 <see cref="F:System.Double.NegativeInfinity" />。</exception>
-        public SessionManager(
-            uint secondsTimeOut = _SecondsTimeoutDefault_,
-            uint secondsCheckingInterval = _SecondsCheckingIntervalDefault_,
-            string sessionKeySalt = null,
-            string sessionKeyKeyName = "SessionKey")
-        {
-            _MemoryCache = new MemoryCache(new MemoryCacheOptions
+    /// <inheritdoc/>
+    public async Task<bool> ContainsSessionAsync(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+
+        // 使用 GetAsync 进行纯粹的读取操作，避免修改缓存状态
+        var session = await _Cache.GetOrCreateAsync<SessionInfo>(sessionKey,
+                _ => ValueTask.FromResult<SessionInfo>(null))
+            .ConfigureAwait(false);
+
+        return session != null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<SessionInfo> GetSessionAsync(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+
+        var session = await _Cache.GetOrCreateAsync(sessionKey,
+                _ => ValueTask.FromResult<SessionInfo>(null))
+            .ConfigureAwait(false);
+
+        return session ?? throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
+    }
+
+    /// <inheritdoc/>
+    public async Task<SessionInfo> GetOrCreateSessionAsync(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+
+        return await _Cache.GetOrCreateAsync(sessionKey,
+            _ =>
             {
-                ExpirationScanFrequency = TimeSpan.FromSeconds((int)secondsCheckingInterval),
-            });
-            _CacheKeySalt = sessionKeySalt;
-            SessionExpiredTimeSpan = TimeSpan.FromSeconds((int)secondsTimeOut);
-            SessionKey_KeyName = sessionKeyKeyName;
-        }
+                var session = new SessionInfo(sessionKey, null);
+                OnSessionCreated(sessionKey, session);
+                return ValueTask.FromResult(session);
+            }).ConfigureAwait(false);
+    }
 
-        public TimeSpan SessionExpiredTimeSpan { get; }
-        public string SessionKey_KeyName { get; }
+    /// <inheritdoc/>
+    public async Task<SessionInfo> GetAndActiveSessionAsync(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        /// <exception cref="SessionException"></exception>
-        public CommonSession AbandonSession(string sessionKey)
+        var session = await GetSessionAsync(sessionKey).ConfigureAwait(false);
+        session.Active();
+
+        // 直接覆盖设置，更新过期时间，减少 IO 并提高原子性
+        await _Cache.SetAsync(sessionKey, session, new HybridCacheEntryOptions
         {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+            Expiration = SessionExpiredTimeSpan
+        }).ConfigureAwait(false);
 
-            if (!_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
+        return session;
+    }
 
-            _MemoryCache.Remove(sessionKey);
+    /// <inheritdoc/>
+    public async Task AbandonSessionAsync(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-            var session = sessionValue as CommonSession;
-            OnSessionAbandon(sessionKey, session);
-            return session;
-        }
+        // 1. 先尝试获取 Session。如果不存在，GetSessionAsync 会抛出 SessionNotFound 异常。
+        var session = await GetSessionAsync(sessionKey).ConfigureAwait(false);
 
-        /// <summary>
-        /// 激活会话
-        /// </summary>
-        /// <param name="sessionKey"></param>
-        /// <exception></exception>
-        public CommonSession ActiveSession(string sessionKey)
+        // 2. 如果存在，则从缓存中移除。注意：RemoveAsync 不返回值。
+        await _Cache.RemoveAsync(sessionKey).ConfigureAwait(false);
+
+        // 3. 触发事件
+        OnSessionAbandon(sessionKey, session);
+    }
+
+    #endregion
+
+    /// <summary>
+    /// 创建或获取会话的内部实现
+    /// </summary>
+    /// <param name="user">用户域对象</param>
+    /// <param name="sessionKey">可选的会话键</param>
+    /// <returns>创建或获取的会话对象</returns>
+    private async Task<SessionInfo> CreateSessionAsync(DomainUser? user, string? sessionKey)
+    {
+        sessionKey ??= GenerateNewSessionKey();
+
+        var session = await _Cache.GetOrCreateAsync(sessionKey, _ =>
         {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+            var newSession = new SessionInfo(sessionKey, user);
+            OnSessionCreated(sessionKey, newSession);
+            // 可选：在这里记录日志 "Creating new session for user {user.Id}"
+            return ValueTask.FromResult(newSession);
+        }).ConfigureAwait(false);
 
-            if (!_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
+        // 可选：检查是否是新创建的（业务需要时）
+        // 但 HybridCache 本身无法可靠区分，只能通过其他方式（如加一个 IsNew 标记）
 
-            var session = (CommonSession)sessionValue;
-            return session?.Active();
-        }
+        return session;
+    }
 
-        /// <exception cref="ArgumentException">Value cannot be null or whitespace.</exception>
-        public bool ContainsSession(string sessionKey)
+    /// <summary>
+    /// 触发会话创建事件
+    /// </summary>
+    /// <param name="sessionKey">会话键</param>
+    /// <param name="session">会话对象</param>
+    protected virtual void OnSessionCreated(string sessionKey, SessionInfo session)
+    {
+        if (SessionCreated == null) return;
+        var handler = SessionCreated;
+        foreach (var delegateItem in handler.GetInvocationList())
         {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-            return _MemoryCache.TryGetValue(sessionKey, out _);
+            try
+            {
+                ((SessionCreated)delegateItem)(sessionKey, session);
+            }
+            catch
+            {
+                // 记录日志，忽略异常，防止影响其他订阅者或主流程
+            }
         }
+    }
 
-        /// <exception cref="SessionException"></exception>
-        /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession CreateSession(DomainUser value)
+    /// <summary>
+    /// 触发会话废弃事件
+    /// </summary>
+    /// <param name="sessionKey">会话键</param>
+    /// <param name="session">会话对象</param>
+    protected virtual void OnSessionAbandon(string sessionKey, SessionInfo session)
+    {
+        if (SessionAbandon == null) return;
+        var handler = SessionAbandon;
+        foreach (var delegateItem in handler.GetInvocationList())
         {
-            return CreateSession(value, null);
+            try
+            {
+                ((SessionAbandon)delegateItem)(sessionKey, session);
+            }
+            catch
+            {
+                // 记录日志，忽略异常
+            }
         }
+    }
 
-        private CommonSession CreateSession(DomainUser value, string sessionKey)
-        {
-            sessionKey ??= GenerateNewCacheKey(Guid.NewGuid().ToString());
-            var session = new CommonSession(sessionKey, value);
-            if (_MemoryCache.TryGetValue(sessionKey, out _))
-                throw new SessionException(sessionKey, SessionExceptionType.DuplicatedSessionKey);
-            OnSessionCreated(session.Key, session);
-            return _MemoryCache.Set(
-                session.Key, session,
-                new MemoryCacheEntryOptions()
-                    .SetSlidingExpiration(SessionExpiredTimeSpan)
-                    .RegisterPostEvictionCallback(PostEvictionCallback)//订阅从缓存中移除事件
-            );
-        }
+    // protected virtual void OnSessionTimeout(...) { } // 暂不实现
 
-        /// <exception cref="SessionException"></exception>
-        /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Condition.</exception>
-        public CommonSession GetSession(string sessionKey)
-        {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
-            if (_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                return sessionValue as CommonSession;
-
-            throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
-        }
-
-        /// <exception cref="SessionException"></exception>
-        /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession GetOrCreateSession(string sessionKey, DomainUser value)
-        {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
-            //TODO: 尝试从二级缓存获取会话
-            if (_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                return sessionValue as CommonSession;
-
-            return CreateSession(value, sessionKey);
-        }
-
-        /// <exception cref="SessionException">Condition.</exception>
-        /// <exception cref="Exception">A delegate callback throws an exception.</exception>
-        public CommonSession GetAndActiveSession(string sessionKey)
-        {
-            return ActiveSession(sessionKey);
-        }
-
-        /// <summary>
-        /// 更新会话值
-        /// </summary>
-        /// <remarks>注意：仅复制传入 value 的属性值（调用 ICacheValue.CopyValuesFrom() 方法）</remarks>
-        /// <exception cref="SessionException"></exception>
-        public CommonSession UpdateSessionValue(string sessionKey, DomainUser value)
-        {
-            if (!sessionKey.HasValue())
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
-            if (value == null)
-                throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionValue);
-
-            if (!_MemoryCache.TryGetValue(sessionKey, out var sessionValue))
-                throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
-
-            var session = (CommonSession)sessionValue;
-            session?.UpdateValue(value);
-            session?.Active();
-            return session;
-        }
-
-        private void PostEvictionCallback(object key, object value, EvictionReason reason, object state)
-        {
-            OnSessionTimeout((string)key, (CommonSession)value, reason, state);
-        }
-
-        protected virtual void OnSessionCreated(string sessionKey, CommonSession session)
-        {
-            //TODO: 加上二级、分布式会话机制
-            SessionCreated?.Invoke(sessionKey, session);
-        }
-        protected virtual void OnSessionAbandon(string sessionKey, CommonSession session)
-        {
-            //TODO: 加上二级、分布式会话机制
-            SessionAbandon?.Invoke(sessionKey, session);
-        }
-
-        protected virtual void OnSessionTimeout(string sessionKey, CommonSession session, EvictionReason reason, object state)
-        {
-            //TODO: 加上二级、分布式会话机制
-            SessionTimeout?.Invoke(sessionKey, session, reason, state);
-        }
-
-        /// <summary>
-        /// 执行与释放或重置非托管资源相关的应用程序定义的任务。
-        /// </summary>
-        public void Dispose()
-        {
-            _MemoryCache.Dispose();
-        }
-
-        protected virtual string GenerateNewCacheKey(string key)
-        {
-            //TODO:改进加密算法
-            return string.IsNullOrWhiteSpace(_CacheKeySalt)
-                       ? GetSha1HashData(key)
-                       : GetSha1HashData(_CacheKeySalt + key);
-        }
-
-        private static string GetSha1HashData(string data)
-        {
-            //create new instance of md5
-            var sha1 = Cryptography.HashAlgorithmFactory.Create(Cryptography.HashAlgorithmType.Sha1);
-
-            //convert the input text to array of bytes
-            var hashData = sha1.ComputeHash(Encoding.Default.GetBytes(data));
-
-            // 之前的结果太长，缩短一点
-            var result = string.Empty;
-            return hashData.Aggregate(result, (current, item) => current + item.ToString("x2"));
-        }
+    /// <summary>
+    /// 生成新的缓存键
+    /// </summary>
+    /// <returns>生成的缓存键</returns>
+    protected virtual string GenerateNewSessionKey()
+    {
+        return BatchIdGenerator.GenerateBatchId(64, sessionKeyPrefix);
     }
 }

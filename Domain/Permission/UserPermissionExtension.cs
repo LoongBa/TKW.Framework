@@ -3,53 +3,62 @@ using System.Collections.Generic;
 using System.Linq;
 using TKW.Framework.Common.Extensions;
 
-namespace TKW.Framework.Domain.Permission
-{
-    public static class UserPermissionExtension
-    {
-        #region Ȩ���жϻ�������
+namespace TKW.Framework.Domain.Permission;
 
-        public static bool ContainsByName<T>(this IReadOnlyList<T> left, string name) where T : IUserPermission
+public static class UserPermissionExtension
+{
+    #region 用户权限
+
+    extension<T>(IReadOnlyList<T> left) where T : IUserPermission
+    {
+        public bool ContainsByName(string name)
         {
             name.EnsureHasValue(nameof(name));
             return left.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
-        public static bool ContainsById<T>(this IReadOnlyList<T> left, string idString) where T : IUserPermission
+
+        public bool ContainsById(string idString)
         {
             idString.EnsureHasValue(nameof(idString));
             return left.Any(p => p.Id.Equals(idString, StringComparison.OrdinalIgnoreCase));
         }
-        public static T TryGetByName<T>(this IReadOnlyList<T> left, string name) where T : IUserPermission
+
+        public T TryGetByName(string name)
         {
             name.EnsureHasValue(nameof(name));
             return left.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
-        public static T TryGetById<T>(this IReadOnlyList<T> left, string idString) where T : IUserPermission
+
+        public T TryGetById(string idString)
         {
             idString.EnsureHasValue(nameof(idString));
             return left.FirstOrDefault(p => p.Id.Equals(idString, StringComparison.OrdinalIgnoreCase));
         }
+    }
 
-        #endregion
+    #endregion
 
-        #region �˵����
+    #region 菜单权限
 
-        public static MenuPermission TryGetParentByName<T>(this IReadOnlyList<T> left, string name) where T : MenuPermission
+    extension<T>(IReadOnlyList<T> left) where T : MenuPermission
+    {
+        public MenuPermission TryGetParentByName(string name)
         {
             name.EnsureHasValue(nameof(name));
             var menu = left.TryGetByName(name);
             if (!menu.ParentId.HasValue()) return null;
             return left.FirstOrDefault(p => p.Id.Equals(menu.ParentId, StringComparison.OrdinalIgnoreCase));
         }
-        public static MenuPermission TryGetParentById<T>(this IReadOnlyList<T> left, string idString) where T : MenuPermission
+
+        public MenuPermission TryGetParentById(string idString)
         {
             idString.EnsureHasValue(nameof(idString));
             var menu = left.TryGetById(idString);
             if (!menu.ParentId.HasValue()) return null;
             return left.FirstOrDefault(p => p.Id.Equals(menu.ParentId, StringComparison.OrdinalIgnoreCase));
         }
-
-        #endregion
-
     }
+
+    #endregion
+
 }

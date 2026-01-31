@@ -10,7 +10,7 @@ namespace TKW.Framework.Common.DataType
         /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
         public Pager(IList<T> data, uint total, uint pageIndex = 0, uint pageSize = _DefaultPageSize_, uint maxPageSize = 100)
         {
-            data.AssertNotNull();
+            data.EnsureNotNull();
             if (pageSize == 0) pageSize = _DefaultPageSize_;
 
             Data = data;
@@ -32,7 +32,7 @@ namespace TKW.Framework.Common.DataType
 
         public Pager(IList<T> list)
         {
-            list.AssertNotNull();
+            list.EnsureNotNull();
             Data = list;
             Total = (uint)list.Count;
             PageSize = Total;

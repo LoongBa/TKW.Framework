@@ -3,14 +3,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Permission;
 
 namespace TKW.Framework.Domain;
 
-public class DomainUser() : ClaimsPrincipal
+public class DomainUser : ClaimsPrincipal
 {
+    internal DomainUser() { }
+
     public string UserIdString
     {
         get => FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
@@ -58,7 +61,7 @@ public class DomainUser() : ClaimsPrincipal
     /// <summary>
     /// 领域中的用户信息（改为不用泛型，需自行检查、装箱拆箱）
     /// </summary>
-    public IUserInfo UserInfo { get; set; }
+    public IUserInfo UserInfo { get; protected internal set; }
 
     public UserPermissionSet Permissions { get; } = new();
 
@@ -66,12 +69,12 @@ public class DomainUser() : ClaimsPrincipal
 
     protected DomainUser(Func<DomainHost> domainHostFactory) : this()
     {
-        DomainHostFactory = domainHostFactory.AssertNotNull(name: nameof(domainHostFactory));
+        DomainHostFactory = domainHostFactory.EnsureNotNull(name: nameof(domainHostFactory));
     }
 
     protected internal Func<DomainHost> SetDomainHostFactory(Func<DomainHost> domainHostFactory)
     {
-        return DomainHostFactory = domainHostFactory.AssertNotNull(name: nameof(domainHostFactory));
+        return DomainHostFactory = domainHostFactory.EnsureNotNull(name: nameof(domainHostFactory));
     }
 
     /// <summary>
@@ -81,7 +84,7 @@ public class DomainUser() : ClaimsPrincipal
     /// <typeparam name="TDomainService">领域服务的接口类型</typeparam>
     public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase
     {
-        return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
+        return DomainHostFactory().EnsureNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
     }
 
     /// <summary>
@@ -91,7 +94,7 @@ public class DomainUser() : ClaimsPrincipal
     /// <typeparam name="TAopContract">领域服务的接口类型</typeparam>
     public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
     {
-        return DomainHostFactory().AssertNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TAopContract>(TypedParameter.From(this));
+        return DomainHostFactory().EnsureNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TAopContract>(TypedParameter.From(this));
     }
 
     /// <summary>
@@ -102,12 +105,14 @@ public class DomainUser() : ClaimsPrincipal
     /// <param name="passwordHashed"></param>
     /// <param name="authenticationType"></param>
     /// <returns></returns>
-    public virtual DomainUser LoginAsUser<TDomainHelperBase>(string userName, string passwordHashed,
+    public virtual async Task<DomainUser> LoginAsUser<TDomainHelperBase>(string userName, string passwordHashed,
         UserAuthenticationType authenticationType)
     where TDomainHelperBase : DomainHelperBase
     {
         //TODO: 检查当前用户是否为 Guest 用户？
-        var session = DomainHost.Root.UserLogin<TDomainHelperBase>(userName, passwordHashed, authenticationType, SessionKey);
+        var session = await DomainHostFactory().UserLoginAsync(
+                this, userName, passwordHashed, authenticationType)
+            .ConfigureAwait(false);
         SessionKey = session.Key;
         return session.User;
     }

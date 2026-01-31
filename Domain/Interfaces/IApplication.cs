@@ -1,12 +1,11 @@
 ﻿using System;
 
-namespace TKW.Framework.Domain.Interfaces
+namespace TKW.Framework.Domain.Interfaces;
+
+public interface IApplication
 {
-    public interface IApplication
-    {
-        Guid Uid { get; }
-        string Name { get; }
-        string Version { get; }
-        string Description { get; }
-    }
+    Guid Uid { get; }
+    string Name { get; }
+    string Version { get; }
+    string Description { get; }
 }

@@ -38,10 +38,10 @@ namespace TKW.Framework.Cryptography
         /// <returns>加密后的字节数组</returns>
         public static string SymmetricEncrypt(SymmetricAlgorithm algorithm, string clearText, byte[] key, byte[] vector, Encoding encoding = null)
         {
-            algorithm.AssertNotNull(name: nameof(algorithm));
+            algorithm.EnsureNotNull(name: nameof(algorithm));
             clearText.EnsureHasValue(nameof(clearText));
-            key.AssertNotNull(name: nameof(key));
-            vector.AssertNotNull(name: nameof(vector));
+            key.EnsureNotNull(name: nameof(key));
+            vector.EnsureNotNull(name: nameof(vector));
 
             if (key.Length != 32) throw new ArgumentOutOfRangeException(nameof(key), "密钥长度必须为32位");
             if (vector.Length != 16) throw new ArgumentOutOfRangeException(nameof(key), "向量长度必须为16位");
@@ -80,8 +80,8 @@ namespace TKW.Framework.Cryptography
         public static string SymmetricDecrypt(SymmetricAlgorithm algorithm, string cipherText, byte[] key, byte[] vector, Encoding encoding = null)
         {
             cipherText.EnsureHasValue(nameof(cipherText));
-            key.AssertNotNull(name: nameof(key));
-            vector.AssertNotNull(name: nameof(vector));
+            key.EnsureNotNull(name: nameof(key));
+            vector.EnsureNotNull(name: nameof(vector));
 
             if (key.Length != 32) throw new ArgumentOutOfRangeException(nameof(key), "密钥长度必须为32位");
             if (vector.Length != 16) throw new ArgumentOutOfRangeException(nameof(key), "向量长度必须为16位");

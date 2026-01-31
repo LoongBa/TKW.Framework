@@ -17,7 +17,7 @@ public static class ValidationUtilities
     /// <returns></returns>
     public static IEnumerable<ValidationResult> Validate<T>(T model) where T : class
     {
-        model.AssertNotNull(message: nameof(model));
+        model.EnsureNotNull(message: nameof(model));
 
         var validationContext = new ValidationContext(model);
         return Validate(model, validationContext);
@@ -33,8 +33,8 @@ public static class ValidationUtilities
     /// <exception cref="ArgumentNullException"><paramref name="instance" /> is <see langword="null" />.</exception>
     public static IEnumerable<ValidationResult> Validate<T>(T model, ValidationContext validationContext) where T : class
     {
-        model.AssertNotNull(message: nameof(model));
-        validationContext.AssertNotNull(message: nameof(validationContext));
+        model.EnsureNotNull(message: nameof(model));
+        validationContext.EnsureNotNull(message: nameof(validationContext));
 
         var results = new List<ValidationResult>();
         Validator.TryValidateObject(model, validationContext, results, true);

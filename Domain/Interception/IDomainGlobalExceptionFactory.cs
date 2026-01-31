@@ -1,5 +1,5 @@
-namespace TKW.Framework.Domain.Interception {
-    public interface IDomainGlobalExceptionFactory {
-        void HandleException(InterceptorExceptionContext context);
-    }
+namespace TKW.Framework.Domain.Interception;
+
+public interface IDomainGlobalExceptionFactory {
+    void HandleException(InterceptorExceptionContext context);
 }

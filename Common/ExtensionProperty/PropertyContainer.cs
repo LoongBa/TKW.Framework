@@ -18,7 +18,7 @@ namespace TKW.Framework.Common.ExtensionProperty {
 
         public PropertyContainer(string propertyContainerString)
         {
-            propertyContainerString.AssertNotNull();
+            propertyContainerString.EnsureNotNull();
             PropertyContainerString = propertyContainerString;
 
             Namespace = Version = ContentString = string.Empty;

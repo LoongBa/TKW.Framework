@@ -1,16 +1,15 @@
 using TKW.Framework.Common.DataType;
 using TKW.Framework.Common.Enumerations;
 
-namespace TKW.Framework.Domain.Permission
+namespace TKW.Framework.Domain.Permission;
+
+public class FunctionPermission : UserPermissionBase
 {
-    public class FunctionPermission : UserPermissionBase
+    /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
+    public FunctionPermission(Operator oper, string permissionId, string permissionName, EnumNoneEnabledDisabled type, string permissionText = null)
+        : base(oper, permissionId, permissionName, type, permissionText)
     {
-        /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
-        public FunctionPermission(Operator oper, string permissionId, string permissionName, EnumNoneEnabledDisabled type, string permissionText = null)
-            : base(oper, permissionId, permissionName, type, permissionText)
-        {
-            Type = type;
-        }
-        public EnumNoneEnabledDisabled Type { get; }
+        Type = type;
     }
+    public EnumNoneEnabledDisabled Type { get; }
 }

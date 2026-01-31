@@ -1,4 +1,3 @@
-namespace TKW.Framework.Domain
-{
-    public interface IDomainService { }
-}
+namespace TKW.Framework.Domain;
+
+public interface IDomainService { }

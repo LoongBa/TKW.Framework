@@ -108,10 +108,10 @@ namespace TKW.Framework.Cryptography
         /// <remarks>encodingType = UTF8</remarks>
         public static string MakeSignature(string appId, string appKey, string timestamp, string nonce, NameValueCollection parameters, Encoding encoding = null, HashAlgorithmType hashAlgorithmType = HashAlgorithmType.Sha1)
         {
-            appId.AssertNotNull(name: nameof(appId));
-            appKey.AssertNotNull(name: nameof(appKey));
-            timestamp.AssertNotNull(name: nameof(timestamp));
-            nonce.AssertNotNull(name: nameof(nonce));
+            appId.EnsureNotNull(name: nameof(appId));
+            appKey.EnsureNotNull(name: nameof(appKey));
+            timestamp.EnsureNotNull(name: nameof(timestamp));
+            nonce.EnsureNotNull(name: nameof(nonce));
 
             var @params = new NameValueCollection { { nameof(appId), appId }, { nameof(timestamp), timestamp }, { nameof(nonce), nonce } };
 
