@@ -54,11 +54,11 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
             {
                 var webUser = _WebUserConvertor(session);
                 webUser.SetContainer(context.HttpContext.Request.Headers["DomainUser-Agent"]); //TODO: Test it! @Happy
-                context.HttpContext.User = webUser;
+                context.HttpContext.User = webUser.ToNewClaimsPrincipal();
             }
             else
             {
-                context.HttpContext.User = session.User;
+                context.HttpContext.User = session.User!.ToNewClaimsPrincipal();
             }
 
             WebTools.SetValue2SessionOrCookieOrHeaderOrQueryString(context.HttpContext, SessionKeyName, session.Key);

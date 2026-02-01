@@ -1,5 +1,6 @@
 ﻿using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Web.Users;
 

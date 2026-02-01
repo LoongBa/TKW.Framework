@@ -103,20 +103,14 @@ public class BatchIdGenerator
     /// <summary>
     /// 内部核心生成器类，持有状态（时间戳和序列号）
     /// </summary>
-    private class GeneratorCore
+    private class GeneratorCore(string prefix)
     {
-        private readonly string _prefix;
         private long _lastTimestamp;
         private int _sequence;
 
         // 固定部分：前缀 + 时间戳(17) + 下划线(1) + 序列号(3-4) + 下划线(1) ≈ 23-24 字符
         // 格式: PREFIXyyyyMMdd_HHmmss_fff_SEQ_Random
         private const int FixedPartLength = 24;
-
-        public GeneratorCore(string prefix)
-        {
-            _prefix = prefix;
-        }
 
         public string Generate(int targetLength)
         {
@@ -176,7 +170,7 @@ public class BatchIdGenerator
             // 格式: {Prefix}{yyyyMMdd_HHmmss_fff}_{seq}_
             var timeStr = timestamp.ToString("yyyyMMdd_HHmmss_fff");
             var seqStr = sequence.ToString("D3");
-            var fixedPart = $"{_prefix}{timeStr}_{seqStr}_";
+            var fixedPart = $"{prefix}{timeStr}_{seqStr}_";
             var fixedLen = fixedPart.Length;
 
             // 计算需要的随机部分长度

@@ -1,178 +1,143 @@
+ï»¿#nullable enable
 using Autofac;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
-using TKW.Framework.Domain.Permission;
+using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain;
 
-public class DomainUser : ClaimsPrincipal
+/// <summary>
+/// é¢†åŸŸç”¨æˆ·åŸºç¡€ç±»
+/// </summary>
+public class DomainUser
 {
+    [JsonConstructor]
     internal DomainUser() { }
 
-    public string UserIdString
+    protected internal DomainUser(Func<DomainHost> domainHostFactory)
     {
-        get => FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        set => UpdateClaim(ClaimTypes.NameIdentifier, value);
-    }
-
-    public string SessionKey
-    {
-        get => FindFirst("SessionKey")?.Value ?? string.Empty;
-        set => UpdateClaim("SessionKey", value);
+        DomainHostFactory = domainHostFactory.EnsureNotNull(nameof(domainHostFactory));
     }
 
     /// <summary>
-    /// »ñÈ¡µ±Ç°ÓÃ»§µÄËùÓĞ½ÇÉ«Ãû³Æ£¨»ùÓÚ Claims ×Ô¶¯¶ÁÈ¡£©
+    /// ä¼šè¯é”®
     /// </summary>
-    public IEnumerable<string> RoleNames =>
-        FindAll(ClaimTypes.Role)
-            .Select(c => c.Value.Trim()) // È¥³ıÊ×Î²¿Õ°×
-            .Where(r => !string.IsNullOrWhiteSpace(r));
+    public string SessionKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// »ñÈ¡µ±Ç°ÓÃ»§ËùÓĞ Identity µÄÈÏÖ¤ÀàĞÍ£¨Ã¶¾Ù¼¯ºÏ£¬¿ÕÖµ×ªÎª Unset£©
+    /// æ˜¯å¦å·²è®¤è¯
     /// </summary>
-    public IEnumerable<UserAuthenticationType> AuthenticationTypes
-    {
-        get
-        {
-            return Identities
-                // ¶ÁÈ¡Ã¿¸ö Identity Ô­ÉúµÄ AuthenticationType ÊôĞÔ
-                .Select(identity =>
-                {
-                    // ¿Õ/ÎŞĞ§Öµ×ªÎª Unset£¬ÓĞĞ§Öµ½âÎöÎªÃ¶¾Ù
-                    if (string.IsNullOrWhiteSpace(identity.AuthenticationType) ||
-                        !Enum.TryParse<UserAuthenticationType>(identity.AuthenticationType, out var authType))
-                    {
-                        return UserAuthenticationType.Unset;
-                    }
-                    return authType;
-                })
-                // È¥ÖØ£¨±ÜÃâ¶à¸ö Identity ÖØ¸´Í¬Ò»ÈÏÖ¤ÀàĞÍ£©
-                .Distinct();
-        }
-    }
+    public bool IsAuthenticated { get; internal set; }
 
     /// <summary>
-    /// ÁìÓòÖĞµÄÓÃ»§ĞÅÏ¢£¨¸ÄÎª²»ÓÃ·ºĞÍ£¬Ğè×ÔĞĞ¼ì²é¡¢×°Ïä²ğÏä£©
+    /// ç”¨æˆ·ä¿¡æ¯
     /// </summary>
-    public IUserInfo UserInfo { get; protected internal set; }
-
-    public UserPermissionSet Permissions { get; } = new();
-
-    public Func<DomainHost> DomainHostFactory { get; private set; }
-
-    protected DomainUser(Func<DomainHost> domainHostFactory) : this()
-    {
-        DomainHostFactory = domainHostFactory.EnsureNotNull(name: nameof(domainHostFactory));
-    }
-
-    protected internal Func<DomainHost> SetDomainHostFactory(Func<DomainHost> domainHostFactory)
-    {
-        return DomainHostFactory = domainHostFactory.EnsureNotNull(name: nameof(domainHostFactory));
-    }
+    [JsonInclude]
+    public SimpleUserInfo UserInfo { get; protected internal set; } = null!;
 
     /// <summary>
-    /// Ê¹ÓÃ DomainService ÁìÓò·şÎñ
+    /// DomainHost å·¥å‚ï¼ˆè¿è¡Œæ—¶ä¾èµ–ï¼Œä¸å‚ä¸åºåˆ—åŒ–ï¼‰
     /// </summary>
-    /// <remarks>×¢Òâ£º±ØĞëÔÚ DomainHost.Initial() ÖĞ×¢²áÁìÓò·şÎñ</remarks>
-    /// <typeparam name="TDomainService">ÁìÓò·şÎñµÄ½Ó¿ÚÀàĞÍ</typeparam>
+    [JsonIgnore]
+    public Func<DomainHost> DomainHostFactory { get; } = null!;
+
+    /// <summary>
+    /// æ£€æŸ¥ç”¨æˆ·æ˜¯å¦æ‹¥æœ‰æŒ‡å®šè§’è‰²ï¼ˆæ³›å‹æšä¸¾ç‰ˆæœ¬ï¼‰
+    /// </summary>
+    public bool IsInRole<T>(T role) where T : struct, Enum
+        => UserInfo.IsInRole(role);
+
+    /// <summary>
+    /// æ£€æŸ¥ç”¨æˆ·æ˜¯å¦æ‹¥æœ‰æŒ‡å®šè§’è‰²ï¼ˆå­—ç¬¦ä¸²ç‰ˆæœ¬ï¼‰
+    /// </summary>
+    public bool IsInRole(string role)
+        => UserInfo.IsInRole(role);
+
+    #region é¢†åŸŸæœåŠ¡è°ƒç”¨ï¼ˆAOP å‹å¥½ï¼‰
+
+    /// <summary>
+    /// ä½¿ç”¨é¢†åŸŸæœåŠ¡ï¼ˆè¿è¡Œæ—¶è§£æï¼‰
+    /// </summary>
     public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase
     {
-        return DomainHostFactory().EnsureNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TDomainService>(TypedParameter.From(this));
+        return DomainHostFactory().EnsureNotNull(nameof(DomainHostFactory))
+            .Container.Resolve<TDomainService>(TypedParameter.From(this));
     }
 
     /// <summary>
-    /// Ê¹ÓÃ DomainService ÁìÓò·şÎñ AOP
+    /// ä½¿ç”¨ AOP é¢†åŸŸæœåŠ¡
     /// </summary>
-    /// <remarks>×¢Òâ£º±ØĞëÔÚ DomainHost.Initial() ÖĞ×¢²áÁìÓò·şÎñ</remarks>
-    /// <typeparam name="TAopContract">ÁìÓò·şÎñµÄ½Ó¿ÚÀàĞÍ</typeparam>
     public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
     {
-        return DomainHostFactory().EnsureNotNull(name: nameof(DomainHostFactory)).Container.Resolve<TAopContract>(TypedParameter.From(this));
+        return DomainHostFactory().EnsureNotNull(nameof(DomainHostFactory))
+            .Container.Resolve<TAopContract>(TypedParameter.From(this));
     }
 
+    #endregion
+
+    #region ç™»å½•ä¸ä¼šè¯ç›¸å…³
+
     /// <summary>
-    /// Guest µÇÂ¼ÎªÖ¸¶¨ÓÃ»§
+    /// Guest ç™»å½•ä¸ºæŒ‡å®šç”¨æˆ·
     /// </summary>
-    /// <typeparam name="TDomainHelperBase"></typeparam>
-    /// <param name="userName"></param>
-    /// <param name="passwordHashed"></param>
-    /// <param name="authenticationType"></param>
-    /// <returns></returns>
-    public virtual async Task<DomainUser> LoginAsUser<TDomainHelperBase>(string userName, string passwordHashed,
-        UserAuthenticationType authenticationType)
-    where TDomainHelperBase : DomainHelperBase
+    public async Task<DomainUser> LoginAsUserAsync(
+        string userName,
+        string passwordHashed,
+        LoginFromEnum loginFrom)
     {
-        //TODO: ¼ì²éµ±Ç°ÓÃ»§ÊÇ·ñÎª Guest ÓÃ»§£¿
-        var session = await DomainHostFactory().UserLoginAsync(
-                this, userName, passwordHashed, authenticationType)
+        var userInfo = await DomainHostFactory().UserHelper
+            .UserLoginAsync(this, userName, passwordHashed, loginFrom)
             .ConfigureAwait(false);
-        SessionKey = session.Key;
-        return session.User;
-    }
 
-    #region Claims ²Ù×÷À©Õ¹
+        UserInfo = userInfo;
+        IsAuthenticated = true;
 
-    /// <summary>
-    /// Ìí¼ÓÓÃ»§Éí·İ±êÊ¶
-    /// </summary>
-    /// <param name="userName">ÓÃ»§Ãû£¨²»ÄÜÎª¿Õ£©</param>
-    /// <param name="authenticationType">ÈÏÖ¤ÀàĞÍ£¨Unset Ôò IsAuthenticated = false£©</param>
-    /// <exception cref="ArgumentNullException">ÓÃ»§Ãû²»ÄÜÎª¿Õ</exception>
-    /// <exception cref="ArgumentException">ÓÃ»§Ãû²»ÄÜ½ö°üº¬¿Õ°××Ö·û</exception>
-    protected internal void AddUserIdentity(string userName, UserAuthenticationType authenticationType)
-    {
-        // 1. ÏÔÊ½Èë²ÎĞ£Ñé£º¸ø³öÃ÷È·µÄÒì³£ĞÅÏ¢£¬±ÈÒşÊ½µÄ EnsureHasValue ¸üÒ×µ÷ÊÔ
-        if (userName == null)
-            throw new ArgumentNullException(nameof(userName), "ÓÃ»§Ãû²»ÄÜÎª¿Õ");
-        if (string.IsNullOrWhiteSpace(userName))
-            throw new ArgumentException("ÓÃ»§Ãû²»ÄÜ½ö°üº¬¿Õ°××Ö·û", nameof(userName));
+        await UpdateAndActiveSessionAsync().ConfigureAwait(false);
 
-        // 2. ÓÅ»¯£ºÍ³Ò»ÓÃ¿Õ×Ö·û´®Ìæ´ú null£¨¸ü·ûºÏ .NET ¿ò¼ÜÏ°¹ß£¬ĞĞÎªÒ»ÖÂ£©
-        var authTypeString = authenticationType == UserAuthenticationType.Unset
-            ? string.Empty
-            : authenticationType.ToString();
-
-        // 3. ¿ÉÑ¡ÓÅ»¯£º±ÜÃâÖØ¸´Ìí¼ÓÍ¬ÀàĞÍµÄ Identity£¨¸ù¾İÒµÎñ³¡¾°¾ö¶¨ÊÇ·ñ±£Áô£©
-        if (Identities.Any(i => i.AuthenticationType == authTypeString))
-            return; // »òÅ×³öÒì³££º"ÒÑ´æÔÚ¸ÃÀàĞÍµÄÉí·İ±êÊ¶"
-
-        // 4. ÕıÈ·´´½¨ ClaimsIdentity£¨IsAuthenticated ÓÉ authTypeString ×Ô¶¯¿ØÖÆ£©
-        var identity = new ClaimsIdentity(authTypeString);
-
-        // 5. Ìí¼ÓÓÃ»§ÃûÉùÃ÷£ºÏÈ Trim ÔÙÌí¼Ó£¬±ÜÃâÊ×Î²¿Õ°×
-        identity.AddClaim(new Claim(ClaimTypes.Name, userName.Trim()));
-
-        // 6. ½«ĞÂ Identity Ìí¼Óµ½ Principal ÖĞ
-        AddIdentity(identity);
+        return this;
     }
 
     /// <summary>
-    /// ¸üĞÂÖ¸¶¨ÉùÃ÷ÀàĞÍµÄµÚÒ»¸öÉùÃ÷µÄÖµ£¬Èç¹û²»´æÔÚÔòÌí¼ÓĞÂÉùÃ÷¡£
+    /// å¼‚æ­¥è·å–å¹¶æ¿€æ´»æŒ‡å®šä¼šè¯
     /// </summary>
-    /// <remarks>Èç¹û²»´æÔÚÉí·İ±êÊ¶£¬Ôò´´½¨ĞÂµÄÉí·İ±êÊ¶¡£Èç¹ûÒÑ´æÔÚÖ¸¶¨ÀàĞÍµÄÉùÃ÷£¬
-    /// ÔòÌæ»»ÆäÖµ£»·ñÔò£¬Ìí¼ÓĞÂÉùÃ÷¡£</remarks>
-    /// <param name="claimType">Òª¸üĞÂµÄÉùÃ÷µÄÀàĞÍ¡£²»ÄÜÎª null¡¢¿Õ»ò½öÓÉ¿Õ°××Ö·û×é³É¡£</param>
-    /// <param name="value">Òª·ÖÅä¸øÉùÃ÷µÄĞÂÖµ¡£Èç¹ûÎª null£¬ÔòÊ¹ÓÃ¿Õ×Ö·û´®¡£</param>
-    /// <exception cref="ArgumentNullException">µ± <paramref name="claimType"/> Îª null¡¢¿Õ»ò½öÓÉ¿Õ°××Ö·û×é³ÉÊ±Å×³ö¡£</exception>
-    public void UpdateClaim(string claimType, string value)
+    public async Task<SessionInfo> GetAndActiveSessionAsync()
     {
-        if (string.IsNullOrWhiteSpace(claimType))
-            throw new ArgumentNullException(nameof(claimType));
+        return await DomainHostFactory().SessionManager
+            .GetAndActiveSessionAsync(SessionKey)
+            .ConfigureAwait(false);
+    }
 
-        var identity = Identities.FirstOrDefault() ?? new ClaimsIdentity();
-        if (!Identities.Contains(identity)) AddIdentity(identity);
+    /// <summary>
+    /// æ¸¸å®¢æˆ–ç”¨æˆ·æ³¨é”€ï¼ˆæ³¨é”€ä¼šè¯ï¼‰
+    /// </summary>
+    internal async Task GuestOrUserLogoutAsync()
+    {
+        await DomainHostFactory().SessionManager
+            .AbandonSessionAsync(SessionKey)
+            .ConfigureAwait(false);
+    }
 
-        var existing = identity.FindFirst(claimType);
-        if (existing != null) identity.RemoveClaim(existing);
+    /// <summary>
+    /// å¼‚æ­¥æ›´æ–°å¹¶æ¿€æ´»æŒ‡å®šä¼šè¯
+    /// </summary>
+    public async Task<SessionInfo> UpdateAndActiveSessionAsync()
+    {
+        var host = DomainHostFactory();
+        var session = await host.SessionManager
+            .GetSessionAsync(SessionKey)
+            .ConfigureAwait(false);
 
-        identity.AddClaim(new Claim(claimType, value ?? string.Empty));
+        var newSession = session.BindUser(this);
+
+        await host.SessionManager.UpdateAndActiveSessionAsync(
+            newSession.Key!,
+            _ => newSession)
+            .ConfigureAwait(false);
+
+        return newSession;
     }
 
     #endregion

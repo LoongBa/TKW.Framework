@@ -25,26 +25,26 @@ public class PermissionManager<T>
     public T RetrieveUserMenuPermissions(T user)
     {
         //通过 Provider 加载数据
-        user.Permissions.Menus = _Provider.RetrieveUserMenuPermissions(user) ?? new List<MenuPermission>();
+        //user.Permissions.Menus = _Provider.RetrieveUserMenuPermissions(user) ?? new List<MenuPermission>();
         return user;
     }
     public T RetrieveUserDataPermissions(T user)
     {
         //通过 Provider 加载数据
-        user.Permissions.Datas = _Provider.RetrieveUserDataPermissions(user) ?? new List<DataPermission>();
+        //user.Permissions.Datas = _Provider.RetrieveUserDataPermissions(user) ?? new List<DataPermission>();
         return user;
     }
     public T RetrieveUserFunctionPermissions(T user)
     {
         //通过 Provider 加载数据
 
-        user.Permissions.Functions = _Provider.RetrieveUserFunctionPermissions(user) ?? new List<FunctionPermission>();
+        //user.Permissions.Functions = _Provider.RetrieveUserFunctionPermissions(user) ?? new List<FunctionPermission>();
         return user;
     }
     public T RetrieveUserUiPermissions(T user)
     {
         //通过 Provider 加载数据
-        user.Permissions.Uis = _Provider.RetrieveUserUiPermissions(user) ?? new List<UiPermission>();
+        //user.Permissions.Uis = _Provider.RetrieveUserUiPermissions(user) ?? new List<UiPermission>();
         return user;
     }
 }

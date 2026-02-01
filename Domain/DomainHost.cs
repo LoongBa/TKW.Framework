@@ -1,4 +1,4 @@
-using Autofac;
+ï»¿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Configuration;
@@ -9,93 +9,91 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
-using System.Security.Authentication;
 using System.Threading.Tasks;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
-using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain;
 
 /// <summary>
-/// ÁìÓòÖ÷»úÀà£¬ÓÃÓÚ³õÊ¼»¯ºÍ¹ÜÀíÁìÓò·şÎñ
+/// é¢†åŸŸä¸»æœºç±»ï¼Œç”¨äºåˆå§‹åŒ–å’Œç®¡ç†é¢†åŸŸæœåŠ¡
 /// </summary>
 public sealed class DomainHost
 {
     /// <summary>
-    /// ¾²Ì¬¸ùÊµÀı£¬È·±£Ö»ÓĞÒ»¸öDomainHostÊµÀı
+    /// é™æ€æ ¹å®ä¾‹ï¼Œç¡®ä¿åªæœ‰ä¸€ä¸ªDomainHostå®ä¾‹
     /// </summary>
     public static DomainHost Root { get; private set; }
 
     /// <summary>
-    /// ³õÊ¼»¯DomainHostµÄ¾²Ì¬·½·¨
+    /// åˆå§‹åŒ–DomainHostçš„é™æ€æ–¹æ³•
     /// </summary>
-    /// <typeparam name="TDomainHelper">ÓÃ»§ÖúÊÖÀàĞÍ</typeparam>
+    /// <typeparam name="TDomainHelper">ç”¨æˆ·åŠ©æ‰‹ç±»å‹</typeparam>
     /// <typeparam name="TSessionManager"></typeparam>
-    /// <param name="configureServices">ÅäÖÃ·şÎñµÄÎ¯ÍĞ</param>
-    /// <param name="upLevelServices">ÉÏ¼¶·şÎñ¼¯ºÏ</param>
-    /// <returns>DomainHostÊµÀı</returns>
+    /// <param name="configureServices">é…ç½®æœåŠ¡çš„å§”æ‰˜</param>
+    /// <param name="upLevelServices">ä¸Šçº§æœåŠ¡é›†åˆ</param>
+    /// <returns>DomainHostå®ä¾‹</returns>
     public static DomainHost Initial<TDomainHelper, TSessionManager>(
         Func<ContainerBuilder, IServiceCollection, ConfigurationBuilder, IServiceCollection, TDomainHelper> configureServices,
         IServiceCollection upLevelServices = null)
         where TDomainHelper : DomainHelperBase
     where TSessionManager : ISessionManager
     {
-        // È·±£²»ÄÜÖØ¸´³õÊ¼»¯
-        if (Root != null) throw new InvalidOperationException("²»ÄÜÖØ¸´³õÊ¼»¯");
+        // ç¡®ä¿ä¸èƒ½é‡å¤åˆå§‹åŒ–
+        if (Root != null) throw new InvalidOperationException("ä¸èƒ½é‡å¤åˆå§‹åŒ–");
 
-        // configureServices ²»Îª¿Õ
+        // configureServices ä¸ä¸ºç©º
         ArgumentNullException.ThrowIfNull(configureServices);
         var configBuilder = new ConfigurationBuilder();
-        configBuilder.SetBasePath(AppDomain.CurrentDomain.BaseDirectory); // ÉèÖÃÄ¬ÈÏµÄBasePath
+        configBuilder.SetBasePath(AppDomain.CurrentDomain.BaseDirectory); // è®¾ç½®é»˜è®¤çš„BasePath
 
         IServiceCollection services = new ServiceCollection();
         var containerBuilder = new ContainerBuilder();
         containerBuilder.RegisterType<DomainContext>();
-        containerBuilder.RegisterType<DomainInterceptor>(); // ×¢²áÁìÓò¿ò¼ÜÀ¹½ØÆ÷
-        containerBuilder.Register(_ => Root);   // ½«Àà³§×¢ÈëÈİÆ÷
+        containerBuilder.RegisterType<DomainInterceptor>(); // æ³¨å†Œé¢†åŸŸæ¡†æ¶æ‹¦æˆªå™¨
+        containerBuilder.Register(_ => Root);   // å°†ç±»å‚æ³¨å…¥å®¹å™¨
 
-        // Ö´ĞĞÎ¯ÍĞ·½·¨£¬»ñÈ¡ÓÃ»§ÖúÊÖÊµÀı
+        // æ‰§è¡Œå§”æ‰˜æ–¹æ³•ï¼Œè·å–ç”¨æˆ·åŠ©æ‰‹å®ä¾‹
         var userHelper = configureServices(containerBuilder, services, configBuilder, upLevelServices);
-        containerBuilder.RegisterInstance(userHelper).As<TDomainHelper>();  // ¿ÉÍ¨¹ı DomainHost »ñµÃ£¬²»ĞèÒªÍ¨¹ıÈİÆ÷
-        // ¹¹Ôì²¢×¢Èë ISessionManager ÊµÀı£¬ĞèÔÚ configureServices() ·½·¨ÖĞ×¢ÈëÒÀÀµµÄÀàĞÍ»òÊµÀı£¬Èç HybridCache
+        containerBuilder.RegisterInstance(userHelper).As<TDomainHelper>();  // å¯é€šè¿‡ DomainHost è·å¾—ï¼Œä¸éœ€è¦é€šè¿‡å®¹å™¨
+        // æ„é€ å¹¶æ³¨å…¥ ISessionManager å®ä¾‹ï¼Œéœ€åœ¨ configureServices() æ–¹æ³•ä¸­æ³¨å…¥ä¾èµ–çš„ç±»å‹æˆ–å®ä¾‹ï¼Œå¦‚ HybridCache
         containerBuilder.RegisterType<TSessionManager>().As<ISessionManager>().SingleInstance();
 
-        // ¹¹Ôì DomainHost ÊµÀı£¬Í¨¹ıÈ«¾ÖÎ¨Ò»µÄµ¥Àı»ñÈ¡Ğ§ÂÊ¸ü¸ß
+        // æ„é€  DomainHost å®ä¾‹ï¼Œé€šè¿‡å…¨å±€å”¯ä¸€çš„å•ä¾‹è·å–æ•ˆç‡æ›´é«˜
         Root = new DomainHost(userHelper, containerBuilder, services, configBuilder);
         return Root;
     }
 
     /// <summary>
-    /// Ë½ÓĞ¹¹Ôìº¯Êı£¬ÓÃÓÚ³õÊ¼»¯DomainHostÊµÀı
+    /// ç§æœ‰æ„é€ å‡½æ•°ï¼Œç”¨äºåˆå§‹åŒ–DomainHostå®ä¾‹
     /// </summary>
-    /// <param name="containerBuilder">AutofacÈİÆ÷¹¹½¨Æ÷</param>
-    /// <param name="services">·şÎñ¼¯ºÏ</param>
-    /// <param name="configurationBuilder">ÅäÖÃ¹¹½¨Æ÷</param>
+    /// <param name="containerBuilder">Autofacå®¹å™¨æ„å»ºå™¨</param>
+    /// <param name="services">æœåŠ¡é›†åˆ</param>
+    /// <param name="configurationBuilder">é…ç½®æ„å»ºå™¨</param>
     /// <param name="userHelper"></param>
     private DomainHost(DomainHelperBase userHelper, ContainerBuilder containerBuilder,
         IServiceCollection services = null, IConfigurationBuilder configurationBuilder = null)
     {
         ArgumentNullException.ThrowIfNull(userHelper);
         UserHelper = userHelper;
-        // ¶ÏÑÔcontainerBuilder²»Îª¿Õ
+        // æ–­è¨€containerBuilderä¸ä¸ºç©º
         containerBuilder.EnsureNotNull(name: nameof(containerBuilder));
 
-        // Èç¹ûservicesÎª¿Õ£¬Ôò³õÊ¼»¯Ò»¸öĞÂµÄ·şÎñ¼¯ºÏ
+        // å¦‚æœservicesä¸ºç©ºï¼Œåˆ™åˆå§‹åŒ–ä¸€ä¸ªæ–°çš„æœåŠ¡é›†åˆ
         services ??= new ServiceCollection();
         containerBuilder.Populate(services);
 
-        // Èç¹ûconfigurationBuilderÎª¿Õ£¬Ôò³õÊ¼»¯Ò»¸öĞÂµÄÅäÖÃ¹¹½¨Æ÷
+        // å¦‚æœconfigurationBuilderä¸ºç©ºï¼Œåˆ™åˆå§‹åŒ–ä¸€ä¸ªæ–°çš„é…ç½®æ„å»ºå™¨
         var configBuilder = configurationBuilder ?? new ConfigurationBuilder();
         containerBuilder.RegisterInstance(Configuration = configBuilder.Build());
 
-        // ¹¹½¨AutofacÈİÆ÷
+        // æ„å»ºAutofacå®¹å™¨
         Container = containerBuilder.Build();
-        // ´´½¨·şÎñÌá¹©Õß
+        // åˆ›å»ºæœåŠ¡æä¾›è€…
         ServicesProvider = new AutofacServiceProvider(Container);
 
-        // »ñÈ¡ÈÕÖ¾¹¤³§ÊµÀı£¬Èç¹ûÎª¿ÕÔòÊ¹ÓÃNullLoggerFactory
+        // è·å–æ—¥å¿—å·¥å‚å®ä¾‹ï¼Œå¦‚æœä¸ºç©ºåˆ™ä½¿ç”¨NullLoggerFactory
         LoggerFactory = Container.IsRegistered<ILoggerFactory>()
             ? Container.Resolve<ILoggerFactory>()
             : new NullLoggerFactory();
@@ -103,51 +101,51 @@ public sealed class DomainHost
     public DomainHelperBase UserHelper { get; }
 
     /// <summary>
-    /// ÅäÖÃ¸ù
+    /// é…ç½®æ ¹
     /// </summary>
     public IConfigurationRoot Configuration { get; }
     /// <summary>
-    /// ÈÕÖ¾¹¤³§
+    /// æ—¥å¿—å·¥å‚
     /// </summary>
     public ILoggerFactory LoggerFactory { get; }
     /// <summary>
-    /// ·şÎñÌá¹©Õß
+    /// æœåŠ¡æä¾›è€…
     /// </summary>
     public IServiceProvider ServicesProvider { get; }
     /// <summary>
-    /// AutofacÈİÆ÷
+    /// Autofacå®¹å™¨
     /// </summary>
     public IContainer Container { get; }
 
     /// <summary>
-    /// SessionManager ÊµÀı
+    /// SessionManager å®ä¾‹
     /// </summary>
     internal ISessionManager SessionManager => field ??= Container.Resolve<ISessionManager>();
 
     /// <summary>
-    /// ¿ØÖÆÆ÷ÆõÔ¼µÄ²¢·¢×Öµä»º´æ
+    /// æ§åˆ¶å™¨å¥‘çº¦çš„å¹¶å‘å­—å…¸ç¼“å­˜
     /// </summary>
     private readonly ConcurrentDictionary<string, DomainContracts> _ControllerContracts = new();
 
     /// <summary>
-    /// ´´½¨ĞÂµÄÁìÓòÉÏÏÂÎÄ
+    /// åˆ›å»ºæ–°çš„é¢†åŸŸä¸Šä¸‹æ–‡
     /// </summary>
-    /// <param name="invocation">´úÀíµ÷ÓÃĞÅÏ¢</param>
-    /// <param name="lifetimeScope">ÉúÃüÖÜÆÚ·¶Î§</param>
-    /// <returns>ÁìÓòÉÏÏÂÎÄÊµÀı</returns>
+    /// <param name="invocation">ä»£ç†è°ƒç”¨ä¿¡æ¯</param>
+    /// <param name="lifetimeScope">ç”Ÿå‘½å‘¨æœŸèŒƒå›´</param>
+    /// <returns>é¢†åŸŸä¸Šä¸‹æ–‡å®ä¾‹</returns>
     internal DomainContext NewDomainContext(IInvocation invocation, ILifetimeScope lifetimeScope)
     {
-        // ×¢Òâ£º½ö´¦Àí½Ó¿ÚÉÏ¶¨ÒåµÄAttribute£¬ºöÂÔÀàµÄAttribute
+        // æ³¨æ„ï¼šä»…å¤„ç†æ¥å£ä¸Šå®šä¹‰çš„Attributeï¼Œå¿½ç•¥ç±»çš„Attribute
 
-        // TODO: ´¦ÀíÈ«¾ÖFilters
+        // TODO: å¤„ç†å…¨å±€Filters
 
-        // ´¦Àí¿ØÖÆÆ÷¼¶Filters
+        // å¤„ç†æ§åˆ¶å™¨çº§Filters
         var interfaceType = invocation.TargetType.GetInterfaces().First(i => !i.Name.StartsWith("IDomainService", StringComparison.OrdinalIgnoreCase));
 
         var key = $"{interfaceType.FullName}";
         if (_ControllerContracts.TryGetValue(key, out var interfaceContract))
         {
-            // ´Ó»º´æÖĞ»ñÈ¡¿ØÖÆÆ÷ÆõÔ¼
+            // ä»ç¼“å­˜ä¸­è·å–æ§åˆ¶å™¨å¥‘çº¦
         }
         else
         {
@@ -155,17 +153,17 @@ public sealed class DomainHost
             var filters = interfaceType.GetCustomAttributes<DomainActionFilterAttribute>(true);
             var flags = interfaceType.GetCustomAttributes<DomainFlagAttribute>(true);
 
-            // ½«¿ØÖÆÆ÷¼¶FiltersºÍFlags¼ÓÈëµ½»º´æÖĞ£¬¼õÉÙÃ¿´ÎÖØĞÂ²éÑ¯¡¢»ñÈ¡µÄ¸ºÔØ
+            // å°†æ§åˆ¶å™¨çº§Filterså’ŒFlagsåŠ å…¥åˆ°ç¼“å­˜ä¸­ï¼Œå‡å°‘æ¯æ¬¡é‡æ–°æŸ¥è¯¢ã€è·å–çš„è´Ÿè½½
             foreach (var filter in filters) interfaceContract.ControllerFilters.Add(filter);
             foreach (var flag in flags) interfaceContract.ControllerFlags.Add(flag);
             _ControllerContracts.TryAdd(key, interfaceContract);
         }
 
-        // ´¦Àí·½·¨¼¶Filters
+        // å¤„ç†æ–¹æ³•çº§Filters
         key = $"{invocation.TargetType.FullName}:{invocation.Method.Name}";
         if (_ControllerContracts.TryGetValue(key, out var methodContract))
         {
-            // ´Ó»º´æÖĞ»ñÈ¡·½·¨ÆõÔ¼
+            // ä»ç¼“å­˜ä¸­è·å–æ–¹æ³•å¥‘çº¦
         }
         else
         {
@@ -174,24 +172,24 @@ public sealed class DomainHost
             var filters = method.GetCustomAttributes<DomainActionFilterAttribute>(true);
             var flags = method.GetCustomAttributes<DomainFlagAttribute>(true);
 
-            // ·½·¨¼¶µÄFilters
+            // æ–¹æ³•çº§çš„Filters
             foreach (var filter in filters)
                 methodContract.MethodFilters.Add(filter);
-            // ¿ØÖÆÆ÷¼¶µÄFilters
+            // æ§åˆ¶å™¨çº§çš„Filters
             foreach (var filter in interfaceContract.ControllerFilters)
                 methodContract.ControllerFilters.Add(filter);
 
-            // ·½·¨¼¶µÄFlags
+            // æ–¹æ³•çº§çš„Flags
             foreach (var flag in flags)
                 methodContract.MethodFlags.Add(flag);
-            // ¿ØÖÆÆ÷¼¶µÄFlags
+            // æ§åˆ¶å™¨çº§çš„Flags
             foreach (var flag in interfaceContract.ControllerFlags)
                 methodContract.ControllerFlags.Add(flag);
 
-            // ¼ÓÈë»º´æÖĞ£¬¼õÉÙÃ¿´ÎÖØĞÂ²éÑ¯¡¢»ñÈ¡µÄ¸ºÔØ
+            // åŠ å…¥ç¼“å­˜ä¸­ï¼Œå‡å°‘æ¯æ¬¡é‡æ–°æŸ¥è¯¢ã€è·å–çš„è´Ÿè½½
             _ControllerContracts.TryAdd(key, methodContract);
         }
-        // ½âÎöÁìÓòÉÏÏÂÎÄÊµÀı
+        // è§£æé¢†åŸŸä¸Šä¸‹æ–‡å®ä¾‹
         var context = lifetimeScope.Resolve<DomainContext>(
             TypedParameter.From(((DomainServiceBase)invocation.InvocationTarget).User),
             TypedParameter.From(invocation),
@@ -200,85 +198,33 @@ public sealed class DomainHost
     }
 
     /// <summary>
-    /// »ñÈ¡DomainHostÊµÀıµÄ¹¤³§·½·¨
+    /// è·å–DomainHostå®ä¾‹çš„å·¥å‚æ–¹æ³•
     /// </summary>
     public static Func<DomainHost> Factory => () => Root;
 
-    /// <summary>
-    /// Ê¹ÓÃ¿ØÖÆÆ÷ÊµÀı
-    /// </summary>
-    /// <typeparam name="TAopContract">¿ØÖÆÆ÷ÆõÔ¼ÀàĞÍ</typeparam>
-    /// <typeparam name="TUserHelper">ÁìÓòÓÃ»§ÖúÊÖÀàĞÍ</typeparam>
-    /// <param name="sessionKey">Session Key</param>
-    private TAopContract UseAop<TAopContract, TUserHelper>(string sessionKey)
-        where TAopContract : IAopContract
-    {
-        var user = GetDomainUserAsync(sessionKey);
-
-        // »ñÈ¡¿ØÖÆÆ÷ÊµÀı£¬²¢´«µİ²ÎÊı£ºÁìÓòÓÃ»§
-        return Container.Resolve<TAopContract>(TypedParameter.From(user));
-    }
+    #region ä¼šè¯ç›¸å…³æ–¹æ³•
 
     /// <summary>
-    /// Ê¹ÓÃ¿ØÖÆÆ÷ÊµÀı
-    /// </summary>
-    /// <typeparam name="TAopContract">¿ØÖÆÆ÷ÆõÔ¼ÀàĞÍ</typeparam>
-    /// <typeparam name="TUserHelper">ÁìÓòÓÃ»§ÖúÊÖÀàĞÍ</typeparam>
-    /// <param name="user">ÁìÓòÓÃ»§</param>
-    internal TAopContract UseAop<TAopContract, TUserHelper>(DomainUser user)
-        where TAopContract : IAopContract
-        where TUserHelper : DomainHelperBase
-    {
-        var sessionKey = user.EnsureNotNull().SessionKey;
-        return UseAop<TAopContract, TUserHelper>(sessionKey);
-    }
-
-    #region »á»°Ïà¹Ø·½·¨
-
-    /// <summary>
-    /// ĞÂµÄÓÎ¿Í»á»°
+    /// æ–°çš„æ¸¸å®¢ä¼šè¯
     /// </summary>
     public async Task<SessionInfo> NewGuestSessionAsync()
     {
-        var session = await SessionManager.NewSessionAsync();
-        var user = UserHelper.CreateUserInstance();
-        session.BindUser(user);
-        return session;
-    }
-
-    public async Task<SessionInfo> UserLoginAsync(DomainUser user, string userName, string passWordHashed, UserAuthenticationType authType)
-    {
-        // µ÷ÓÃÓÃ»§µÇÂ¼·½·¨
-        return await UserHelper.UserLoginAsync(user, userName, passWordHashed, authType);
+        var session = await SessionManager.NewSessionAsync();  // åˆ›å»ºæ–°çš„ä¼šè¯ï¼šUser == null
+        var newSession = await UserHelper.CreateNewGuestSessionAsync(session);      // è°ƒç”¨ç”¨æˆ·åŠ©æ‰‹ï¼šåˆ›å»ºç”¨æˆ·å¹¶ç»‘å®šåˆ°ä¼šè¯
+        SessionManager.OnSessionCreated(newSession);   // ä¼šè¯åˆ›å»ºåäº‹ä»¶
+        return newSession;
     }
 
     /// <summary>
-    /// »ñÈ¡ÁìÓòÓÃ»§²¢¸üĞÂ»á»°
+    /// è·å–é¢†åŸŸç”¨æˆ·å¹¶æ›´æ–°ä¼šè¯
     /// </summary>
     internal async Task<DomainUser> GetDomainUserAsync(string sessionKey)
     {
-        // Session ´æÔÚ£¬»ñÈ¡²¢¼¤»îÓÃ»§
+        // Session å­˜åœ¨ï¼Œè·å–å¹¶æ¿€æ´»ç”¨æˆ·
         var session = await SessionManager.GetAndActiveSessionAsync(sessionKey)
             .ConfigureAwait(false);
 
         return session.User;
-    }
-
-    /// <summary>
-    /// Òì²½»ñÈ¡²¢¼¤»îÖ¸¶¨»á»°
-    /// </summary>
-    /// <exception cref="SessionException">µ±»á»°¼üÎŞĞ§Ê±Å×³ö</exception>
-    public async Task<SessionInfo> GetAndActiveSessionAsync(DomainUser user)
-    {
-        return await SessionManager.GetAndActiveSessionAsync(user.SessionKey);
-    }
-
-    /// <summary>
-    /// ÓÎ¿Í»òÓÃ»§×¢Ïú£¨×¢Ïú»á»°£©
-    /// </summary>
-    public async Task GuestOrUserLogoutAsync(DomainUser user)
-    {
-        await SessionManager.AbandonSessionAsync(user.SessionKey);
     }
 
     #endregion

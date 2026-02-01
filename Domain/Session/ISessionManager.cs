@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace TKW.Framework.Domain.Session;
 
@@ -33,6 +34,11 @@ public interface ISessionManager
     Task<SessionInfo> NewSessionAsync();
 
     /// <summary>
+    /// 触发会话创建事件
+    /// </summary>
+    void OnSessionCreated(SessionInfo session);
+
+    /// <summary>
     /// 异步检查指定会话是否存在
     /// </summary>
     /// <param name="sessionKey">会话 key</param>
@@ -48,15 +54,6 @@ public interface ISessionManager
     Task<SessionInfo> GetSessionAsync(string sessionKey);
 
     /// <summary>
-    /// 异步获取或创建会话
-    /// 如果会话不存在则创建新会话
-    /// </summary>
-    /// <param name="sessionKey">会话 key</param>
-    /// <returns>返回获取或创建的会话对象</returns>
-    /// <exception cref="SessionException">当会话键无效时抛出</exception>
-    Task<SessionInfo> GetOrCreateSessionAsync(string sessionKey);
-
-    /// <summary>
     /// 异步获取并激活指定会话
     /// </summary>
     /// <param name="sessionKey">会话 key</param>
@@ -70,5 +67,14 @@ public interface ISessionManager
     /// <param name="sessionKey">会话 key</param>
     /// <returns>表示异步操作的任务</returns>
     /// <exception cref="SessionException">当会话键无效时抛出</exception>
-    Task AbandonSessionAsync(string sessionKey);
+    Task<SessionInfo> AbandonSessionAsync(string sessionKey);
+
+    /// <summary>
+    /// 异步更新并激活指定会话
+    /// </summary>
+    /// <param name="sessionKey"></param>
+    /// <param name="updater"></param>
+    /// <returns></returns>
+    Task<SessionInfo> UpdateAndActiveSessionAsync(string sessionKey,
+        Func<SessionInfo, SessionInfo> updater);
 }

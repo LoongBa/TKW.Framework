@@ -8,6 +8,7 @@ namespace TKW.Framework.Domain.Session;
 
 /// <summary>
 /// 会话管理器，负责处理用户会话的创建、获取、更新和废弃等操作
+/// 使用 HybridCache 作为存储后端，支持内存 + 分布式缓存（后期可无缝接入 Redis）
 /// </summary>
 public class SessionManager(
     HybridCache cache,
@@ -18,7 +19,7 @@ public class SessionManager(
     /// <summary>
     /// 混合缓存实例，用于存储会话数据
     /// </summary>
-    private readonly HybridCache _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
+    private readonly HybridCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
 
     /// <summary>
     /// 会话过期时间跨度，默认为10分钟
@@ -26,7 +27,7 @@ public class SessionManager(
     public TimeSpan SessionExpiredTimeSpan { get; } = sessionExpiredTimeSpan ?? TimeSpan.FromMinutes(10);
 
     /// <summary>
-    /// 会话键的名称
+    /// 会话键的名称（目前主要用于日志或调试，实际键名前缀由 sessionKeyPrefix 控制）
     /// </summary>
     public string SessionKey_KeyName { get; } = sessionKeyKeyName;
 
@@ -42,9 +43,21 @@ public class SessionManager(
     // public event SessionRemoved? SessionTimeout;
 
     /// <inheritdoc/>
-    public Task<SessionInfo> NewSessionAsync()
+    public async Task<SessionInfo> NewSessionAsync()
     {
-        return CreateSessionAsync(null, null);
+        // 先生成一个新的、唯一的 sessionKey
+        var sessionKey = GenerateNewSessionKey();
+
+        // 使用 GetOrCreateAsync 确保：
+        // 1. 如果 key 已存在（极罕见情况，如 key 碰撞），返回已有 session
+        // 2. 如果不存在，创建新 session 并存入缓存，同时触发创建事件
+        return await _cache.GetOrCreateAsync(sessionKey.AsSpan(),
+            _ =>
+            {
+                var session = new SessionInfo(sessionKey, null);
+                OnSessionCreated(session);
+                return ValueTask.FromResult(session);
+            }).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -53,12 +66,8 @@ public class SessionManager(
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        // 使用 GetAsync 进行纯粹的读取操作，避免修改缓存状态
-        var session = await _Cache.GetOrCreateAsync<SessionInfo>(sessionKey,
-                _ => ValueTask.FromResult<SessionInfo>(null))
-            .ConfigureAwait(false);
-
-        return session != null;
+        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        return result.Exists;
     }
 
     /// <inheritdoc/>
@@ -67,26 +76,8 @@ public class SessionManager(
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        var session = await _Cache.GetOrCreateAsync(sessionKey,
-                _ => ValueTask.FromResult<SessionInfo>(null))
-            .ConfigureAwait(false);
-
-        return session ?? throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
-    }
-
-    /// <inheritdoc/>
-    public async Task<SessionInfo> GetOrCreateSessionAsync(string sessionKey)
-    {
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
-        return await _Cache.GetOrCreateAsync(sessionKey,
-            _ =>
-            {
-                var session = new SessionInfo(sessionKey, null);
-                OnSessionCreated(sessionKey, session);
-                return ValueTask.FromResult(session);
-            }).ConfigureAwait(false);
+        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        return result.Exists ? result.Value! : throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
     }
 
     /// <inheritdoc/>
@@ -95,74 +86,58 @@ public class SessionManager(
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        var session = await GetSessionAsync(sessionKey).ConfigureAwait(false);
-        session.Active();
+        return await UpdateAndActiveSessionAsync(sessionKey, s => s).ConfigureAwait(false);
+    }
 
-        // 直接覆盖设置，更新过期时间，减少 IO 并提高原子性
-        await _Cache.SetAsync(sessionKey, session, new HybridCacheEntryOptions
-        {
-            Expiration = SessionExpiredTimeSpan
-        }).ConfigureAwait(false);
+    /// <summary>
+    /// 更新会话状态并立即写回缓存（核心封装方法）
+    /// 支持 immutable record + 写回模式，确保单机高效、分布式一致
+    /// </summary>
+    public async Task<SessionInfo> UpdateAndActiveSessionAsync(
+        string sessionKey,
+        Func<SessionInfo, SessionInfo> updater)
+    {
+        var current = await GetSessionAsync(sessionKey).ConfigureAwait(false);
+        var updated = updater(current).Active();
 
-        return session;
+        await _cache.SetAsync(sessionKey, updated,
+            new HybridCacheEntryOptions
+            {
+                Expiration = SessionExpiredTimeSpan
+                // 可选：后期加标签支持批量失效
+                // Tags = new[] { "sessions", $"user:{updated.User?.UserIdString}" }
+            }).ConfigureAwait(false);
+
+        return updated;
     }
 
     /// <inheritdoc/>
-    public async Task AbandonSessionAsync(string sessionKey)
+    public async Task<SessionInfo?> AbandonSessionAsync(string sessionKey)
     {
         if (string.IsNullOrWhiteSpace(sessionKey))
-            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
+            return null;
 
-        // 1. 先尝试获取 Session。如果不存在，GetSessionAsync 会抛出 SessionNotFound 异常。
-        var session = await GetSessionAsync(sessionKey).ConfigureAwait(false);
+        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        if (!result.Exists) return null;
 
-        // 2. 如果存在，则从缓存中移除。注意：RemoveAsync 不返回值。
-        await _Cache.RemoveAsync(sessionKey).ConfigureAwait(false);
-
-        // 3. 触发事件
-        OnSessionAbandon(sessionKey, session);
-    }
-
-    #endregion
-
-    /// <summary>
-    /// 创建或获取会话的内部实现
-    /// </summary>
-    /// <param name="user">用户域对象</param>
-    /// <param name="sessionKey">可选的会话键</param>
-    /// <returns>创建或获取的会话对象</returns>
-    private async Task<SessionInfo> CreateSessionAsync(DomainUser? user, string? sessionKey)
-    {
-        sessionKey ??= GenerateNewSessionKey();
-
-        var session = await _Cache.GetOrCreateAsync(sessionKey, _ =>
-        {
-            var newSession = new SessionInfo(sessionKey, user);
-            OnSessionCreated(sessionKey, newSession);
-            // 可选：在这里记录日志 "Creating new session for user {user.Id}"
-            return ValueTask.FromResult(newSession);
-        }).ConfigureAwait(false);
-
-        // 可选：检查是否是新创建的（业务需要时）
-        // 但 HybridCache 本身无法可靠区分，只能通过其他方式（如加一个 IsNew 标记）
-
-        return session;
+        await _cache.RemoveAsync(sessionKey).ConfigureAwait(false);
+        OnSessionAbandon(result.Value!);
+        return result.Value;
     }
 
     /// <summary>
-    /// 触发会话创建事件
+    /// 触发会话创建事件（多委托安全调用）
     /// </summary>
-    /// <param name="sessionKey">会话键</param>
-    /// <param name="session">会话对象</param>
-    protected virtual void OnSessionCreated(string sessionKey, SessionInfo session)
+    public virtual void OnSessionCreated(SessionInfo session)
     {
         if (SessionCreated == null) return;
+
         var handler = SessionCreated;
         foreach (var delegateItem in handler.GetInvocationList())
         {
             try
             {
-                ((SessionCreated)delegateItem)(sessionKey, session);
+                ((SessionCreated)delegateItem)(session.Key, session);
             }
             catch
             {
@@ -171,20 +146,55 @@ public class SessionManager(
         }
     }
 
+    #endregion
+
     /// <summary>
-    /// 触发会话废弃事件
+    /// 尝试从缓存中获取会话（纯读操作，不创建、不写入、不缓存 null）
     /// </summary>
-    /// <param name="sessionKey">会话键</param>
-    /// <param name="session">会话对象</param>
-    protected virtual void OnSessionAbandon(string sessionKey, SessionInfo session)
+    private async Task<(bool Exists, SessionInfo? Value)> TryGetSessionInternalAsync(string sessionKey)
+    {
+        Console.WriteLine("当前 HybridCache 是否使用了自定义上下文？");
+
+        // 尝试获取内部序列化器类型（仅调试用）
+        var serializerType = _cache.GetType()
+            .GetProperty("Serializer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?
+            .GetValue(_cache)?
+            .GetType().FullName;
+
+        Console.WriteLine($"HybridCache 序列化器: {serializerType ?? "未知（反射失败）"}");
+
+        var exists = true;
+
+        var value = await _cache.GetOrCreateAsync<SessionInfo?>(
+            sessionKey.AsSpan(),
+            _ =>
+            {
+                exists = false;
+                return ValueTask.FromResult<SessionInfo?>(null);
+            },
+            new HybridCacheEntryOptions
+            {
+                Flags = HybridCacheEntryFlags.DisableLocalCacheWrite |
+                        HybridCacheEntryFlags.DisableDistributedCacheWrite
+            })
+            .ConfigureAwait(false);
+
+        return (exists, value);
+    }
+
+    /// <summary>
+    /// 触发会话废弃事件（多委托安全调用）
+    /// </summary>
+    protected virtual void OnSessionAbandon(SessionInfo session)
     {
         if (SessionAbandon == null) return;
+
         var handler = SessionAbandon;
         foreach (var delegateItem in handler.GetInvocationList())
         {
             try
             {
-                ((SessionAbandon)delegateItem)(sessionKey, session);
+                ((SessionAbandon)delegateItem)(session.Key, session);
             }
             catch
             {
@@ -193,12 +203,9 @@ public class SessionManager(
         }
     }
 
-    // protected virtual void OnSessionTimeout(...) { } // 暂不实现
-
     /// <summary>
-    /// 生成新的缓存键
+    /// 生成新的会话键（带前缀）
     /// </summary>
-    /// <returns>生成的缓存键</returns>
     protected virtual string GenerateNewSessionKey()
     {
         return BatchIdGenerator.GenerateBatchId(64, sessionKeyPrefix);

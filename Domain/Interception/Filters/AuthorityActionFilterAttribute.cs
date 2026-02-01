@@ -27,8 +27,8 @@ public class AuthorityActionFilterAttribute : DomainActionFilterAttribute
     public override void PreProceed(DomainInvocationWhereType method, DomainContext context)
     {
         var user = context.DomainUser;
-        if (user.Identity is { IsAuthenticated: false }) 
-            throw new AuthenticationException($"用户 '{user.Identity?.Name}' 未认证。");
+        if (user.IsAuthenticated == false) 
+            throw new AuthenticationException($"用户 '{user.UserInfo.UserName}' 未认证。");
     }
 
     public override void PostProceed(DomainInvocationWhereType method, DomainContext context)

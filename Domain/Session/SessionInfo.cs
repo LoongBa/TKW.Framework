@@ -1,66 +1,53 @@
 ﻿#nullable enable
 using System;
-using TKW.Framework.Common.Extensions;
+using System.Text.Json.Serialization;
 
 namespace TKW.Framework.Domain.Session;
 
-public class SessionInfo
+/// <summary>
+/// 会话信息（record 形式，不可变，专注会话生命周期）
+/// </summary>
+public record SessionInfo(string? Key, DomainUser? User)
 {
-    public SessionInfo(){}
     /// <summary>
-    /// 初始化新实例。
+    /// 无参构造（供 Json 反序列化或其他场景使用）
     /// </summary>
-    /// <param name="key"></param>
-    /// <param name="user"></param>
-    public SessionInfo(string? key, DomainUser? user)
-    {
-        Key = key.HasValue() ? key : Guid.NewGuid().ToString();
-        User = user;
-        TimeLastActivated = TimeCreated = DateTime.Now;
-    }
+    [JsonConstructor]
+    public SessionInfo() : this(null, null) { }
 
+    /// <summary>
+    /// 使用用户构造（可选）
+    /// </summary>
     public SessionInfo(DomainUser user) : this(null, user) { }
 
     /// <summary>
-    /// 缓存项的 Key
+    /// 创建时间（不可变，使用 UTC 时间）
     /// </summary>
-    public string? Key { get; }
+    public DateTime TimeCreated { get; init; } = DateTime.UtcNow;
 
     /// <summary>
-    /// 缓存的值
+    /// 最后一次激活时间（不可变，使用 UTC 时间）
     /// </summary>
-    public DomainUser? User { get; internal set; }
+    public DateTime TimeLastActivated { get; init; } = DateTime.UtcNow;
 
     /// <summary>
-    /// 创建时间
+    /// 发呆时间（计算属性，不参与序列化）
     /// </summary>
-    public DateTime TimeCreated { get; set; }
+    [JsonIgnore]
+    public TimeSpan Idle => DateTime.UtcNow - TimeLastActivated;
 
     /// <summary>
-    /// 最后一次激活时间
+    /// 激活会话（返回新实例，保持 immutable）
     /// </summary>
-    public DateTime TimeLastActivated { get; private set; }
+    public SessionInfo Active() => this with { TimeLastActivated = DateTime.UtcNow };
 
     /// <summary>
-    /// 发呆时间
+    /// 绑定用户（返回新实例）
     /// </summary>
-    public TimeSpan Idle => DateTime.Now - TimeLastActivated;
-
-    /// <summary>
-    /// 更新最后激活时间（每次访问时使用）
-    /// </summary>
-    internal SessionInfo Active()
-    {
-        TimeLastActivated = DateTime.Now;
-        return this;
-    }
-
-    /// <summary>
-    /// 绑定用户（创建新会话时使用）
-    /// </summary>
-    internal void BindUser(DomainUser user)
+    public SessionInfo BindUser(DomainUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
-        User = user;
+        user.SessionKey = Key ?? throw new InvalidOperationException("会话 Key 不能为空");
+        return this with { User = user };
     }
 }
