@@ -2,18 +2,20 @@
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Extensions;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-public class DebugLoggingActionFilterAttribute(string formatString, LogLevel logLevel = LogLevel.Debug)
-    : DomainActionFilterAttribute
+public class DebugLoggingActionFilterAttribute<TUserInfo>(string formatString, LogLevel logLevel = LogLevel.Debug)
+    : DomainActionFilterAttribute<TUserInfo>
+where TUserInfo: class, IUserInfo, new()
 {
     private readonly ILogger _Logger;
     private readonly LogLevel _LogLevel = logLevel;
 
     #region Overrides of DomainActionFilterAttribute
 
-    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext context)
+    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
     {
         return invocationWhere switch
         {
@@ -27,7 +29,7 @@ public class DebugLoggingActionFilterAttribute(string formatString, LogLevel log
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext context)
+    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
         if (formatString.HasValue())
         {
@@ -35,7 +37,7 @@ public class DebugLoggingActionFilterAttribute(string formatString, LogLevel log
         }
     }
 
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext context)
+    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
         if (formatString.HasValue())
         {

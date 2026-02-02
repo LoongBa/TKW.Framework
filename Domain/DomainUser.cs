@@ -10,14 +10,15 @@ using TKW.Framework.Domain.Session;
 namespace TKW.Framework.Domain;
 
 /// <summary>
-/// 领域用户基础类
+/// 领域用户基础类（泛型版本，支持具体 UserInfo 类型）
 /// </summary>
-public class DomainUser
+/// <typeparam name="TUserInfo">具体的 UserInfo 类型，必须实现 IUserInfo 接口</typeparam>
+public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     [JsonConstructor]
     internal DomainUser() { }
 
-    protected internal DomainUser(Func<DomainHost> domainHostFactory)
+    protected internal DomainUser(Func<DomainHost<TUserInfo>> domainHostFactory)
     {
         DomainHostFactory = domainHostFactory.EnsureNotNull(nameof(domainHostFactory));
     }
@@ -33,16 +34,16 @@ public class DomainUser
     public bool IsAuthenticated { get; internal set; }
 
     /// <summary>
-    /// 用户信息
+    /// 用户信息（具体类型，序列化安全）
     /// </summary>
     [JsonInclude]
-    public SimpleUserInfo UserInfo { get; protected internal set; } = null!;
+    public TUserInfo UserInfo { get; protected internal set; } = null!;
 
     /// <summary>
     /// DomainHost 工厂（运行时依赖，不参与序列化）
     /// </summary>
     [JsonIgnore]
-    public Func<DomainHost> DomainHostFactory { get; } = null!;
+    public Func<DomainHost<TUserInfo>> DomainHostFactory { get; } = null!;
 
     /// <summary>
     /// 检查用户是否拥有指定角色（泛型枚举版本）
@@ -61,7 +62,7 @@ public class DomainUser
     /// <summary>
     /// 使用领域服务（运行时解析）
     /// </summary>
-    public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase
+    public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase<TUserInfo>
     {
         return DomainHostFactory().EnsureNotNull(nameof(DomainHostFactory))
             .Container.Resolve<TDomainService>(TypedParameter.From(this));
@@ -83,7 +84,7 @@ public class DomainUser
     /// <summary>
     /// Guest 登录为指定用户
     /// </summary>
-    public async Task<DomainUser> LoginAsUserAsync(
+    public async Task<DomainUser<TUserInfo>> LoginAsUserAsync(
         string userName,
         string passwordHashed,
         LoginFromEnum loginFrom)
@@ -92,7 +93,7 @@ public class DomainUser
             .UserLoginAsync(this, userName, passwordHashed, loginFrom)
             .ConfigureAwait(false);
 
-        UserInfo = userInfo;
+        UserInfo = (TUserInfo)userInfo;  // 类型转换，确保兼容
         IsAuthenticated = true;
 
         await UpdateAndActiveSessionAsync().ConfigureAwait(false);
@@ -103,7 +104,7 @@ public class DomainUser
     /// <summary>
     /// 异步获取并激活指定会话
     /// </summary>
-    public async Task<SessionInfo> GetAndActiveSessionAsync()
+    public async Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync()
     {
         return await DomainHostFactory().SessionManager
             .GetAndActiveSessionAsync(SessionKey)
@@ -123,7 +124,7 @@ public class DomainUser
     /// <summary>
     /// 异步更新并激活指定会话
     /// </summary>
-    public async Task<SessionInfo> UpdateAndActiveSessionAsync()
+    public async Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync()
     {
         var host = DomainHostFactory();
         var session = await host.SessionManager

@@ -1,21 +1,23 @@
-﻿using System;
+﻿using Castle.DynamicProxy;
+using System;
 using System.Threading;
-using Castle.DynamicProxy;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
 
-public abstract class BaseInterceptor : IInterceptor
+public abstract class BaseInterceptor<TUserInfo> : IInterceptor
+where TUserInfo: class, IUserInfo, new()
 {
-    private static readonly AsyncLocal<InterceptorContext> _context = new AsyncLocal<InterceptorContext>();
+    private static readonly AsyncLocal<InterceptorContext<TUserInfo>> _context = new();
 
     protected abstract void Initial(IInvocation invocation);
     protected abstract void PreProceed(IInvocation invocation);
     protected abstract void PostProceed(IInvocation invocation);
     protected abstract void OnException(InterceptorExceptionContext context);
 
-    protected DomainContext Context;
+    protected DomainContext<TUserInfo> Context;
 
-    public static InterceptorContext CurrentContext => _context.Value;
+    public static InterceptorContext<TUserInfo> CurrentContext => _context.Value;
     #region Implementation of IInterceptor
 
     // 定义一个公共方法Intercept，用于拦截方法调用
@@ -26,7 +28,7 @@ public abstract class BaseInterceptor : IInterceptor
         // 调用PreProceed方法进行预处理操作
         PreProceed(invocation);
 
-        _context.Value = new InterceptorContext
+        _context.Value = new InterceptorContext<TUserInfo>
         {
             Invocation = invocation,
             DomainContext = Context,
@@ -67,8 +69,8 @@ public abstract class BaseInterceptor : IInterceptor
 
     #endregion
 }
-public class InterceptorContext
+public class InterceptorContext<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     public IInvocation Invocation { get; set; }
-    public DomainContext DomainContext { get; set; }
+    public DomainContext<TUserInfo> DomainContext { get; set; }
 }

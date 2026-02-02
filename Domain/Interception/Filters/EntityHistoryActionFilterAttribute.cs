@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
@@ -7,11 +8,12 @@ namespace TKW.Framework.Domain.Interception.Filters;
 /// 记录历史（忽略 IgnoreEntityHistoryAttribute）
 /// </summary>
 /// <see cref="IgnoreEntityHistoryAttribute"/>
-public class EntityHistoryActionFilterAttribute : DomainActionFilterAttribute
+public class EntityHistoryActionFilterAttribute<TUserInfo> : DomainActionFilterAttribute<TUserInfo>
+where TUserInfo : class, IUserInfo, new()
 {
     #region Overrides of DomainActionFilterAttribute
 
-    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext context)
+    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
     {
         return invocationWhere switch
         {
@@ -25,8 +27,8 @@ public class EntityHistoryActionFilterAttribute : DomainActionFilterAttribute
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext context) { }
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext context) { }
+    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { }
+    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { }
 
     #endregion
 }

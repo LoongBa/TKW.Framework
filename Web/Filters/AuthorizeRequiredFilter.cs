@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Web.Users;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Web.Filters;
 
-public class AuthorizeRequiredFilter : IAuthorizationFilter
+public class AuthorizeRequiredFilter<TUserInfo> : IAuthorizationFilter
+    where TUserInfo : class, IUserInfo, new()
 {
     #region Implementation of IAuthorizationFilter
 
@@ -23,7 +25,7 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
         if (context == null) throw new ArgumentNullException(nameof(context));
 
         #region 尝试恢复会话
-        SessionInfo session = null;
+        SessionInfo<TUserInfo> session = null;
 
         // 尝试获得 SessionKey
         var sessionKey = WebTools.GetValueFromSessionOrCookieOrHeaderOrQueryString(SessionKeyName, context.HttpContext);
@@ -104,10 +106,10 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
     }
 
     #endregion
-    private readonly Func<string, SessionInfo> _ResumeUserSessionDelegate;
+    private readonly Func<string, SessionInfo<TUserInfo>> _ResumeUserSessionDelegate;
 
-    private readonly Func<SessionInfo> _CreateNewUserSessionDelegate;
-    private readonly Func<SessionInfo, WebDomainUser> _WebUserConvertor;
+    private readonly Func<SessionInfo<TUserInfo>> _CreateNewUserSessionDelegate;
+    private readonly Func<SessionInfo<TUserInfo>, WebDomainUser<TUserInfo>> _WebUserConvertor;
     public bool Return401Code { get; }
     public string SessionKeyName { get; }
 
@@ -117,7 +119,7 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
     /// <param name="resumeUserSessionDelegate">恢复会话的委托</param>
     /// <param name="sessionKeyName">约定的SessionKey名称</param>
     /// <param name="return401Code">授权检查失败是否返回401错误（否则抛出异常 WebAuthenticationException）</param>
-    public AuthorizeRequiredFilter(Func<string, SessionInfo> resumeUserSessionDelegate, string sessionKeyName = "X-SessionKey", bool return401Code = false)
+    public AuthorizeRequiredFilter(Func<string, SessionInfo<TUserInfo>> resumeUserSessionDelegate, string sessionKeyName = "X-SessionKey", bool return401Code = false)
         : this(resumeUserSessionDelegate, null, sessionKeyName, return401Code)
     {
     }
@@ -132,11 +134,11 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
     /// <param name="webUserConvertor"></param>
     /// <exception cref="ArgumentNullException"><paramref name="resumeUserSessionDelegate"/> is <see langword="null"/></exception>
     /// <exception cref="ArgumentException">Argument is null or whitespace</exception>
-    public AuthorizeRequiredFilter(Func<string, SessionInfo> resumeUserSessionDelegate,
-        Func<SessionInfo> createNewUserSessionDelegate,
+    public AuthorizeRequiredFilter(Func<string, SessionInfo<TUserInfo>> resumeUserSessionDelegate,
+        Func<SessionInfo<TUserInfo>> createNewUserSessionDelegate,
         string sessionKeyName = "X-SessionKey",
         bool return401Code = false,
-        Func<SessionInfo, WebDomainUser> webUserConvertor = null)
+        Func<SessionInfo<TUserInfo>, WebDomainUser<TUserInfo>> webUserConvertor = null)
     {
         Return401Code = return401Code;
         if (string.IsNullOrWhiteSpace(sessionKeyName))
@@ -156,7 +158,8 @@ public class AuthorizeRequiredFilter : IAuthorizationFilter
     /// <param name="return401Code"></param>
     /// <param name="webUserConvertor"></param>
     /// <exception cref="ArgumentNullException"><paramref name="userSessionProvider"/> is <see langword="null"/></exception>
-    public AuthorizeRequiredFilter(IUserSessionProvider userSessionProvider, bool return401Code = false, Func<SessionInfo, WebDomainUser> webUserConvertor = null)
+    public AuthorizeRequiredFilter(IUserSessionProvider<TUserInfo> userSessionProvider, 
+        bool return401Code = false, Func<SessionInfo<TUserInfo>, WebDomainUser<TUserInfo>> webUserConvertor = null)
     {
         /*Return401Code = return401Code;
         if (userSessionProvider == null) throw new ArgumentNullException(nameof(userSessionProvider));

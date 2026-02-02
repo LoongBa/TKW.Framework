@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using TKW.Framework.Domain.Interception;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;
 
-public class DomainContracts
+public class DomainContracts<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     /// <summary>Initializes a new instance of the <see cref="T:System.Object"></see> class.</summary>
     public DomainContracts()
@@ -13,8 +14,8 @@ public class DomainContracts
         MethodFlags = [];
         ControllerFlags = [];
     }
-    public List<DomainActionFilterAttribute> MethodFilters { get; }
-    public List<DomainActionFilterAttribute> ControllerFilters { get; }
+    public List<DomainActionFilterAttribute<TUserInfo>> MethodFilters { get; }
+    public List<DomainActionFilterAttribute<TUserInfo>> ControllerFilters { get; }
     public List<DomainFlagAttribute> MethodFlags { get; }
     public List<DomainFlagAttribute> ControllerFlags { get; }
 }

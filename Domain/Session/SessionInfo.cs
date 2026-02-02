@@ -1,13 +1,15 @@
 ﻿#nullable enable
 using System;
 using System.Text.Json.Serialization;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Session;
 
 /// <summary>
 /// 会话信息（record 形式，不可变，专注会话生命周期）
 /// </summary>
-public record SessionInfo(string? Key, DomainUser? User)
+public record SessionInfo<TUserInfo>(string? Key, DomainUser<TUserInfo>? User)
+    where TUserInfo: class, IUserInfo, new()
 {
     /// <summary>
     /// 无参构造（供 Json 反序列化或其他场景使用）
@@ -18,7 +20,7 @@ public record SessionInfo(string? Key, DomainUser? User)
     /// <summary>
     /// 使用用户构造（可选）
     /// </summary>
-    public SessionInfo(DomainUser user) : this(null, user) { }
+    public SessionInfo(DomainUser<TUserInfo> user) : this(null, user) { }
 
     /// <summary>
     /// 创建时间（不可变，使用 UTC 时间）
@@ -39,12 +41,12 @@ public record SessionInfo(string? Key, DomainUser? User)
     /// <summary>
     /// 激活会话（返回新实例，保持 immutable）
     /// </summary>
-    public SessionInfo Active() => this with { TimeLastActivated = DateTime.UtcNow };
+    public SessionInfo<TUserInfo> Active() => this with { TimeLastActivated = DateTime.UtcNow };
 
     /// <summary>
     /// 绑定用户（返回新实例）
     /// </summary>
-    public SessionInfo BindUser(DomainUser user)
+    public SessionInfo<TUserInfo> BindUser(DomainUser<TUserInfo> user)
     {
         ArgumentNullException.ThrowIfNull(user);
         user.SessionKey = Key ?? throw new InvalidOperationException("会话 Key 不能为空");

@@ -1,3 +1,6 @@
-﻿namespace TKW.Framework.Domain.Session;
+﻿using TKW.Framework.Domain.Interfaces;
 
-public delegate void SessionCreated(string sessionKey, SessionInfo session);
+namespace TKW.Framework.Domain.Session;
+
+public delegate void SessionCreated<TUserInfo>(string sessionKey, SessionInfo<TUserInfo> session)
+    where TUserInfo: class, IUserInfo, new();

@@ -1,13 +1,12 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
-using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;
 
 public class SimpleUserInfo(string userIdString, string userName) : IUserInfo
 {
-    // ÎŞ²Î¹¹Ôì£¬¹© Json ·´ĞòÁĞ»¯Ê¹ÓÃ
+    // æ— å‚æ„é€ ï¼Œä¾› Json ååºåˆ—åŒ–ä½¿ç”¨
     public SimpleUserInfo() : this(string.Empty, string.Empty)
     {
         UserIdString = string.Empty;

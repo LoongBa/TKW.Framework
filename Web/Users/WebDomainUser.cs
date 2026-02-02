@@ -4,9 +4,11 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Web.Users;
 
-public abstract class WebDomainUser : DomainUser, IWebUser
+public abstract class WebDomainUser<TUserInfo> : DomainUser<TUserInfo>, IWebUser
+    where TUserInfo : class, IUserInfo, new()
+
 {
-    protected WebDomainUser(DomainUser domainUser) : base(domainUser.DomainHostFactory)
+    protected WebDomainUser(DomainUser<TUserInfo> domainUser) : base(domainUser.DomainHostFactory)
     {
         Container = new WebContainer { Type = WebContainerType.UnSet };
         // 复制 DomainUser 信息

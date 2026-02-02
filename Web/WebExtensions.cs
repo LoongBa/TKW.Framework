@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using TKW.Framework.Domain;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Web;
 
@@ -19,8 +20,10 @@ public static class WebExtensions
     /// <summary>
     /// 添加领域（将领域实例注入到容器）
     /// </summary>
-    public static IServiceCollection AddDomainHelper<TDomainHelper>(this IServiceCollection left, TDomainHelper domainHelper)
-        where TDomainHelper : DomainHelperBase
+    public static IServiceCollection AddDomainHelper<TUserInfo, TDomainHelper>(this IServiceCollection left, TDomainHelper domainHelper)
+        where TDomainHelper : DomainHelperBase<TUserInfo>
+        where TUserInfo : class, IUserInfo, new()
+
     {
         return left.AddSingleton(domainHelper);
     }

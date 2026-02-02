@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Security.Authentication;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
@@ -8,11 +9,12 @@ namespace TKW.Framework.Domain.Interception.Filters;
 /// 权限验证（忽略 AllowAnonymousAttribute）
 /// </summary>
 /// <see cref="AllowAnonymousAttribute"/>
-public class AuthorityActionFilterAttribute : DomainActionFilterAttribute
+public class AuthorityActionFilterAttribute<TUserInfo> : DomainActionFilterAttribute<TUserInfo>
+where TUserInfo: class, IUserInfo, new()
 {
     #region Overrides of DomainActionFilterAttribute
 
-    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext context)
+    public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
     {
         return invocationWhere switch
         {
@@ -24,14 +26,14 @@ public class AuthorityActionFilterAttribute : DomainActionFilterAttribute
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext context)
+    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
         var user = context.DomainUser;
         if (user.IsAuthenticated == false) 
             throw new AuthenticationException($"用户 '{user.UserInfo.UserName}' 未认证。");
     }
 
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext context)
+    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
     }
 

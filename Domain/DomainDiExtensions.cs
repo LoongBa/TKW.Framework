@@ -38,10 +38,10 @@ public static class DomainDiExtensions
 
     extension(ContainerBuilder left)
     {
-        public IRegistrationBuilder<ISessionManager, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            UseSessionManager()
+        public IRegistrationBuilder<ISessionManager<TUserInfo>, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            UseSessionManager<TUserInfo>() where TUserInfo : class, IUserInfo, new()
         {
-            return left.RegisterType<SessionManager>().As<ISessionManager>()
+            return left.RegisterType<SessionManager<TUserInfo>>().As<ISessionManager<TUserInfo>>()
                 .SingleInstance();
         }
     }
@@ -91,14 +91,17 @@ public static class DomainDiExtensions
         /// </summary>
         /// <typeparam name="TContractInterface"></typeparam>
         /// <typeparam name="TAopContract"></typeparam>
+        /// <typeparam name="TUserInfo"></typeparam>
         public IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddAopService<TContractInterface, TAopContract>()
+            AddAopService<TContractInterface, TAopContract, TUserInfo>()
             where TAopContract : class, IAopContract
+            where TContractInterface : class, IAopContract
+            where TUserInfo : class, IUserInfo, new()
         {
             return left.RegisterType<TAopContract>()
                 .As<TContractInterface>()
                 .EnableInterfaceInterceptors()
-                .InterceptedBy(typeof(DomainInterceptor)); //TKW Domain ÁìÓò¿ò¼ÜÀ¹½ØÆ÷
+                .InterceptedBy(typeof(DomainInterceptor<TUserInfo>)); //TKW Domain ÁìÓò¿ò¼ÜÀ¹½ØÆ÷
         }
     }
 

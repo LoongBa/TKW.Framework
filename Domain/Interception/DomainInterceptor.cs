@@ -1,8 +1,9 @@
-using System;
-using System.Linq;
 using Autofac;
 using Castle.DynamicProxy;
+using System;
+using System.Linq;
 using TKW.Framework.Common.Extensions;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
 
@@ -10,14 +11,15 @@ namespace TKW.Framework.Domain.Interception;
 /// 框架级领域拦截器：用于支撑框架级的其它扩展属性
 /// </summary>
 /// <remarks>TODO:改为链表结构</remarks>
-public class DomainInterceptor : BaseInterceptor, IDisposable
+public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposable
+    where TUserInfo: class, IUserInfo, new()
 {
-    private readonly DomainHost _DomainHost;
+    private readonly DomainHost<TUserInfo> _DomainHost;
     private readonly IDomainGlobalExceptionFactory _DomainGlobalExceptionFactory;
     private readonly ILifetimeScope _LifetimeScope;
 
     public DomainInterceptor(
-        DomainHost domainHost,
+        DomainHost<TUserInfo> domainHost,
         IDomainGlobalExceptionFactory domainGlobalExceptionFactory = null)
     {
         domainHost.EnsureNotNull(name: nameof(domainHost));

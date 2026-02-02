@@ -1,11 +1,11 @@
 ﻿// TKW.Domain.Web / Middleware / SessionUserMiddleware.cs
 
+#nullable enable
 using Microsoft.AspNetCore.Http;
 using System.Linq;
-using System.Security.Claims;
-using System.Security.Principal;
 using System.Threading.Tasks;
 using TKW.Framework.Domain;
+using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 using TKW.Framework.Web.Users;
 
@@ -15,16 +15,18 @@ namespace TKW.Framework.Web.Middlewares;
 /// 从 Cookie / Header 读取 SessionKey，加载 DomainUser 并注入 HttpContext
 /// 支持 Blazor Server 和 WebAPI
 /// </summary>
-public class SessionUserMiddleware(RequestDelegate next, ISessionManager sessionManager)
+public class SessionUserMiddleware<TUserInfo>(RequestDelegate next, ISessionManager<TUserInfo> sessionManager)
+    where TUserInfo : class, IUserInfo, new()
+
 {
     public async Task InvokeAsync(HttpContext context)
     {
         // 1. 尝试从 Cookie / Header / Query 获取 SessionKey
-        string? sessionKey = context.Request.Cookies["SessionKey"]
-                          ?? context.Request.Headers["X-Session-Key"].FirstOrDefault()
-                          ?? context.Request.Query["sessionKey"].ToString();
+        var sessionKey = context.Request.Cookies["SessionKey"]
+                         ?? context.Request.Headers["X-Session-Key"].FirstOrDefault()
+                         ?? context.Request.Query["sessionKey"].ToString();
 
-        DomainUser? currentUser = null;
+        DomainUser<TUserInfo>? currentUser = null;
 
         if (!string.IsNullOrWhiteSpace(sessionKey))
         {
