@@ -36,7 +36,7 @@ public class DtoFieldAttribute : Attribute
     public bool DetailsHidden { get; set; }
 
     // 扩展：支持多场景组合（如Create/Update都必填）
-    public SceneFlags RequiredScenes { get; set; } = SceneFlags.None;
-    public SceneFlags ReadOnlyScenes { get; set; } = SceneFlags.None;
-    public SceneFlags HiddenScenes { get; set; } = SceneFlags.None;
+    public EnumSceneFlags RequiredScenes { get; set; } = EnumSceneFlags.None;
+    public EnumSceneFlags ReadOnlyScenes { get; set; } = EnumSceneFlags.None;
+    public EnumSceneFlags HiddenScenes { get; set; } = EnumSceneFlags.None;
 }
