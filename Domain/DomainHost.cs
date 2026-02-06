@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
@@ -39,22 +40,17 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     public static DomainHost<TUserInfo> Build<TDomainInitializer, TDomainHelper, TSessionManager>(
         ContainerBuilder? upLevelContainer = null,
         IConfiguration? configuration = null)
-        where TDomainInitializer: DomainHostInitializerBase<TUserInfo, TDomainHelper>, new()
+        where TDomainInitializer : DomainHostInitializerBase<TUserInfo, TDomainHelper>, new()
         where TDomainHelper : DomainHelperBase<TUserInfo>
         where TSessionManager : class, ISessionManager<TUserInfo>
     {
         // 确保不能重复初始化
         if (Root != null) throw new InvalidOperationException("不能重复初始化 DomainHost");
 
+        var isExternalContainer = upLevelContainer != null;
         var containerBuilder = upLevelContainer ?? new ContainerBuilder();
-        if (upLevelContainer != null)
-        {
-            // 注册 IStartable: 在容器构建时自动回填 DomainHost
-            containerBuilder.RegisterType<TDomainInitializer>()
-                .As<IStartable>()
-                .SingleInstance();
-        }
 
+        // 注册领域框架上下文和拦截器
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>(); // 注册领域框架拦截器
 
@@ -62,13 +58,39 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
         var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration);
-        // containerBuilder.RegisterInstance(userHelper).As<TDomainHelper>();  // 可通过 DomainHost 获得，不需要通过容器
 
-        // 构造并注入 ISessionManager 实例，需在 configureServices() 方法中注入依赖的类型或实例，如 HybridCache
-        containerBuilder.UseSessionManager<TUserInfo>();
+        // 注册 TSessionManager 实例，需注册依赖的类型或实例，如 HybridCache
+        containerBuilder.UseSessionManager<TSessionManager, TUserInfo>();
+
         // 构造 DomainHost 实例，通过全局唯一的单例获取效率更高
-        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, upLevelContainer == null);
+        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, isExternalContainer);
         containerBuilder.Register(_ => Root);   // 将类厂注入容器
+        // 如果最终由外部宿主构建容器，使用 RegisterBuildCallback 捕获构建完成时的容器实例
+        if (isExternalContainer)
+            containerBuilder.RegisterBuildCallback(context =>
+            {
+                if (Root == null) return;
+
+                // componentContext 通常 可以 转为 IContainer
+                if (context is IContainer container)
+                {
+                    Root.Container = container;
+                    return;
+                }
+
+                // 兜底：尝试解析 IContainer
+                try
+                {
+                    var maybe = context.ResolveOptional<IContainer>();
+                    if (maybe != null) Root.Container = maybe;
+                }
+                catch
+                {
+                    // 忽略解析异常，保持不抛，以便容器可继续正常启动
+                }
+                // 触发领域主机初始化完成后的回调，允许进行额外的配置或初始化
+                initializer.OnContainerBuilt(Root, isExternalContainer);
+            });
         return Root;
     }
 
@@ -79,34 +101,32 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <param name="containerBuilder">Autofac容器构建器</param>
     /// <param name="services">兼容第三方组件的依赖注入的服务集合</param>
     /// <param name="configuration">配置项</param>
-    /// <param name="externalContainer"></param>
+    /// <param name="isExternalContainer"></param>
     private DomainHost(DomainHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
-        IServiceCollection services, IConfiguration? configuration = null, bool externalContainer = false)
+        IServiceCollection services, IConfiguration? configuration = null, bool isExternalContainer = false)
     {
         ArgumentNullException.ThrowIfNull(userHelper);
         UserHelper = userHelper;
+        IsIsExternalContainer = isExternalContainer;
+
         // 断言containerBuilder不为空
         containerBuilder.EnsureNotNull(name: nameof(containerBuilder));
 
         // 兼容第三方组件的依赖注入的服务集合
         containerBuilder.Populate(services);
-        
+
         // 配置项
         Configuration = configuration;
 
         // 构建Autofac容器
-        if (!externalContainer)
+        if (!isExternalContainer)
         {
             Container = containerBuilder.Build();
-            // 创建服务提供者
-            // ServicesProvider = new AutofacServiceProvider(Container);
 
             // 获取日志工厂实例，如果为空则使用NullLoggerFactory
-            /*
             LoggerFactory = Container.IsRegistered<ILoggerFactory>()
                 ? Container.Resolve<ILoggerFactory>()
                 : new NullLoggerFactory();
-        */
         }
     }
 
@@ -137,28 +157,10 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// </summary>
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
 
-    public void InitializeAfterHostBuild(ILifetimeScope rootScope)
-    {
-        ArgumentNullException.ThrowIfNull(rootScope);
-        if (Container != null) return; // 已初始化则跳过
-
-        // 根作用域通常可以转换为 IContainer
-        if (rootScope is IContainer ic)
-        {
-            Container = ic;
-        }
-        else
-        {
-            // 若不是 IContainer，仍把根作用域保留为 ILifetimeScope 的形式
-            // 这里将尝试将 ILifetimeScope 转为 IContainer 的能力视为可选：
-            Container = rootScope.ResolveOptional<IContainer>()
-                        ?? throw new InvalidOperationException("无法回填 IContainer");
-        }
-        /*ServicesProvider = new AutofacServiceProvider(Container);
-        LoggerFactory = Container.IsRegistered<ILoggerFactory>() ? Container.Resolve<ILoggerFactory>() : new NullLoggerFactory();
-        */
-
-    }
+    /// <summary>
+    /// 是否外部容器
+    /// </summary>
+    public bool IsIsExternalContainer { get; private set; }
 
     /// <summary>
     /// 创建新的领域上下文

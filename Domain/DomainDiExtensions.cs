@@ -37,10 +37,13 @@ public static class DomainDiExtensions
     #region 会话二级缓存（强制单例，核心基础设施）
 
     public static IRegistrationBuilder<ISessionManager<TUserInfo>, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-        UseSessionManager<TUserInfo>(this ContainerBuilder left) where TUserInfo : class, IUserInfo, new()
+        UseSessionManager<TSessionManager, TUserInfo>(this ContainerBuilder left)
+        where TSessionManager : class, ISessionManager<TUserInfo>
+        where TUserInfo : class, IUserInfo, new()
     {
-        return left.RegisterType<SessionManager<TUserInfo>>()
+        return left.RegisterType<TSessionManager>()
             .As<ISessionManager<TUserInfo>>()
+            .AsSelf()
             .SingleInstance(); // 强制单例，不允许覆盖
     }
 
