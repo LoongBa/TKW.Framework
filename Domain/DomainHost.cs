@@ -4,7 +4,6 @@ using Castle.DynamicProxy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -25,7 +24,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <summary>
     /// 静态根实例，确保只有一个DomainHost实例
     /// </summary>
-    public static DomainHost<TUserInfo> Root { get; private set; }
+    public static DomainHost<TUserInfo>? Root { get; private set; }
 
     /// <summary>
     /// 初始化DomainHost的静态方法
@@ -33,101 +32,133 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <typeparam name="TDomainHelper">用户助手类型</typeparam>
     /// <typeparam name="TSessionManager"></typeparam>
     /// <typeparam name="TUserInfo"></typeparam>
-    /// <param name="configureServices">配置服务的委托</param>
-    /// <param name="upLevelServices">上级服务集合</param>
+    /// <typeparam name="TDomainInitializer"></typeparam>
+    /// <param name="upLevelContainer">上级容器：例如 ASP.NET/MAUI 原生容器的 Autofac 版本</param>
+    /// <param name="configuration">配置项</param>
     /// <returns>DomainHost实例</returns>
-    public static DomainHost<TUserInfo> Initial<TDomainHelper, TSessionManager>(
-        Func<ContainerBuilder, IServiceCollection, ConfigurationBuilder, IServiceCollection, TDomainHelper> configureServices,
-        IServiceCollection upLevelServices = null)
+    public static DomainHost<TUserInfo> Build<TDomainInitializer, TDomainHelper, TSessionManager>(
+        ContainerBuilder? upLevelContainer = null,
+        IConfiguration? configuration = null)
+        where TDomainInitializer: DomainHostInitializerBase<TUserInfo, TDomainHelper>, new()
         where TDomainHelper : DomainHelperBase<TUserInfo>
-        where TSessionManager : ISessionManager<TUserInfo>
+        where TSessionManager : class, ISessionManager<TUserInfo>
     {
         // 确保不能重复初始化
-        if (Root != null) throw new InvalidOperationException("不能重复初始化");
+        if (Root != null) throw new InvalidOperationException("不能重复初始化 DomainHost");
 
-        // configureServices 不为空
-        ArgumentNullException.ThrowIfNull(configureServices);
-        var configBuilder = new ConfigurationBuilder();
-        configBuilder.SetBasePath(AppDomain.CurrentDomain.BaseDirectory); // 设置默认的BasePath
+        var containerBuilder = upLevelContainer ?? new ContainerBuilder();
+        if (upLevelContainer != null)
+        {
+            // 注册 IStartable: 在容器构建时自动回填 DomainHost
+            containerBuilder.RegisterType<TDomainInitializer>()
+                .As<IStartable>()
+                .SingleInstance();
+        }
 
-        IServiceCollection services = new ServiceCollection();
-        var containerBuilder = new ContainerBuilder();
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>(); // 注册领域框架拦截器
-        containerBuilder.Register(_ => Root);   // 将类厂注入容器
 
         // 执行委托方法，获取用户助手实例
-        var userHelper = configureServices(containerBuilder, services, configBuilder, upLevelServices);
-        containerBuilder.RegisterInstance(userHelper).As<TDomainHelper>();  // 可通过 DomainHost 获得，不需要通过容器
-        // 构造并注入 ISessionManager 实例，需在 configureServices() 方法中注入依赖的类型或实例，如 HybridCache
-        containerBuilder.RegisterType<TSessionManager>().As<ISessionManager<TUserInfo>>().SingleInstance();
+        IServiceCollection services = new ServiceCollection();
+        var initializer = new TDomainInitializer();
+        var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration);
+        // containerBuilder.RegisterInstance(userHelper).As<TDomainHelper>();  // 可通过 DomainHost 获得，不需要通过容器
 
+        // 构造并注入 ISessionManager 实例，需在 configureServices() 方法中注入依赖的类型或实例，如 HybridCache
+        containerBuilder.UseSessionManager<TUserInfo>();
         // 构造 DomainHost 实例，通过全局唯一的单例获取效率更高
-        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configBuilder);
+        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, upLevelContainer == null);
+        containerBuilder.Register(_ => Root);   // 将类厂注入容器
         return Root;
     }
 
     /// <summary>
     /// 私有构造函数，用于初始化DomainHost实例
     /// </summary>
-    /// <param name="containerBuilder">Autofac容器构建器</param>
-    /// <param name="services">服务集合</param>
-    /// <param name="configurationBuilder">配置构建器</param>
     /// <param name="userHelper"></param>
+    /// <param name="containerBuilder">Autofac容器构建器</param>
+    /// <param name="services">兼容第三方组件的依赖注入的服务集合</param>
+    /// <param name="configuration">配置项</param>
+    /// <param name="externalContainer"></param>
     private DomainHost(DomainHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
-        IServiceCollection services = null, IConfigurationBuilder configurationBuilder = null)
+        IServiceCollection services, IConfiguration? configuration = null, bool externalContainer = false)
     {
         ArgumentNullException.ThrowIfNull(userHelper);
         UserHelper = userHelper;
         // 断言containerBuilder不为空
         containerBuilder.EnsureNotNull(name: nameof(containerBuilder));
 
-        // 如果services为空，则初始化一个新的服务集合
-        services ??= new ServiceCollection();
+        // 兼容第三方组件的依赖注入的服务集合
         containerBuilder.Populate(services);
-
-        // 如果configurationBuilder为空，则初始化一个新的配置构建器
-        var configBuilder = configurationBuilder ?? new ConfigurationBuilder();
-        containerBuilder.RegisterInstance(Configuration = configBuilder.Build());
+        
+        // 配置项
+        Configuration = configuration;
 
         // 构建Autofac容器
-        Container = containerBuilder.Build();
-        // 创建服务提供者
-        ServicesProvider = new AutofacServiceProvider(Container);
+        if (!externalContainer)
+        {
+            Container = containerBuilder.Build();
+            // 创建服务提供者
+            // ServicesProvider = new AutofacServiceProvider(Container);
 
-        // 获取日志工厂实例，如果为空则使用NullLoggerFactory
-        LoggerFactory = Container.IsRegistered<ILoggerFactory>()
-            ? Container.Resolve<ILoggerFactory>()
-            : new NullLoggerFactory();
+            // 获取日志工厂实例，如果为空则使用NullLoggerFactory
+            /*
+            LoggerFactory = Container.IsRegistered<ILoggerFactory>()
+                ? Container.Resolve<ILoggerFactory>()
+                : new NullLoggerFactory();
+        */
+        }
     }
+
     public DomainHelperBase<TUserInfo> UserHelper { get; }
 
     /// <summary>
     /// 配置根
     /// </summary>
-    public IConfigurationRoot Configuration { get; }
+    public IConfiguration? Configuration { get; private set; }
+
     /// <summary>
     /// 日志工厂
     /// </summary>
-    public ILoggerFactory LoggerFactory { get; }
-    /// <summary>
-    /// 服务提供者
-    /// </summary>
-    public IServiceProvider ServicesProvider { get; }
+    public ILoggerFactory? LoggerFactory { get; private set; }
+
     /// <summary>
     /// Autofac容器
     /// </summary>
-    public IContainer Container { get; }
+    public IContainer? Container { get; private set; }
 
     /// <summary>
     /// SessionManager 实例
     /// </summary>
-    internal ISessionManager<TUserInfo> SessionManager => field ??= Container.Resolve<ISessionManager<TUserInfo>>();
+    internal ISessionManager<TUserInfo>? SessionManager => field ??= Container?.Resolve<ISessionManager<TUserInfo>>();
 
     /// <summary>
     /// 控制器契约的并发字典缓存
     /// </summary>
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
+
+    public void InitializeAfterHostBuild(ILifetimeScope rootScope)
+    {
+        ArgumentNullException.ThrowIfNull(rootScope);
+        if (Container != null) return; // 已初始化则跳过
+
+        // 根作用域通常可以转换为 IContainer
+        if (rootScope is IContainer ic)
+        {
+            Container = ic;
+        }
+        else
+        {
+            // 若不是 IContainer，仍把根作用域保留为 ILifetimeScope 的形式
+            // 这里将尝试将 ILifetimeScope 转为 IContainer 的能力视为可选：
+            Container = rootScope.ResolveOptional<IContainer>()
+                        ?? throw new InvalidOperationException("无法回填 IContainer");
+        }
+        /*ServicesProvider = new AutofacServiceProvider(Container);
+        LoggerFactory = Container.IsRegistered<ILoggerFactory>() ? Container.Resolve<ILoggerFactory>() : new NullLoggerFactory();
+        */
+
+    }
 
     /// <summary>
     /// 创建新的领域上下文
@@ -202,7 +233,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <summary>
     /// 获取DomainHost实例的工厂方法
     /// </summary>
-    public static Func<DomainHost<TUserInfo>> Factory => () => Root;
+    public static Func<DomainHost<TUserInfo>> Factory => () => Root!;
 
     #region 会话相关方法
 
@@ -211,7 +242,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// </summary>
     public async Task<SessionInfo<TUserInfo>> NewGuestSessionAsync()
     {
-        var session = await SessionManager.NewSessionAsync();
+        var session = await SessionManager!.NewSessionAsync();
         var newSession = await UserHelper.CreateNewGuestSessionAsync(session)
             .ConfigureAwait(false);
         SessionManager.OnSessionCreated(newSession);
@@ -223,10 +254,10 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// </summary>
     internal async Task<DomainUser<TUserInfo>> GetDomainUserAsync(string sessionKey)
     {
-        var session = await SessionManager.GetAndActiveSessionAsync(sessionKey)
+        var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey)
             .ConfigureAwait(false);
 
-        return session.User;
+        return session.User!;
     }
 
     #endregion

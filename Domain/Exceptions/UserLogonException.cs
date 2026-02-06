@@ -11,7 +11,7 @@ public class UserLogonException : Exception, ITKWException
     public string UserNameOrId { get; }
     public UserLogonExceptionType Type { get; }
 
-    public UserLogonException(string userNameOrId, UserLogonExceptionType type, Exception innerException = null)
+    public UserLogonException(string userNameOrId, UserLogonExceptionType type, Exception? innerException = null)
         : base($"用户 '{userNameOrId}' 错误类型：{type}", innerException)
     {
         if (string.IsNullOrWhiteSpace(userNameOrId))

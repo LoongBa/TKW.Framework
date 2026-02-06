@@ -24,8 +24,8 @@ public class MenuPermission : UserPermissionBase
         Operator oper,
         string permissionId, string permissionName,
         MenuPermissionType type = MenuPermissionType.Enabled,
-        string menuParentId = null,
-        string permissionText = null,
+        string? menuParentId = null,
+        string? permissionText = null,
         int displayOrder = 0) : base(oper, permissionId, permissionName, type, permissionText)
     {
         ParentId = menuParentId.HasNoValueToNull() ?? string.Empty;

@@ -12,6 +12,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>TKW.Framework.Web</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

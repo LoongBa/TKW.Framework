@@ -8,16 +8,16 @@ namespace TKW.Framework.Domain.Interception;
 public abstract class BaseInterceptor<TUserInfo> : IInterceptor
 where TUserInfo: class, IUserInfo, new()
 {
-    private static readonly AsyncLocal<InterceptorContext<TUserInfo>> _context = new();
+    private static readonly AsyncLocal<InterceptorContext<TUserInfo>?> _context = new();
 
     protected abstract void Initial(IInvocation invocation);
     protected abstract void PreProceed(IInvocation invocation);
     protected abstract void PostProceed(IInvocation invocation);
     protected abstract void OnException(InterceptorExceptionContext context);
 
-    protected DomainContext<TUserInfo> Context;
+    protected DomainContext<TUserInfo>? Context;
 
-    public static InterceptorContext<TUserInfo> CurrentContext => _context.Value;
+    public static InterceptorContext<TUserInfo>? CurrentContext => _context.Value;
     #region Implementation of IInterceptor
 
     // 定义一个公共方法Intercept，用于拦截方法调用
@@ -71,6 +71,6 @@ where TUserInfo: class, IUserInfo, new()
 }
 public class InterceptorContext<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    public IInvocation Invocation { get; set; }
-    public DomainContext<TUserInfo> DomainContext { get; set; }
+    public IInvocation? Invocation { get; set; }
+    public DomainContext<TUserInfo>? DomainContext { get; set; }
 }

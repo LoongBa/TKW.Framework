@@ -20,9 +20,10 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
 
     public DomainInterceptor(
         DomainHost<TUserInfo> domainHost,
-        IDomainGlobalExceptionFactory domainGlobalExceptionFactory = null)
+        IDomainGlobalExceptionFactory domainGlobalExceptionFactory)
     {
-        domainHost.EnsureNotNull(name: nameof(domainHost));
+        ArgumentNullException.ThrowIfNull(domainHost);
+        ArgumentNullException.ThrowIfNull(domainHost.Container);
         _DomainHost = domainHost;
         _LifetimeScope = _DomainHost.Container.BeginLifetimeScope();
         _DomainGlobalExceptionFactory = domainGlobalExceptionFactory;
@@ -33,12 +34,13 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     protected override void Initial(IInvocation invocation)
     {
         Context = _DomainHost.NewDomainContext(invocation, _LifetimeScope);
+        Context.EnsureNotNull();
     }
 
     protected override void PreProceed(IInvocation invocation)
     {
         //TODO: ¥¶¿ÌÀ≥–Ú°¢∏≤∏«À≥–Ú
-        foreach (var filter in Context.MethodFilters)
+        foreach (var filter in Context!.MethodFilters)
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Method, Context))
                 filter.PreProceed(DomainInvocationWhereType.Method, Context);
@@ -54,7 +56,7 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     protected override void PostProceed(IInvocation invocation)
     {
         //TODO: ¥¶¿ÌÀ≥–Ú
-        foreach (var filter in Context.MethodFilters)
+        foreach (var filter in Context!.MethodFilters)
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Method, Context))
                 filter.PostProceed(DomainInvocationWhereType.Method, Context);

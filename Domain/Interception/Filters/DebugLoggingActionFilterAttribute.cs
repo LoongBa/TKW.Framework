@@ -6,11 +6,11 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-public class DebugLoggingActionFilterAttribute<TUserInfo>(string formatString, LogLevel logLevel = LogLevel.Debug)
+public class DebugLoggingActionFilterAttribute<TUserInfo>(string formatString, ILogger? logger = null, LogLevel logLevel = LogLevel.Debug)
     : DomainActionFilterAttribute<TUserInfo>
-where TUserInfo: class, IUserInfo, new()
+where TUserInfo : class, IUserInfo, new()
 {
-    private readonly ILogger _Logger;
+    private readonly ILogger? _Logger = logger;
     private readonly LogLevel _LogLevel = logLevel;
 
     #region Overrides of DomainActionFilterAttribute

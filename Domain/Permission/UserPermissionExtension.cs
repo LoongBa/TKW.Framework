@@ -23,13 +23,13 @@ public static class UserPermissionExtension
             return left.Any(p => p.Id.Equals(idString, StringComparison.OrdinalIgnoreCase));
         }
 
-        public T TryGetByName(string name)
+        public T? TryGetByName(string name)
         {
             name.EnsureHasValue(nameof(name));
             return left.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        public T TryGetById(string idString)
+        public T? TryGetById(string idString)
         {
             idString.EnsureHasValue(nameof(idString));
             return left.FirstOrDefault(p => p.Id.Equals(idString, StringComparison.OrdinalIgnoreCase));
@@ -42,19 +42,19 @@ public static class UserPermissionExtension
 
     extension<T>(IReadOnlyList<T> left) where T : MenuPermission
     {
-        public MenuPermission TryGetParentByName(string name)
+        public MenuPermission? TryGetParentByName(string name)
         {
             name.EnsureHasValue(nameof(name));
             var menu = left.TryGetByName(name);
-            if (!menu.ParentId.HasValue()) return null;
+            if (menu == null || !menu.ParentId.HasValue()) return null;
             return left.FirstOrDefault(p => p.Id.Equals(menu.ParentId, StringComparison.OrdinalIgnoreCase));
         }
 
-        public MenuPermission TryGetParentById(string idString)
+        public MenuPermission? TryGetParentById(string idString)
         {
             idString.EnsureHasValue(nameof(idString));
             var menu = left.TryGetById(idString);
-            if (!menu.ParentId.HasValue()) return null;
+            if (menu == null || !menu.ParentId.HasValue()) return null;
             return left.FirstOrDefault(p => p.Id.Equals(menu.ParentId, StringComparison.OrdinalIgnoreCase));
         }
     }

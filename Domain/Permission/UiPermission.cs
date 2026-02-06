@@ -8,7 +8,7 @@ public class UiPermission(
     string permissionId,
     string permissionName,
     EnumNoneEnabledDisabled type,
-    string permissionText = null)
+    string? permissionText = null)
     : UserPermissionBase(oper, permissionId, permissionName, type, permissionText)
 {
     public EnumNoneEnabledDisabled Type { get; } = type;

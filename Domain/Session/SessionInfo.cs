@@ -8,19 +8,19 @@ namespace TKW.Framework.Domain.Session;
 /// <summary>
 /// 会话信息（record 形式，不可变，专注会话生命周期）
 /// </summary>
-public record SessionInfo<TUserInfo>(string? Key, DomainUser<TUserInfo>? User)
+public record SessionInfo<TUserInfo>(string Key, DomainUser<TUserInfo>? User)
     where TUserInfo: class, IUserInfo, new()
 {
     /// <summary>
     /// 无参构造（供 Json 反序列化或其他场景使用）
     /// </summary>
     [JsonConstructor]
-    public SessionInfo() : this(null, null) { }
+    public SessionInfo() : this(string.Empty, null) { }
 
     /// <summary>
     /// 使用用户构造（可选）
     /// </summary>
-    public SessionInfo(DomainUser<TUserInfo> user) : this(null, user) { }
+    public SessionInfo(DomainUser<TUserInfo> user) : this(string.Empty, user) { }
 
     /// <summary>
     /// 创建时间（不可变，使用 UTC 时间）

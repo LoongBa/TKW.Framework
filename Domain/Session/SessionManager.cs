@@ -1,5 +1,4 @@
-﻿#nullable enable
-using Microsoft.Extensions.Caching.Hybrid;
+﻿using Microsoft.Extensions.Caching.Hybrid;
 using System;
 using System.Threading.Tasks;
 using TKW.Framework.Common.Tools;
@@ -46,8 +45,8 @@ public class SessionManager<TUserInfo>(
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
-        return result.Exists;
+        var (exists, _) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        return exists;
     }
 
     public async Task<SessionInfo<TUserInfo>> GetSessionAsync(string sessionKey)
@@ -55,8 +54,8 @@ public class SessionManager<TUserInfo>(
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
 
-        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
-        return result.Exists ? result.Value! : throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
+        var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        return exists ? value! : throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
     }
 
     public async Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync(string sessionKey)
@@ -92,12 +91,12 @@ public class SessionManager<TUserInfo>(
         if (string.IsNullOrWhiteSpace(sessionKey))
             return null;
 
-        var result = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
-        if (!result.Exists) return null;
+        var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        if (!exists) return null;
 
         await _cache.RemoveAsync(sessionKey).ConfigureAwait(false);
-        OnSessionAbandon(result.Value!);
-        return result.Value;
+        OnSessionAbandon(value!);
+        return value;
     }
     
     public virtual void OnSessionCreated(SessionInfo<TUserInfo> session)

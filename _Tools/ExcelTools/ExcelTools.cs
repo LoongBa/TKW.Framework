@@ -155,11 +155,11 @@ public static class ExcelTools
         }
         catch (Exception ex)
         {
-            paramErrorResult = new EntityConvertResult<T>
+            paramErrorResult = new()
             {
                 Success = false,
                 RowIndex = 0,
-                Failure = new ImportFailure
+                Failure = new()
                 {
                     RowIndex = 0,
                     ErrorMessage = $"参数校验失败：{ex.Message}",
@@ -199,11 +199,11 @@ public static class ExcelTools
             // 检查表头是否为空（记录错误，不直接yield）
             if (headers.Count == 0)
             {
-                initErrorResult = new EntityConvertResult<T>
+                initErrorResult = new()
                 {
                     Success = false,
                     RowIndex = 0,
-                    Failure = new ImportFailure { RowIndex = 0, ErrorMessage = "Excel表头为空，无法读取数据" }
+                    Failure = new() { RowIndex = 0, ErrorMessage = "Excel表头为空，无法读取数据" }
                 };
             }
             else
@@ -215,11 +215,11 @@ public static class ExcelTools
         catch (Exception ex)
         {
             // 记录初始化错误，不直接yield
-            initErrorResult = new EntityConvertResult<T>
+            initErrorResult = new()
             {
                 Success = false,
                 RowIndex = 0,
-                Failure = new ImportFailure
+                Failure = new()
                 {
                     RowIndex = 0,
                     ErrorMessage = $"Excel初始化失败：{ex.Message}",
@@ -294,16 +294,16 @@ public static class ExcelTools
             catch (Exception ex)
             {
                 // 捕获行处理异常，封装为失败结果
-                rowResult = new EntityConvertResult<T>
+                rowResult = new()
                 {
                     Success = false,
                     RowIndex = rowIndex,
-                    Failure = new ImportFailure
+                    Failure = new()
                     {
                         RowIndex = rowIndex,
                         ErrorMessage = $"行处理异常：{ex.Message}",
                         Exception = ex,
-                        RowValues = new Dictionary<string, object?>()
+                        RowValues = []
                     }
                 };
             }
@@ -560,13 +560,13 @@ public static class ExcelTools
     {
         return validateResult switch
         {
-            RecordValidateResultEnum.Keep => new EntityConvertResult<T>
+            RecordValidateResultEnum.Keep => new()
             {
                 Success = true,
                 RowIndex = rowIndex,
                 Entity = entity
             },
-            RecordValidateResultEnum.Skip => new EntityConvertResult<T>
+            RecordValidateResultEnum.Skip => new()
             {
                 Success = false,
                 RowIndex = rowIndex,
@@ -577,7 +577,7 @@ public static class ExcelTools
                     RowValues = rawData
                 }
             },
-            RecordValidateResultEnum.Terminate => new EntityConvertResult<T>
+            RecordValidateResultEnum.Terminate => new()
             {
                 Success = false,
                 RowIndex = rowIndex,
@@ -588,11 +588,11 @@ public static class ExcelTools
                     RowValues = rawData
                 }
             },
-            _ => new EntityConvertResult<T>
+            _ => new()
             {
                 Success = false,
                 RowIndex = rowIndex,
-                Failure = new ImportFailure
+                Failure = new()
                 {
                     RowIndex = rowIndex,
                     ErrorMessage = $"未知的验证结果：{validateResult}",
@@ -1027,7 +1027,7 @@ public static class ExcelTools
         {
             if (value == null)
             {
-                return new ConvertResult
+                return new()
                 {
                     Success = true,
                     Value = GetDefaultOrNull(targetType)
@@ -1036,7 +1036,7 @@ public static class ExcelTools
 
             if (targetType.IsInstanceOfType(value))
             {
-                return new ConvertResult
+                return new()
                 {
                     Success = true,
                     Value = value
@@ -1047,7 +1047,7 @@ public static class ExcelTools
 
             if (value is string s && string.IsNullOrWhiteSpace(s))
             {
-                return new ConvertResult
+                return new()
                 {
                     Success = true,
                     Value = GetDefaultOrNull(targetType)
@@ -1057,7 +1057,7 @@ public static class ExcelTools
             var convertDelegate = GetTypeConvertDelegate(nonNullable);
             var convertedValue = convertDelegate.Invoke(value, log);
 
-            return new ConvertResult
+            return new()
             {
                 Success = true,
                 Value = convertedValue
@@ -1067,7 +1067,7 @@ public static class ExcelTools
         {
             var errorMsg = $"转换失败【{value}→{targetType.Name}】：{ex.Message}";
             log?.Invoke(errorMsg);
-            return new ConvertResult
+            return new()
             {
                 Success = false,
                 Value = GetDefaultOrNull(targetType),

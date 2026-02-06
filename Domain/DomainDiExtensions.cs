@@ -14,7 +14,7 @@ namespace TKW.Framework.Domain;
 
 public static class DomainDiExtensions
 {
-    #region 全局日志
+    #region 全局日志（基础设施，可被表现层覆盖，不强制单例）
 
     extension(ContainerBuilder left)
     {
@@ -27,81 +27,143 @@ public static class DomainDiExtensions
         public IRegistrationBuilder<ILoggerFactory, SimpleActivatorData, SingleRegistrationStyle>
             UseLogger(ILoggerFactory loggerFactory)
         {
-            loggerFactory.EnsureNotNull(name: nameof(loggerFactory));
+            loggerFactory.EnsureNotNull(nameof(loggerFactory));
             return left.RegisterInstance(loggerFactory).As<ILoggerFactory>();
         }
     }
 
     #endregion
 
-    #region 会话二级缓存
+    #region 会话二级缓存（强制单例，核心基础设施）
 
-    extension(ContainerBuilder left)
+    public static IRegistrationBuilder<ISessionManager<TUserInfo>, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+        UseSessionManager<TUserInfo>(this ContainerBuilder left) where TUserInfo : class, IUserInfo, new()
     {
-        public IRegistrationBuilder<ISessionManager<TUserInfo>, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            UseSessionManager<TUserInfo>() where TUserInfo : class, IUserInfo, new()
-        {
-            return left.RegisterType<SessionManager<TUserInfo>>().As<ISessionManager<TUserInfo>>()
-                .SingleInstance();
-        }
+        return left.RegisterType<SessionManager<TUserInfo>>()
+            .As<ISessionManager<TUserInfo>>()
+            .SingleInstance(); // 强制单例，不允许覆盖
     }
 
     #endregion
 
-    #region 数据库相关配置
+    #region 数据库相关配置（强制单例）
 
     public static IRegistrationBuilder<IDomainDataAccessHelper, SimpleActivatorData, SingleRegistrationStyle>
         AddDomainDataAccessHelper<TIDomainDbContextFactory>(this ContainerBuilder left, TIDomainDbContextFactory domainDbContextFactory)
         where TIDomainDbContextFactory : class, IDomainDataAccessHelper
     {
         domainDbContextFactory.EnsureNotNull(nameof(domainDbContextFactory));
-        return left.RegisterInstance(domainDbContextFactory).SingleInstance().As<TIDomainDbContextFactory>();
+        return left.RegisterInstance(domainDbContextFactory)
+            .SingleInstance()
+            .As<TIDomainDbContextFactory>();
     }
 
     #endregion
 
-    #region 控制器
+    #region 控制器与服务注册（核心领域逻辑，默认强制单例，不允许表现层覆盖）
 
-    /// <param name="left"></param>
-    extension(ContainerBuilder left)
+    extension(ContainerBuilder builder)
     {
         /// <summary>
-        /// 注册服务（不受拦截器影响）
+        /// 注册普通领域服务（不受拦截器影响，单例且强制，不允许表现层覆盖）
         /// </summary>
-        public IRegistrationBuilder<TDomainService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddService<TDomainService>()
-            where TDomainService : class, IDomainService
+        public IRegistrationBuilder<TLimit, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            AddService<TLimit>()
+            where TLimit : class, IDomainService
         {
-            return left.RegisterType<TDomainService>();
+            return builder.RegisterType<TLimit>().SingleInstance();
         }
 
         /// <summary>
-        /// 注册多个服务（不受拦截器影响）
+        /// 批量注册普通领域服务（单例且强制）
         /// </summary>
         public IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
-            AddDomainServices<TDomainService>(Type[] controllers)
-            where TDomainService : class, IDomainService
+            AddServices<TLimit>(params Type[] implementations)
+            where TLimit : class, IDomainService
         {
-            var list = controllers.Where(c => c.IsAssignableFrom(typeof(TDomainService))).ToArray();
-            return left.RegisterTypes(list);
+            var validTypes = implementations
+                .Where(t => typeof(TLimit).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
+                .ToArray();
+
+            return builder.RegisterTypes(validTypes).SingleInstance();
         }
 
         /// <summary>
-        /// 注册受拦截的控制器
+        /// 注册受拦截的 Aop 服务（单例且强制，不允许表现层覆盖）
         /// </summary>
-        /// <typeparam name="TContractInterface"></typeparam>
-        /// <typeparam name="TAopContract"></typeparam>
-        /// <typeparam name="TUserInfo"></typeparam>
-        public IRegistrationBuilder<TAopContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
-            AddAopService<TContractInterface, TAopContract, TUserInfo>()
-            where TAopContract : class, IAopContract
-            where TContractInterface : class, IAopContract
+        public IRegistrationBuilder<TContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            AddAopService<TContract, TImplementer, TUserInfo>()
+            where TContract : class, IAopContract
+            where TImplementer : class, TContract
             where TUserInfo : class, IUserInfo, new()
         {
-            return left.RegisterType<TAopContract>()
-                .As<TContractInterface>()
+            return builder.RegisterType<TImplementer>()
+                .As<TContract>()
                 .EnableInterfaceInterceptors()
-                .InterceptedBy(typeof(DomainInterceptor<TUserInfo>)); //TKW Domain 领域框架拦截器
+                .InterceptedBy(typeof(DomainInterceptor<TUserInfo>))
+                .SingleInstance();
+        }
+
+        /// <summary>
+        /// 批量注册受拦截的 Aop 服务（单例且强制，不允许表现层覆盖）
+        /// </summary>
+        public void AddAopServices<TContract, TUserInfo>(params Type[] implementations)
+            where TContract : class, IAopContract
+            where TUserInfo : class, IUserInfo, new()
+        {
+            var interceptorType = typeof(DomainInterceptor<>).MakeGenericType(typeof(TUserInfo));
+
+            foreach (var implType in implementations)
+            {
+                if (!typeof(TContract).IsAssignableFrom(implType) || implType.IsAbstract || implType.IsInterface)
+                    continue;
+
+                builder.RegisterType(implType)
+                    .As<TContract>()
+                    .EnableInterfaceInterceptors()
+                    .InterceptedBy(interceptorType)
+                    .SingleInstance();
+            }
+        }
+
+        /// <summary>
+        /// 强制注册实例（单例，不允许后续覆盖）
+        /// 适用于 FreeSql、配置对象、自定义单例实例等场景
+        /// </summary>
+        public IRegistrationBuilder<TService, SimpleActivatorData, SingleRegistrationStyle>
+            RegisterInstanceForced<TService>(TService instance)
+            where TService : class
+        {
+            instance.EnsureNotNull(nameof(instance));
+            return builder.RegisterInstance(instance)
+                .As<TService>()
+                .SingleInstance();
+        }
+
+        /// <summary>
+        /// 强制注册类型（单例，不允许后续覆盖）
+        /// 适用于需要 Autofac 自动创建实例，但必须强制单例的场景
+        /// </summary>
+        public IRegistrationBuilder<TService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            RegisterTypeForced<TService, TImplementer>()
+            where TImplementer : class, TService
+            where TService : class
+        {
+            return builder.RegisterType<TImplementer>()
+                .As<TService>()
+                .SingleInstance();
+        }
+
+        /// <summary>
+        /// 强制注册类型（单例，自动推导所有接口，不允许后续覆盖）
+        /// </summary>
+        public IRegistrationBuilder<TImplementer, ConcreteReflectionActivatorData, SingleRegistrationStyle>
+            RegisterTypeForced<TImplementer>()
+            where TImplementer : class
+        {
+            return builder.RegisterType<TImplementer>()
+                .AsImplementedInterfaces()
+                .SingleInstance();
         }
     }
 

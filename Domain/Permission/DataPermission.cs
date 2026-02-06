@@ -8,7 +8,7 @@ public class DataPermission(
     string permissionId,
     string permissionName,
     EnumNoneReadOnlyReadWrite type = EnumNoneReadOnlyReadWrite.ReadOnly,
-    string permissionText = null)
+    string? permissionText = null)
     : UserPermissionBase(oper, permissionId, permissionName, type, permissionText)
 {
     public EnumNoneReadOnlyReadWrite Type { get; } = type;

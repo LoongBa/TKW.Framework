@@ -12,7 +12,7 @@ public sealed class DomainContext<TUserInfo> where TUserInfo : class, IUserInfo,
         DomainUser<TUserInfo> domainUser,
         IInvocation invocation,
         DomainContracts<TUserInfo> contracts,
-        ILoggerFactory loggerFactory = null)
+        ILoggerFactory? loggerFactory = null)
     {
         DomainUser = domainUser;
         Invocation = new DomainMethodInvocation(invocation);
@@ -22,7 +22,7 @@ public sealed class DomainContext<TUserInfo> where TUserInfo : class, IUserInfo,
         ControllerFlags = contracts.ControllerFlags.AsReadOnly();
         Logger = loggerFactory?.CreateLogger($"{invocation.TargetType.Name}.{invocation.Method.Name}()");
     }
-    public ILogger Logger { get; }
+    public ILogger? Logger { get; }
     public DomainUser<TUserInfo> DomainUser { get; }
     public DomainMethodInvocation Invocation { get; }
 

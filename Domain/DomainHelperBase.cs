@@ -37,7 +37,7 @@ public abstract class DomainHelperBase<TUserInfo>(Func<DomainHost<TUserInfo>>? h
         newSession.User!.UserInfo = userInfo;
         newSession.User.IsAuthenticated = false;
 
-        await DomainHostFactory().SessionManager
+        await DomainHostFactory().SessionManager!
             .UpdateAndActiveSessionAsync(
                 newSession.Key!,
                 _ => newSession)

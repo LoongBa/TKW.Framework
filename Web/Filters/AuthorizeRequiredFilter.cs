@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Claims;
 using System.Security.Principal;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -22,7 +23,7 @@ public class AuthorizeRequiredFilter<TUserInfo> : IAuthorizationFilter
     /// <param name="context">The <see cref="T:Microsoft.AspNetCore.Mvc.Filters.AuthorizationFilterContext" />.</param>
     public void OnAuthorization(AuthorizationFilterContext context)
     {
-        if (context == null) throw new ArgumentNullException(nameof(context));
+        ArgumentNullException.ThrowIfNull(context);
 
         #region 尝试恢复会话
         SessionInfo<TUserInfo> session = null;
@@ -81,10 +82,10 @@ public class AuthorizeRequiredFilter<TUserInfo> : IAuthorizationFilter
     /// <param name="httpContext">HTTP 上下文，它封装有关单个 HTTP 请求的所有 HTTP 特定的信息。</param>
     /// <exception cref="T:System.ArgumentNullException">
     /// <paramref name="httpContext" /> 参数为 null。</exception>
-    private bool AuthorizeCore(HttpContext httpContext)
+    private static bool AuthorizeCore(HttpContext httpContext)
     {
-        if (httpContext == null) throw new ArgumentNullException(nameof(httpContext));
-        var user = httpContext.User as IPrincipal;
+        ArgumentNullException.ThrowIfNull(httpContext);
+        var user = httpContext.User;
         return user?.Identity?.IsAuthenticated ?? false;//&& (this._usersSplit.Length <= 0 || ((IEnumerable<string>)this._usersSplit).Contains<string>(domainUser.Identity.Name, (IEqualityComparer<string>)StringComparer.OrdinalIgnoreCase)) && (this._rolesSplit.Length <= 0 || ((IEnumerable<string>)this._rolesSplit).Any<string>(new Func<string, bool>(domainUser.IsInRole)));
     }
     /// <summary>

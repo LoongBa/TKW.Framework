@@ -1,8 +1,4 @@
-﻿using System;
-using TKW.Framework.Common.Extensions;
-using TKW.Framework.Domain.Interfaces;
-
-namespace TKW.Framework.Domain.Session;
+﻿namespace TKW.Framework.Domain.Session;
 
 /*public class SessionUser<T>
     where T : DomainUser, ICopyValues<T>

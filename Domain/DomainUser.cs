@@ -1,5 +1,4 @@
-﻿#nullable enable
-using Autofac;
+﻿using Autofac;
 using System;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -33,6 +32,13 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public bool IsAuthenticated { get; internal set; }
 
+    [JsonIgnore]
+    private IContainer Container => Host.Container.EnsureNotNull("Host.Container")!;
+    [JsonIgnore]
+    private DomainHost<TUserInfo> Host => DomainHostFactory().EnsureNotNull("DomainHostFactory()");
+    [JsonIgnore]
+    private ISessionManager<TUserInfo> SessionManager => Host.SessionManager.EnsureNotNull("Host.SessionManager")!;
+
     /// <summary>
     /// 用户信息（具体类型，序列化安全）
     /// </summary>
@@ -64,8 +70,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase<TUserInfo>
     {
-        return DomainHostFactory().EnsureNotNull(nameof(DomainHostFactory))
-            .Container.Resolve<TDomainService>(TypedParameter.From(this));
+        return Container.Resolve<TDomainService>(TypedParameter.From(this));
     }
 
     /// <summary>
@@ -73,8 +78,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
     {
-        return DomainHostFactory().EnsureNotNull(nameof(DomainHostFactory))
-            .Container.Resolve<TAopContract>(TypedParameter.From(this));
+        return Container.Resolve<TAopContract>(TypedParameter.From(this));
     }
 
     #endregion
@@ -84,7 +88,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// <summary>
     /// Guest 登录为指定用户
     /// </summary>
-    public async Task<DomainUser<TUserInfo>> LoginAsUserAsync(
+    public async Task LoginAsUserAsync(
         string userName,
         string passwordHashed,
         LoginFromEnum loginFrom)
@@ -93,12 +97,10 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
             .UserLoginAsync(this, userName, passwordHashed, loginFrom)
             .ConfigureAwait(false);
 
-        UserInfo = (TUserInfo)userInfo;  // 类型转换，确保兼容
+        UserInfo = userInfo;
         IsAuthenticated = true;
 
         await UpdateAndActiveSessionAsync().ConfigureAwait(false);
-
-        return this;
     }
 
     /// <summary>
@@ -106,7 +108,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public async Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync()
     {
-        return await DomainHostFactory().SessionManager
+        return await DomainHostFactory().SessionManager!
             .GetAndActiveSessionAsync(SessionKey)
             .ConfigureAwait(false);
     }
@@ -116,7 +118,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     internal async Task GuestOrUserLogoutAsync()
     {
-        await DomainHostFactory().SessionManager
+        await DomainHostFactory().SessionManager!
             .AbandonSessionAsync(SessionKey)
             .ConfigureAwait(false);
     }
@@ -126,15 +128,14 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public async Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync()
     {
-        var host = DomainHostFactory();
-        var session = await host.SessionManager
+        var session = await SessionManager
             .GetSessionAsync(SessionKey)
             .ConfigureAwait(false);
 
         var newSession = session.BindUser(this);
 
-        await host.SessionManager.UpdateAndActiveSessionAsync(
-            newSession.Key!,
+        await SessionManager.UpdateAndActiveSessionAsync(
+            newSession.Key,
             _ => newSession)
             .ConfigureAwait(false);
 

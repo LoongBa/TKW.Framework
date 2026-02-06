@@ -25,6 +25,6 @@ public sealed class SimpleApplication : IApplication
 
     public Guid Uid { get; }
     public string Name { get; }
-    public string Version { get; }
-    public string Description { get; }
+    public string Version { get; } = string.Empty;
+    public string Description { get; } = string.Empty;
 }

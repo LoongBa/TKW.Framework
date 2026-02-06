@@ -28,7 +28,7 @@ public class SimpleUserInfo(string userIdString, string userName) : IUserInfo
 
     public string UserIdString { get; set; } = userIdString;
     public string UserName { get; set; } = userName;
-    public string DisplayName { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
     public LoginFromEnum LoginFrom { get; set; } = LoginFromEnum.Unset;
     public List<string> Roles { get; set; } = [];
     public bool IsInRole<T>(T role) where T : Enum

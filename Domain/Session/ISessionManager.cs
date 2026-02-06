@@ -68,7 +68,7 @@ public interface ISessionManager<TUserInfo> where TUserInfo : class, IUserInfo, 
     /// <param name="sessionKey">会话 key</param>
     /// <returns>表示异步操作的任务</returns>
     /// <exception cref="SessionException">当会话键无效时抛出</exception>
-    Task<SessionInfo<TUserInfo>> AbandonSessionAsync(string sessionKey);
+    Task<SessionInfo<TUserInfo>?> AbandonSessionAsync(string sessionKey);
 
     /// <summary>
     /// 异步更新并激活指定会话

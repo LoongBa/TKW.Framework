@@ -1,7 +1,4 @@
-﻿// TKW.Domain.Web / Middleware / SessionUserMiddleware.cs
-
-#nullable enable
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Linq;
 using System.Threading.Tasks;
 using TKW.Framework.Domain;
@@ -19,12 +16,17 @@ public class SessionUserMiddleware<TUserInfo>(RequestDelegate next, ISessionMana
     where TUserInfo : class, IUserInfo, new()
 
 {
+    public const string KeyName_DomainUser = "DomainUser";
+    public const string SessionKeyName_Cookie = "SessionKey";
+    public const string SessionKeyName_Header = "X-Session-Key";
+    public const string SessionKeyName_QueryString = "sk";
+
     public async Task InvokeAsync(HttpContext context)
     {
         // 1. 尝试从 Cookie / Header / Query 获取 SessionKey
-        var sessionKey = context.Request.Cookies["SessionKey"]
-                         ?? context.Request.Headers["X-Session-Key"].FirstOrDefault()
-                         ?? context.Request.Query["sessionKey"].ToString();
+        var sessionKey = context.Request.Cookies[SessionKeyName_Cookie]
+                         ?? context.Request.Headers[SessionKeyName_Header].FirstOrDefault()
+                         ?? context.Request.Query[SessionKeyName_QueryString].ToString();
 
         DomainUser<TUserInfo>? currentUser = null;
 
@@ -44,7 +46,7 @@ public class SessionUserMiddleware<TUserInfo>(RequestDelegate next, ISessionMana
         }
 
         // 3. 注入到 Items，供 Controller / Blazor 使用
-        context.Items["CurrentDomainUser"] = currentUser;
+        context.Items[KeyName_DomainUser] = currentUser;
 
         await next(context);
     }

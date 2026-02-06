@@ -28,7 +28,7 @@ public class UserPermissionBase : IUserPermission
     public string Text { get; }
 
     /// <summary>初始化 <see cref="T:System.Object" /> 类的新实例。</summary>
-    public UserPermissionBase(Operator oper, string permissionId, string permissionName, Enum type, string permissionText = null)
+    public UserPermissionBase(Operator oper, string permissionId, string permissionName, Enum type, string? permissionText = null)
     {
         oper.EnsureNotNull(name: nameof(oper));
         permissionId.EnsureHasValue(nameof(permissionId));
