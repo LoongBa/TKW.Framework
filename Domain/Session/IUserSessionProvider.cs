@@ -8,7 +8,7 @@ public interface IUserSessionProvider<TUserInfo> where TUserInfo : class, IUserI
     /// <summary>
     /// 会话 Key 的 KeyName
     /// </summary>
-    string SessionKey_KeyName { get; }
+    string SessionKeyKeyName { get; }
 
     /// <summary>
     /// 产生新的 Guest 用户会话

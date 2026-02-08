@@ -17,11 +17,11 @@ public class SessionManager<TUserInfo>(
     string sessionKeyKeyName = "SessionKey") : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
-    private readonly HybridCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+    private readonly HybridCache _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
 
     public TimeSpan SessionExpiredTimeSpan { get; } = sessionExpiredTimeSpan ?? TimeSpan.FromMinutes(10);
 
-    public string SessionKey_KeyName { get; } = sessionKeyKeyName;
+    public string SessionKeyKeyName { get; } = sessionKeyKeyName;
 
     public event SessionCreated<TUserInfo>? SessionCreated;
 
@@ -31,7 +31,7 @@ public class SessionManager<TUserInfo>(
     {
         var sessionKey = GenerateNewSessionKey();
 
-        return await _cache.GetOrCreateAsync(sessionKey.AsSpan(),
+        return await _Cache.GetOrCreateAsync(sessionKey.AsSpan(),
             _ =>
             {
                 var session = new SessionInfo<TUserInfo>(sessionKey, null);
@@ -67,7 +67,7 @@ public class SessionManager<TUserInfo>(
 
         var updated = current.Active();
 
-        await _cache.SetAsync(sessionKey, updated,
+        await _Cache.SetAsync(sessionKey, updated,
             new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
             .ConfigureAwait(false);
 
@@ -79,7 +79,7 @@ public class SessionManager<TUserInfo>(
         var current = await GetSessionAsync(sessionKey).ConfigureAwait(false);
         var updated = updater(current);
 
-        await _cache.SetAsync(sessionKey, updated,
+        await _Cache.SetAsync(sessionKey, updated,
                 new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
             .ConfigureAwait(false);
 
@@ -94,7 +94,7 @@ public class SessionManager<TUserInfo>(
         var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
         if (!exists) return null;
 
-        await _cache.RemoveAsync(sessionKey).ConfigureAwait(false);
+        await _Cache.RemoveAsync(sessionKey).ConfigureAwait(false);
         OnSessionAbandon(value!);
         return value;
     }
@@ -144,7 +144,7 @@ public class SessionManager<TUserInfo>(
     {
         var exists = true;
 
-        var value = await _cache.GetOrCreateAsync<SessionInfo<TUserInfo>?>(
+        var value = await _Cache.GetOrCreateAsync<SessionInfo<TUserInfo>?>(
             sessionKey.AsSpan(),
             _ =>
             {

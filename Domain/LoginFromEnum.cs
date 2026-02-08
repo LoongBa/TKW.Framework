@@ -9,7 +9,7 @@ public enum LoginFromEnum
     [Display(Name = "自定义")]
     Customized = 0,
     [Display(Name = "PCWeb")]
-    PCWeb = 1,
+    PcWeb = 1,
     [Display(Name = "移动Web")]
     MobileWeb = 2,
     [Display(Name = "手机App")]
@@ -25,5 +25,5 @@ public enum LoginFromEnum
     [Display(Name = "ELinkApp")]
     ELinkApp = 8,
     [Display(Name = "测试")]
-    Tester = -1,
+    Tester = -99,
 }

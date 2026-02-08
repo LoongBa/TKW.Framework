@@ -25,7 +25,7 @@ public interface ISessionManager<TUserInfo> where TUserInfo : class, IUserInfo, 
     /// <summary>
     /// 用于保存会话 Key 的 KeyName
     /// </summary>
-    string SessionKey_KeyName { get; }
+    string SessionKeyKeyName { get; }
 
     /// <summary>
     /// 异步创建新会话

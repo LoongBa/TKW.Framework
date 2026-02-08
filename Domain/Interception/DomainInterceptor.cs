@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Autofac;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Extensions;
-using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
@@ -15,10 +13,12 @@ namespace TKW.Framework.Domain.Interception;
 /// 领域拦截器（核心 AOP 组件）：负责注入 DomainContext、执行前后置过滤器、异常处理
 /// </summary>
 /// <remarks>
-/// 1. 支持方法级、控制器级、全局级过滤器
+/// 1. 支持方法级、控制器级、全局级过滤器（全局 Filter 由 DomainHost 统一管理）
 /// 2. 通过 DomainContext 自动注入当前 DomainUser<TUserInfo>
 /// 3. 支持异步过滤器（Pre/PostProceedAsync）
-/// 4. 全局异常统一处理（可扩展）
+/// 4. 全局异常统一处理（可被应用层替换）
+/// 
+/// 注意：全局过滤器默认为空，需要通过 DomainHost.AddGlobalFilter 或 EnableDomainLogging 等方式显式启用。
 /// </remarks>
 public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposable
     where TUserInfo : class, IUserInfo, new()
@@ -26,14 +26,6 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     private readonly DomainHost<TUserInfo> _DomainHost;
     private readonly IDomainGlobalExceptionFactory _GlobalExceptionFactory;
     private readonly ILifetimeScope _LifetimeScope;
-
-    // 全局过滤器列表（静态注册，建议在 DomainHost 初始化时添加）
-    private static readonly List<DomainFilterAttribute<TUserInfo>> GlobalFilters =
-    [
-        new LoggingFilterAttribute<TUserInfo>(), // 示例全局日志
-        new AuthorityFilterAttribute<TUserInfo>() // 示例全局授权
-        // new TransactionFilterAttribute<TUserInfo>()  // 示例事务
-    ];
 
     public DomainInterceptor(DomainHost<TUserInfo> domainHost, IDomainGlobalExceptionFactory globalExceptionFactory)
     {
@@ -57,14 +49,14 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     {
         if (Context == null) return;
 
-        // 全局过滤器
-        foreach (var filter in GlobalFilters)
+        // 全局过滤器（从 DomainHost 获取）
+        foreach (var filter in _DomainHost.GlobalFilters)
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Global, Context))
                 await filter.PreProceedAsync(DomainInvocationWhereType.Global, Context);
         }
 
-        // 控制器级（排除重复）
+        // 控制器级（排除与方法级重复的 Filter）
         var controllerFilters = Context.ControllerFilters
             .Where(cf => Context.MethodFilters.All(mf => mf.TypeId != cf.TypeId));
 
@@ -86,14 +78,14 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     {
         if (Context == null) return;
 
-        // 方法级后置
+        // 方法级后置（逆序执行）
         foreach (var filter in Context.MethodFilters.AsEnumerable().Reverse())
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Method, Context))
                 await filter.PostProceedAsync(DomainInvocationWhereType.Method, Context);
         }
 
-        // 控制器级后置
+        // 控制器级后置（逆序执行）
         var controllerFilters = Context.ControllerFilters
             .Where(cf => Context.MethodFilters.All(mf => mf.TypeId != cf.TypeId))
             .AsEnumerable()
@@ -105,8 +97,8 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
                 await filter.PostProceedAsync(DomainInvocationWhereType.Controller, Context);
         }
 
-        // 全局后置
-        foreach (var filter in GlobalFilters.AsEnumerable().Reverse())
+        // 全局后置（逆序执行）
+        foreach (var filter in _DomainHost.GlobalFilters.AsEnumerable().Reverse())
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Global, Context))
                 await filter.PostProceedAsync(DomainInvocationWhereType.Global, Context);

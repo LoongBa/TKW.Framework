@@ -1,6 +1,10 @@
-﻿using Autofac;
+﻿using System;
+using Autofac;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
+using TKW.Framework.Domain.Interception;
+using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;
@@ -9,6 +13,12 @@ public abstract class DomainHostInitializerBase<TUserInfo, TDomainHelper>
 where TUserInfo : class, IUserInfo, new()
 where TDomainHelper : DomainHelperBase<TUserInfo>
 {
+    private DomainHost<TUserInfo>? Host
+    {
+        get => field ?? throw new InvalidOperationException("Host 尚未初始化，无法访问");
+        set;
+    }
+
     /// <summary>
     /// 配置依赖注入容器，添加应用程序特定的服务和设置
     /// </summary>
@@ -17,7 +27,6 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
     /// <param name="containerBuilder">容器构建器，用于注册依赖注入的组件和服务</param>
     /// <param name="services">服务描述符集合，可以向其中添加或配置服务</param>
     /// <param name="configuration">应用程序配置设置，用于配置服务和组件</param>
-
     protected abstract void InitializeContainer(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration);
 
     /// <summary>
@@ -36,7 +45,50 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
     /// </summary>
     /// <remarks>重写此方法可以在容器完全构建后、但在使用容器解析服务之前执行自定义操作。
     /// 此方法适用于需要构建后配置的高级场景。</remarks>
-    protected internal abstract void OnContainerBuilt(DomainHost<TUserInfo> host, bool isExternalContainer = false);
+    protected internal abstract void OnContainerBuilt(IContainer? container, IConfiguration? configuration,
+        bool isExternalContainer = false);
+
+    /// <summary>
+    /// 构造默认的全局过滤器，例如日志记录、权限检查等。
+    /// 这些过滤器将应用于所有领域方法调用，提供统一的横切关注点处理。
+    /// 例如：base.EnableDomainLogging(); base.EnableAuthorityFilter();
+    /// </summary>
+    protected abstract void ConfigureGlobalFilterInstances(IContainer? container, IConfiguration? configuration);
+
+    /// <summary>
+    /// 添加单个全局过滤器（推荐在 OnContainerBuilt 或扩展方法中调用）
+    /// </summary>
+    protected void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter)
+    {
+        Host?.AddGlobalFilter(filter);
+    }
+
+    /// <summary>
+    /// 批量添加全局过滤器
+    /// </summary>
+    protected void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters)
+    {
+        Host?.AddGlobalFilters(filters);
+    }
+    /// <summary>
+    /// 允许启用领域日志记录过滤器，自动记录领域方法的调用、参数、返回值和异常等信息。
+    /// 日志级别可配置（Normal、Detailed等）。需要配合具体的日志实现（例如 Microsoft.Extensions.Logging）使用。
+    /// <see cref="LoggingFilterAttribute{TUserInfo}"/>
+    /// </summary>
+    protected void EnableDomainLogging(EnumDomainLogLevel level = EnumDomainLogLevel.Normal)
+    {
+        Host?.AddGlobalFilter(new LoggingFilterAttribute<TUserInfo>(level));
+    }
+
+    /// <summary>
+    /// 允许启用权限过滤器，自动检查用户权限并拒绝未授权访问。
+    /// 需要配合具体的权限实现（例如基于角色、基于声明等）使用。
+    /// <see cref="AuthorityFilterAttribute{TUserInfo}"/>
+    /// </summary>
+    protected void EnableAuthorityFilter()
+    {
+        Host?.AddGlobalFilter(new AuthorityFilterAttribute<TUserInfo>());
+    }
 
     /// <summary>
     /// 配置 DMP_Lite 领域服务（数据库、日志、AOP等）
@@ -59,10 +111,16 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
     /// <summary>
     /// 在依赖注入容器构建完成后调用，以允许进行额外的配置或初始化。
     /// </summary>
-    internal void ContainerBuiltCallback(DomainHost<TUserInfo> host, IContainer? container, bool isExternalContainer = false)
+    internal void ContainerBuiltCallback(DomainHost<TUserInfo> host, bool isExternalContainer = false)
     {
-        // 调用派生类的 OnContainerBuilt 方法，允许进行额外的配置或初始化
-        OnContainerBuilt(host, isExternalContainer);
-    }
+        ArgumentNullException.ThrowIfNull(host);
 
+        // 设置 Host 属性，供后续方法使用
+        Host = host;
+        // 调用虚方法，让派生类决定默认 Filter
+        ConfigureGlobalFilterInstances(host.Container, host.Configuration);
+
+        // 调用派生类的 OnContainerBuilt 方法，允许进行额外的配置或初始化
+        OnContainerBuilt(host.Container, host.Configuration, isExternalContainer);
+    }
 }
