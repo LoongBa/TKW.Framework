@@ -43,7 +43,7 @@ public class GlobalExceptionFilterAttribute : ExceptionFilterAttribute
         DefaultLoginUrl = defaultLoginUrl;
         CustomErrorViewName = customCustomErrorViewName;
     }
-    private readonly Dictionary<string, bool> _CustomViewChecked = new Dictionary<string, bool>();
+    private readonly Dictionary<string, bool> _CustomViewChecked = [];
 
     /// <exception cref="Exception">A delegate callback throws an exception.</exception>
     /// <exception cref="NotImplementedException"></exception>
@@ -57,7 +57,7 @@ public class GlobalExceptionFilterAttribute : ExceptionFilterAttribute
         }
         catch (Exception e) //项目异常处理代码中的异常
         {
-            resultModel = new ExceptionHandledResultModel(new ExceptionHandled(e), CustomErrorViewName, DefaultLoginUrl);
+            resultModel = new(new ExceptionHandled(e), CustomErrorViewName, DefaultLoginUrl);
         }
 
         //后续处理
@@ -99,7 +99,7 @@ public class GlobalExceptionFilterAttribute : ExceptionFilterAttribute
 */
 
                 var modelMetadataProvider = (IModelMetadataProvider)context.HttpContext.RequestServices.GetService(typeof(IModelMetadataProvider));
-                viewResult.ViewData = new ViewDataDictionary(modelMetadataProvider, context.ModelState)
+                viewResult.ViewData = new(modelMetadataProvider, context.ModelState)
                 {
                     Model = resultModel
                 };

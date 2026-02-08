@@ -15,9 +15,7 @@ public static class ControllerExtension
         public T GetCurrentUser<T>() where T : class, IPrincipal
         {
             var user = controller.User as T;
-            if (user == null)
-                throw new AuthenticationException();
-            return user;
+            return user ?? throw new AuthenticationException();
         }
 
         /// <summary>
@@ -25,10 +23,7 @@ public static class ControllerExtension
         /// </summary>
         /// <param name="redirectUrl">转向地址</param>
         /// <returns></returns>
-        public ClientRedirectResult ClientRedirect(string redirectUrl)
-        {
-            return new ClientRedirectResult(redirectUrl);
-        }
+        public static ClientRedirectResult ClientRedirect(string redirectUrl) => new(redirectUrl);
 
         /// <summary>
         /// 设置Cookies
@@ -36,7 +31,7 @@ public static class ControllerExtension
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
         public void SetCookies(string name, string value)
         {
-            SetCookies(controller, name, value, TimeSpan.FromMinutes(5));
+            controller.SetCookies(name, value, TimeSpan.FromMinutes(5));
         }
 
         /// <summary>
@@ -45,7 +40,7 @@ public static class ControllerExtension
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
         public void SetCookies(string name, string value, TimeSpan expires)
         {
-            controller.Response.Cookies.Append(name, value, new CookieOptions { Expires = DateTime.Now.Add(expires) });
+            controller.Response.Cookies.Append(name, value, new() { Expires = DateTime.Now.Add(expires) });
         }
 
         /// <summary>
@@ -63,7 +58,7 @@ public static class ControllerExtension
         /// <remarks>存疑：是否需要先删除 Cookie</remarks>
         public void SetCookiesForDomain(string name, string value, string domain, TimeSpan expires)
         {
-            controller.Response.Cookies.Append(name, value, new CookieOptions { Expires = DateTime.Now.Add(expires), Domain = domain });
+            controller.Response.Cookies.Append(name, value, new() { Expires = DateTime.Now.Add(expires), Domain = domain });
         }
 
         /// <summary>

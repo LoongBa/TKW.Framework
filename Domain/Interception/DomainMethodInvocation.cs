@@ -4,114 +4,25 @@ using Castle.DynamicProxy;
 
 namespace TKW.Framework.Domain.Interception;
 
-public sealed class DomainMethodInvocation
+public sealed class DomainMethodInvocation(IInvocation invocation)
 {
-    private readonly IInvocation _Invocation;
+    private readonly IInvocation _invocation = invocation;
 
-    /// <summary>Initializes a new instance of the <see cref="T:System.Object"></see> class.</summary>
-    public DomainMethodInvocation(IInvocation invocation)
-    {
-        _Invocation = invocation;
-    }
-
-    /// <summary>
-    ///   Gets the value of the argument at the specified <paramref name="index" />.
-    /// </summary>
-    /// <param name="index">The index.</param>
-    /// <returns>The value of the argument at the specified <paramref name="index" />.</returns>
-    public object GetArgumentValue(int index)
-    {
-        return _Invocation.GetArgumentValue(index);
-    }
-
-    /// <summary>
-    ///   Returns the concrete instantiation of the <see cref="P:Castle.DynamicProxy.IInvocation.Method" /> on the proxy, with any generic
-    ///   parameters bound to real types.
-    /// </summary>
-    /// <returns>
-    ///   The concrete instantiation of the <see cref="P:Castle.DynamicProxy.IInvocation.Method" /> on the proxy, or the <see cref="P:Castle.DynamicProxy.IInvocation.Method" /> if
-    ///   not a generic method.
-    /// </returns>
-    /// <remarks>
-    ///   Can be slower than calling <see cref="P:Castle.DynamicProxy.IInvocation.Method" />.
-    /// </remarks>
-    public MethodInfo GetConcreteMethod()
-    {
-        return _Invocation.GetConcreteMethod();
-    }
-
-    /// <summary>
-    ///   Returns the concrete instantiation of <see cref="P:Castle.DynamicProxy.IInvocation.MethodInvocationTarget" />, with any
-    ///   generic parameters bound to real types.
-    ///   For interface proxies, this will point to the <see cref="T:System.Reflection.MethodInfo" /> on the target class.
-    /// </summary>
-    /// <returns>The concrete instantiation of <see cref="P:Castle.DynamicProxy.IInvocation.MethodInvocationTarget" />, or
-    /// <see cref="P:Castle.DynamicProxy.IInvocation.MethodInvocationTarget" /> if not a generic method.</returns>
-    /// <remarks>
-    ///   In debug builds this can be slower than calling <see cref="P:Castle.DynamicProxy.IInvocation.MethodInvocationTarget" />.
-    /// </remarks>
-    public MethodInfo GetConcreteMethodInvocationTarget()
-    {
-        return _Invocation.GetConcreteMethodInvocationTarget();
-    }
-
-    /// <summary>
-    ///   Overrides the value of an argument at the given <paramref name="index" /> with the
-    ///   new <paramref name="value" /> provided.
-    /// </summary>
-    /// <remarks>
-    ///   This method accepts an <see cref="T:System.Object" />, however the value provided must be compatible
-    ///   with the type of the argument defined on the method, otherwise an exception will be thrown.
-    /// </remarks>
-    /// <param name="index">The index of the argument to override.</param>
-    /// <param name="value">The new value for the argument.</param>
-    public void SetArgumentValue(int index, object value)
-    {
-        _Invocation.SetArgumentValue(index, value);
-    }
-
-    /// <summary>
-    ///   Gets the arguments that the <see cref="P:Castle.DynamicProxy.IInvocation.Method" /> has been invoked with.
-    /// </summary>
-    /// <value>The arguments the method was invoked with.</value>
-    public object[] Arguments => _Invocation.Arguments;
-
-    /// <summary>Gets the generic arguments of the method.</summary>
-    /// <value>The generic arguments, or null if not a generic method.</value>
-    public Type[] GenericArguments => _Invocation.GenericArguments;
-
-    /// <summary>
-    ///   Gets the object on which the invocation is performed. This is different from proxy object
-    ///   because most of the time this will be the proxy target object.
-    /// </summary>
-    /// <seealso cref="T:Castle.DynamicProxy.IChangeProxyTarget" />
-    /// <value>The invocation target.</value>
-    public object InvocationTarget => _Invocation.InvocationTarget;
-
-    /// <summary>
-    ///   Gets the <see cref="T:System.Reflection.MethodInfo" /> representing the method being invoked on the proxy.
-    /// </summary>
-    /// <value>The <see cref="T:System.Reflection.MethodInfo" /> representing the method being invoked.</value>
-    public MethodInfo Method => _Invocation.Method;
-
-    /// <summary>
-    ///   For interface proxies, this will point to the <see cref="T:System.Reflection.MethodInfo" /> on the target class.
-    /// </summary>
-    /// <value>The method invocation target.</value>
-    public MethodInfo MethodInvocationTarget => _Invocation.MethodInvocationTarget;
-
-    /// <summary>Gets or sets the return value of the method.</summary>
-    /// <value>The return value of the method.</value>
+    public object GetArgumentValue(int index) => _invocation.GetArgumentValue(index);
+    public MethodInfo GetConcreteMethod() => _invocation.GetConcreteMethod();
+    public MethodInfo GetConcreteMethodInvocationTarget() => _invocation.GetConcreteMethodInvocationTarget();
+    public object InvocationTarget => _invocation.InvocationTarget;
+    public MethodInfo Method => _invocation.Method;
+    public MethodInfo MethodInvocationTarget => _invocation.MethodInvocationTarget;
+    public object Proxy => _invocation.Proxy;
     public object ReturnValue
     {
-        get => _Invocation.ReturnValue;
-        set => _Invocation.ReturnValue = value;
+        get => _invocation.ReturnValue;
+        set => _invocation.ReturnValue = value;
     }
+    public Type TargetType => _invocation.TargetType;
 
-    /// <summary>
-    ///   Gets the type of the target object for the intercepted method.
-    /// </summary>
-    /// <value>The type of the target object.</value>
-    public Type TargetType => _Invocation.TargetType;
-
+    public void SetArgumentValue(int index, object value) => _invocation.SetArgumentValue(index, value);
+    public object[] Arguments => _invocation.Arguments;
+    public Type[] GenericArguments => _invocation.GenericArguments;
 }

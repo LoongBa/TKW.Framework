@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Linq;
-using Microsoft.Extensions.Logging;
-using TKW.Framework.Common.Extensions;
+using System.Threading.Tasks;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-public class DebugLoggingActionFilterAttribute<TUserInfo>(string formatString, ILogger? logger = null, LogLevel logLevel = LogLevel.Debug)
-    : DomainActionFilterAttribute<TUserInfo>
+/// <summary>
+/// 记录历史（忽略 IgnoreEntityHistoryAttribute）
+/// </summary>
+/// <see cref="IgnoreEntityHistoryAttribute"/>
+public class EntityHistoryFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserInfo>
 where TUserInfo : class, IUserInfo, new()
 {
-    private readonly ILogger? _Logger = logger;
-    private readonly LogLevel _LogLevel = logLevel;
-
     #region Overrides of DomainActionFilterAttribute
 
     public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
@@ -29,21 +28,8 @@ where TUserInfo : class, IUserInfo, new()
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
-    {
-        if (formatString.HasValue())
-        {
-            //开始时间
-        }
-    }
-
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
-    {
-        if (formatString.HasValue())
-        {
-            //结束时间
-        }
-    }
+    public override Task PreProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { return Task.CompletedTask; }
+    public override Task PostProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { return Task.CompletedTask; }
 
     #endregion
 }

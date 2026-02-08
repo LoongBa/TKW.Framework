@@ -1,15 +1,13 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-/// <summary>
-/// 记录历史（忽略 IgnoreEntityHistoryAttribute）
-/// </summary>
-/// <see cref="IgnoreEntityHistoryAttribute"/>
-public class EntityHistoryActionFilterAttribute<TUserInfo> : DomainActionFilterAttribute<TUserInfo>
-where TUserInfo : class, IUserInfo, new()
+/// <inheritdoc />
+public class ContentCacheFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserInfo>
+where TUserInfo: class, IUserInfo, new()
 {
     #region Overrides of DomainActionFilterAttribute
 
@@ -27,8 +25,17 @@ where TUserInfo : class, IUserInfo, new()
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { }
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context) { }
+    public override Task PreProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
+    {
+        //判断是否有缓存
+        return Task.CompletedTask;
+    }
+
+    public override Task PostProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
+    {
+        //更新缓存
+        return Task.CompletedTask;
+    }
 
     #endregion
 }

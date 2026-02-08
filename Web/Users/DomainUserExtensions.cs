@@ -13,8 +13,8 @@ public static class DomainUserExtensions
         where TUserInfo : class, IUserInfo, new()
     {
         var claimsIdentity = new ClaimsIdentity(user.IsAuthenticated ? "Authenticated" : string.Empty);
-        claimsIdentity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.UserInfo.UserIdString));
-        claimsIdentity.AddClaim(new Claim(ClaimTypes.Name, user.UserInfo.UserName));
+        claimsIdentity.AddClaim(new(ClaimTypes.NameIdentifier, user.UserInfo.UserIdString));
+        claimsIdentity.AddClaim(new(ClaimTypes.Name, user.UserInfo.UserName));
         var newPrincipal = new ClaimsPrincipal(claimsIdentity);
 
         return newPrincipal;

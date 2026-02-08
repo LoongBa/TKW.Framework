@@ -14,8 +14,8 @@ public class DomainContracts<TUserInfo> where TUserInfo : class, IUserInfo, new(
         MethodFlags = [];
         ControllerFlags = [];
     }
-    public List<DomainActionFilterAttribute<TUserInfo>> MethodFilters { get; }
-    public List<DomainActionFilterAttribute<TUserInfo>> ControllerFilters { get; }
+    public List<DomainFilterAttribute<TUserInfo>> MethodFilters { get; }
+    public List<DomainFilterAttribute<TUserInfo>> ControllerFilters { get; }
     public List<DomainFlagAttribute> MethodFlags { get; }
     public List<DomainFlagAttribute> ControllerFlags { get; }
 }

@@ -1,4 +1,4 @@
-using Autofac;
+ï»¿using Autofac;
 using Autofac.Builder;
 using Autofac.Extras.DynamicProxy;
 using Autofac.Features.Scanning;
@@ -14,7 +14,7 @@ namespace TKW.Framework.Domain;
 
 public static class DomainDiExtensions
 {
-    #region È«¾ÖÈÕÖ¾£¨»ù´¡ÉèÊ©£¬¿É±»±íÏÖ²ã¸²¸Ç£¬²»Ç¿ÖÆµ¥Àı£©
+    #region å…¨å±€æ—¥å¿—ï¼ˆåŸºç¡€è®¾æ–½ï¼Œå¯è¢«è¡¨ç°å±‚è¦†ç›–ï¼Œä¸å¼ºåˆ¶å•ä¾‹ï¼‰
 
     extension(ContainerBuilder left)
     {
@@ -34,7 +34,7 @@ public static class DomainDiExtensions
 
     #endregion
 
-    #region »á»°¶ş¼¶»º´æ£¨Ç¿ÖÆµ¥Àı£¬ºËĞÄ»ù´¡ÉèÊ©£©
+    #region ä¼šè¯äºŒçº§ç¼“å­˜ï¼ˆå¼ºåˆ¶å•ä¾‹ï¼Œæ ¸å¿ƒåŸºç¡€è®¾æ–½ï¼‰
 
     public static IRegistrationBuilder<ISessionManager<TUserInfo>, ConcreteReflectionActivatorData, SingleRegistrationStyle>
         UseSessionManager<TSessionManager, TUserInfo>(this ContainerBuilder left)
@@ -44,12 +44,12 @@ public static class DomainDiExtensions
         return left.RegisterType<TSessionManager>()
             .As<ISessionManager<TUserInfo>>()
             .AsSelf()
-            .SingleInstance(); // Ç¿ÖÆµ¥Àı£¬²»ÔÊĞí¸²¸Ç
+            .SingleInstance(); // å¼ºåˆ¶å•ä¾‹ï¼Œä¸å…è®¸è¦†ç›–
     }
 
     #endregion
 
-    #region Êı¾İ¿âÏà¹ØÅäÖÃ£¨Ç¿ÖÆµ¥Àı£©
+    #region æ•°æ®åº“ç›¸å…³é…ç½®ï¼ˆå¼ºåˆ¶å•ä¾‹ï¼‰
 
     public static IRegistrationBuilder<IDomainDataAccessHelper, SimpleActivatorData, SingleRegistrationStyle>
         AddDomainDataAccessHelper<TIDomainDbContextFactory>(this ContainerBuilder left, TIDomainDbContextFactory domainDbContextFactory)
@@ -63,12 +63,12 @@ public static class DomainDiExtensions
 
     #endregion
 
-    #region ¿ØÖÆÆ÷Óë·şÎñ×¢²á£¨ºËĞÄÁìÓòÂß¼­£¬Ä¬ÈÏÇ¿ÖÆµ¥Àı£¬²»ÔÊĞí±íÏÖ²ã¸²¸Ç£©
+    #region æ§åˆ¶å™¨ä¸æœåŠ¡æ³¨å†Œï¼ˆæ ¸å¿ƒé¢†åŸŸé€»è¾‘ï¼Œé»˜è®¤å¼ºåˆ¶å•ä¾‹ï¼Œä¸å…è®¸è¡¨ç°å±‚è¦†ç›–ï¼‰
 
     extension(ContainerBuilder builder)
     {
         /// <summary>
-        /// ×¢²áÆÕÍ¨ÁìÓò·şÎñ£¨²»ÊÜÀ¹½ØÆ÷Ó°Ïì£¬µ¥ÀıÇÒÇ¿ÖÆ£¬²»ÔÊĞí±íÏÖ²ã¸²¸Ç£©
+        /// æ³¨å†Œæ™®é€šé¢†åŸŸæœåŠ¡ï¼ˆä¸å—æ‹¦æˆªå™¨å½±å“ï¼Œå•ä¾‹ä¸”å¼ºåˆ¶ï¼Œä¸å…è®¸è¡¨ç°å±‚è¦†ç›–ï¼‰
         /// </summary>
         public IRegistrationBuilder<TLimit, ConcreteReflectionActivatorData, SingleRegistrationStyle>
             AddService<TLimit>()
@@ -78,7 +78,7 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// ÅúÁ¿×¢²áÆÕÍ¨ÁìÓò·şÎñ£¨µ¥ÀıÇÒÇ¿ÖÆ£©
+        /// æ‰¹é‡æ³¨å†Œæ™®é€šé¢†åŸŸæœåŠ¡ï¼ˆå•ä¾‹ä¸”å¼ºåˆ¶ï¼‰
         /// </summary>
         public IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
             AddServices<TLimit>(params Type[] implementations)
@@ -92,7 +92,7 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// ×¢²áÊÜÀ¹½ØµÄ Aop ·şÎñ£¨µ¥ÀıÇÒÇ¿ÖÆ£¬²»ÔÊĞí±íÏÖ²ã¸²¸Ç£©
+        /// æ³¨å†Œå—æ‹¦æˆªçš„ Aop æœåŠ¡ï¼ˆå•ä¾‹ä¸”å¼ºåˆ¶ï¼Œä¸å…è®¸è¡¨ç°å±‚è¦†ç›–ï¼‰
         /// </summary>
         public IRegistrationBuilder<TContract, ConcreteReflectionActivatorData, SingleRegistrationStyle>
             AddAopService<TContract, TImplementer, TUserInfo>()
@@ -108,7 +108,7 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// ÅúÁ¿×¢²áÊÜÀ¹½ØµÄ Aop ·şÎñ£¨µ¥ÀıÇÒÇ¿ÖÆ£¬²»ÔÊĞí±íÏÖ²ã¸²¸Ç£©
+        /// æ‰¹é‡æ³¨å†Œå—æ‹¦æˆªçš„ Aop æœåŠ¡ï¼ˆå•ä¾‹ä¸”å¼ºåˆ¶ï¼Œä¸å…è®¸è¡¨ç°å±‚è¦†ç›–ï¼‰
         /// </summary>
         public void AddAopServices<TContract, TUserInfo>(params Type[] implementations)
             where TContract : class, IAopContract
@@ -130,8 +130,8 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// Ç¿ÖÆ×¢²áÊµÀı£¨µ¥Àı£¬²»ÔÊĞíºóĞø¸²¸Ç£©
-        /// ÊÊÓÃÓÚ FreeSql¡¢ÅäÖÃ¶ÔÏó¡¢×Ô¶¨Òåµ¥ÀıÊµÀıµÈ³¡¾°
+        /// å¼ºåˆ¶æ³¨å†Œå®ä¾‹ï¼ˆå•ä¾‹ï¼Œä¸å…è®¸åç»­è¦†ç›–ï¼‰
+        /// é€‚ç”¨äº FreeSqlã€é…ç½®å¯¹è±¡ã€è‡ªå®šä¹‰å•ä¾‹å®ä¾‹ç­‰åœºæ™¯
         /// </summary>
         public IRegistrationBuilder<TService, SimpleActivatorData, SingleRegistrationStyle>
             RegisterInstanceForced<TService>(TService instance)
@@ -144,8 +144,8 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// Ç¿ÖÆ×¢²áÀàĞÍ£¨µ¥Àı£¬²»ÔÊĞíºóĞø¸²¸Ç£©
-        /// ÊÊÓÃÓÚĞèÒª Autofac ×Ô¶¯´´½¨ÊµÀı£¬µ«±ØĞëÇ¿ÖÆµ¥ÀıµÄ³¡¾°
+        /// å¼ºåˆ¶æ³¨å†Œç±»å‹ï¼ˆå•ä¾‹ï¼Œä¸å…è®¸åç»­è¦†ç›–ï¼‰
+        /// é€‚ç”¨äºéœ€è¦ Autofac è‡ªåŠ¨åˆ›å»ºå®ä¾‹ï¼Œä½†å¿…é¡»å¼ºåˆ¶å•ä¾‹çš„åœºæ™¯
         /// </summary>
         public IRegistrationBuilder<TService, ConcreteReflectionActivatorData, SingleRegistrationStyle>
             RegisterTypeForced<TService, TImplementer>()
@@ -158,7 +158,7 @@ public static class DomainDiExtensions
         }
 
         /// <summary>
-        /// Ç¿ÖÆ×¢²áÀàĞÍ£¨µ¥Àı£¬×Ô¶¯ÍÆµ¼ËùÓĞ½Ó¿Ú£¬²»ÔÊĞíºóĞø¸²¸Ç£©
+        /// å¼ºåˆ¶æ³¨å†Œç±»å‹ï¼ˆå•ä¾‹ï¼Œè‡ªåŠ¨æ¨å¯¼æ‰€æœ‰æ¥å£ï¼Œä¸å…è®¸åç»­è¦†ç›–ï¼‰
         /// </summary>
         public IRegistrationBuilder<TImplementer, ConcreteReflectionActivatorData, SingleRegistrationStyle>
             RegisterTypeForced<TImplementer>()

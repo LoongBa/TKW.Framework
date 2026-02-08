@@ -1,13 +1,13 @@
-using System.ComponentModel.DataAnnotations;
+ï»¿using System.ComponentModel.DataAnnotations;
 
 namespace TKW.Framework.Domain;
 
 public enum DomainInvocationWhereType
 {
-    [Display(Name = "È«¾Ö")]
+    [Display(Name = "å…¨å±€")]
     Global = 0,
-    [Display(Name = "¿ØÖÆÆ÷")] 
+    [Display(Name = "æŽ§åˆ¶å™¨")] 
     Controller = 1,
-    [Display(Name = "·½·¨")]
+    [Display(Name = "æ–¹æ³•")]
     Method = 2,
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Builder.Internal;
@@ -18,9 +19,9 @@ public static class FirstRequestTracker
     private static string _serverRoot;
     private static bool _captured = false;
     private static Func<HttpContext, Task> _customActionAsync;
-    private static readonly object _lockObject = new object();
+    private static readonly Lock _lockObject = new();
     private static IApplicationBuilder _appBuilder;
-    private static readonly Dictionary<string, object> _firstRequestData = new Dictionary<string, object>();
+    private static readonly Dictionary<string, object> _firstRequestData = [];
     #endregion
 
     #region 公共属性
@@ -82,7 +83,7 @@ public static class FirstRequestTracker
             // 仅在未捕获过首次请求时执行逻辑
             if (!_captured)
             {
-                bool shouldProcess = false;
+                var shouldProcess = false;
 
                 // 第一阶段：在锁内判断是否需要处理（仅执行同步操作）
                 lock (_lockObject)
@@ -106,7 +107,7 @@ public static class FirstRequestTracker
                     }
 
                     // 触发首次请求捕获完成事件
-                    FirstRequestCaptured?.Invoke(null, new FirstRequestCapturedEventArgs
+                    FirstRequestCaptured?.Invoke(null, new()
                     {
                         InitialUrl = _initialUrl,
                         ServerRoot = _serverRoot,
@@ -185,11 +186,10 @@ public static class FirstRequestTracker
         if (_appBuilder is not ApplicationBuilder appBuilder) return;
 
         // 获取中间件组件列表
-        var components = appBuilder.Properties["components"] as IList<Func<RequestDelegate, RequestDelegate>>;
-        if (components == null) return;
+        if (appBuilder.Properties["components"] is not IList<Func<RequestDelegate, RequestDelegate>> components) return;
 
         // 查找并移除当前中间件
-        for (int i = components.Count - 1; i >= 0; i--)
+        for (var i = components.Count - 1; i >= 0; i--)
         {
             var component = components[i];
             if (component.Target?.GetType().FullName?.Contains(nameof(FirstRequestTracker)) == true)

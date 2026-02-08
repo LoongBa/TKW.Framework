@@ -1,12 +1,20 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;
 
-public class ContentCacheActionFilterAttribute<TUserInfo> : DomainActionFilterAttribute<TUserInfo>
-where TUserInfo: class, IUserInfo, new()
+/// <inheritdoc />
+public class DebugLoggingFilterAttribute<TUserInfo>(string formatString, ILogger? logger = null, LogLevel logLevel = LogLevel.Debug)
+    : DomainFilterAttribute<TUserInfo>
+where TUserInfo : class, IUserInfo, new()
 {
+    private readonly ILogger? _Logger = logger;
+    private readonly LogLevel _LogLevel = logLevel;
+
     #region Overrides of DomainActionFilterAttribute
 
     public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
@@ -23,14 +31,22 @@ where TUserInfo: class, IUserInfo, new()
         };
     }
 
-    public override void PreProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
+    public override Task PreProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
-        //判断是否有缓存
+        if (formatString.HasValue())
+        {
+            //开始时间
+        }
+        return Task.CompletedTask;
     }
 
-    public override void PostProceed(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
+    public override Task PostProceedAsync(DomainInvocationWhereType method, DomainContext<TUserInfo> context)
     {
-        //更新缓存
+        if (formatString.HasValue())
+        {
+            //结束时间
+        }
+        return Task.CompletedTask;
     }
 
     #endregion

@@ -44,7 +44,7 @@ public class SessionUserMiddleware<TUserInfo>(RequestDelegate next, ISessionMana
             currentUser = guestSession.User;
 
             // 保存新 SessionKey 到响应（优先 Cookie，备用 Header）
-            context.Response.Cookies.Append(SessionKeyName_Cookie, guestSession.Key, new CookieOptions
+            context.Response.Cookies.Append(SessionKeyName_Cookie, guestSession.Key, new()
             {
                 HttpOnly = true,
                 Secure = context.Request.IsHttps,

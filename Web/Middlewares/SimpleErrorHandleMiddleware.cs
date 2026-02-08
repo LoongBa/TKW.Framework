@@ -37,7 +37,7 @@ public class SimpleErrorHandleMiddleware : AbstractMiddleware
         }
         catch (Exception e)
         {
-            var result = ExceptionHandledExceptionHandler?.Invoke(new ExceptionHandledResultModel(e), e);
+            var result = ExceptionHandledExceptionHandler?.Invoke(new(e), e);
             return context.Response.WriteAsync(result.ToJson());
         }
     }

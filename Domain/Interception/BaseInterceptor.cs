@@ -1,76 +1,113 @@
 ﻿using Castle.DynamicProxy;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
+using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
 
-public abstract class BaseInterceptor<TUserInfo> : IInterceptor
-where TUserInfo: class, IUserInfo, new()
+public abstract class BaseInterceptor<TUserInfo> : IAsyncInterceptor
+    where TUserInfo : class, IUserInfo, new()
 {
-    private static readonly AsyncLocal<InterceptorContext<TUserInfo>?> _context = new();
+    private static readonly AsyncLocal<InterceptorContext<TUserInfo>?> _currentContext = new();
 
-    protected abstract void Initial(IInvocation invocation);
-    protected abstract void PreProceed(IInvocation invocation);
-    protected abstract void PostProceed(IInvocation invocation);
+    public static InterceptorContext<TUserInfo>? CurrentContext => _currentContext.Value;
+
+    protected DomainContext<TUserInfo>? Context { get; set; }
+
+    protected abstract Task InitialAsync(IInvocation invocation);
+
+    protected virtual Task PreProceedAsync(IInvocation invocation) => Task.CompletedTask;
+
+    protected virtual Task PostProceedAsync(IInvocation invocation) => Task.CompletedTask;
+
     protected abstract void OnException(InterceptorExceptionContext context);
 
-    protected DomainContext<TUserInfo>? Context;
-
-    public static InterceptorContext<TUserInfo>? CurrentContext => _context.Value;
-    #region Implementation of IInterceptor
-
-    // 定义一个公共方法Intercept，用于拦截方法调用
-    public void Intercept(IInvocation invocation)
+    public void InterceptSynchronous(IInvocation invocation)
     {
-        // 调用Initial方法进行初始化操作
-        Initial(invocation);
-        // 调用PreProceed方法进行预处理操作
-        PreProceed(invocation);
+        Intercept(invocation);
+    }
 
-        _context.Value = new InterceptorContext<TUserInfo>
-        {
-            Invocation = invocation,
-            DomainContext = Context,
-            // 其他上下文信息
-        };
+    public void InterceptSynchronousResult(IInvocation invocation)
+    {
+        Intercept(invocation);
+    }
 
+    public async void InterceptAsynchronous(IInvocation invocation)
+    {
         try
         {
-            // 执行被拦截的方法
+            await InitialAsync(invocation);
+            Context.EnsureNotNull();
+
+            _currentContext.Value = new InterceptorContext<TUserInfo>
+            {
+                Invocation = invocation,
+                DomainContext = Context
+            };
+
+            await PreProceedAsync(invocation);
             invocation.Proceed();
+            await PostProceedAsync(invocation);
         }
-        catch (Exception exceptionNeedToBeHandled)
+        catch (Exception ex)
         {
-            // 创建一个InterceptorExceptionContext对象，包含方法调用信息和异常信息
-            var context = new InterceptorExceptionContext(new DomainMethodInvocation(invocation), exceptionNeedToBeHandled);
-            try
-            {
-                // 调用OnException方法处理异常
-                OnException(context);
-            }
-            catch (Exception exceptionByOnException)
-            {
-                // 如果OnException方法抛出异常，则抛出InterceptorException
-                throw new InterceptorException("Exception raised from OnException() by Interceptor", exceptionByOnException);
-            }
-            // 如果异常未被处理，则重新抛出异常
-            if (!context.ExceptionHandled) throw;
-            // 如果不继续执行后续操作，则返回
-            if (!context.Continue) return;
+            var ctx = new InterceptorExceptionContext(new DomainMethodInvocation(invocation), ex);
+            OnException(ctx);
+
+            if (!ctx.ExceptionHandled)
+                // ReSharper disable once AsyncVoidThrowException
+                throw;
         }
         finally
         {
-            _context.Value = null;
+            _currentContext.Value = null;
         }
-        // 调用PostProceed方法进行后处理操作
-        PostProceed(invocation);
     }
 
-    #endregion
+    public async void InterceptAsynchronous<TResult>(IInvocation invocation)
+    {
+        try
+        {
+            await InitialAsync(invocation);
+            Context.EnsureNotNull();
+
+            _currentContext.Value = new InterceptorContext<TUserInfo>
+            {
+                Invocation = invocation,
+                DomainContext = Context
+            };
+
+            await PreProceedAsync(invocation);
+            invocation.Proceed();
+            await PostProceedAsync(invocation);
+        }
+        catch (Exception ex)
+        {
+            var ctx = new InterceptorExceptionContext(new DomainMethodInvocation(invocation), ex);
+            OnException(ctx);
+
+            if (!ctx.ExceptionHandled)
+                throw;
+        }
+        finally
+        {
+            _currentContext.Value = null;
+        }
+    }
+
+    private void Intercept(IInvocation invocation)
+    {
+        throw new NotSupportedException("同步拦截在新版本中已弃用，请使用异步方法");
+    }
 }
+
+/// <summary>
+/// 拦截器上下文
+/// </summary>
 public class InterceptorContext<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    public IInvocation? Invocation { get; set; }
-    public DomainContext<TUserInfo>? DomainContext { get; set; }
+    public required IInvocation Invocation { get; init; }
+    public required DomainContext<TUserInfo>? DomainContext { get; init; }
 }

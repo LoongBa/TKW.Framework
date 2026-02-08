@@ -2,11 +2,10 @@
 
 namespace TKW.Framework.Domain.Interception;
 
-public class InterceptorExceptionContext(DomainMethodInvocation invocation, Exception exception)
+public record InterceptorExceptionContext(DomainMethodInvocation Invocation, Exception Exception)
 {
-    public Exception Exception { get; } = exception;
-    public DomainMethodInvocation Invocation { get; } = invocation;
-
-    public bool Continue { get; set; }
-    public bool ExceptionHandled { get; set; }
+    public bool Continue { get; set; } = false;
+    public bool ExceptionHandled { get; set; } = false;
+    public string? ExceptionType => Exception.GetType().Name;  // 辅助日志
+    public string UserName { get; set; } = string.Empty; // 辅助日志
 }

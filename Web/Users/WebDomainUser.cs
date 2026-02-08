@@ -1,4 +1,5 @@
-﻿using TKW.Framework.Common.Tools;
+﻿using System;
+using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain;
 using TKW.Framework.Domain.Interfaces;
 
@@ -10,7 +11,7 @@ public abstract class WebDomainUser<TUserInfo> : DomainUser<TUserInfo>, IWebUser
 {
     protected WebDomainUser(DomainUser<TUserInfo> domainUser) : base(domainUser.DomainHostFactory)
     {
-        Container = new WebContainer { Type = WebContainerType.UnSet };
+        Container = new() { Type = WebContainerType.UnSet };
         // 复制 DomainUser 信息
         this.CopyValuesFrom(domainUser);
     }
@@ -40,7 +41,7 @@ public abstract class WebDomainUser<TUserInfo> : DomainUser<TUserInfo>, IWebUser
             Container.Type = WebContainerType.WechatPCWebBrowser;
             return;
         }
-        if (userAgent.ToUpper().Contains("ICBC"))
+        if (userAgent.ToUpper().Contains("ICBC", StringComparison.OrdinalIgnoreCase))
         {
             Container.Type = WebContainerType.ICBC_Elink;
             return;

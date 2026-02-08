@@ -1,6 +1,6 @@
 ﻿using Autofac;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;
@@ -9,7 +9,7 @@ public abstract class DomainHostInitializerBase<TUserInfo, TDomainHelper>
 where TUserInfo : class, IUserInfo, new()
 where TDomainHelper : DomainHelperBase<TUserInfo>
 {
-/// <summary>
+    /// <summary>
     /// 配置依赖注入容器，添加应用程序特定的服务和设置
     /// </summary>
     /// <remarks>重写此方法以注册应用程序所需的自定义服务、模块或配置源。
@@ -55,4 +55,14 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
         // 注册领域服务
         return RegisterDomainServices(containerBuilder, services, configuration);
     }
+
+    /// <summary>
+    /// 在依赖注入容器构建完成后调用，以允许进行额外的配置或初始化。
+    /// </summary>
+    internal void ContainerBuiltCallback(DomainHost<TUserInfo> host, IContainer? container, bool isExternalContainer = false)
+    {
+        // 调用派生类的 OnContainerBuilt 方法，允许进行额外的配置或初始化
+        OnContainerBuilt(host, isExternalContainer);
+    }
+
 }
