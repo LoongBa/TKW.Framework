@@ -102,6 +102,7 @@ public static class DomainDiExtensions
         {
             return builder.RegisterType<TImplementer>()
                 .As<TContract>()
+                //.AsImplementedInterfaces()
                 .EnableInterfaceInterceptors()
                 .InterceptedBy(typeof(DomainInterceptor<TUserInfo>))
                 .SingleInstance();
@@ -114,7 +115,7 @@ public static class DomainDiExtensions
             where TContract : class, IAopContract
             where TUserInfo : class, IUserInfo, new()
         {
-            var interceptorType = typeof(DomainInterceptor<>).MakeGenericType(typeof(TUserInfo));
+            //var interceptorType = typeof(DomainInterceptor<>).MakeGenericType(typeof(TUserInfo));
 
             foreach (var implType in implementations)
             {
@@ -122,9 +123,10 @@ public static class DomainDiExtensions
                     continue;
 
                 builder.RegisterType(implType)
-                    .As<TContract>()
+                    .AsImplementedInterfaces()
+                    //.As<TContract>()
                     .EnableInterfaceInterceptors()
-                    .InterceptedBy(interceptorType)
+                    .InterceptedBy(typeof(DomainInterceptor<TUserInfo>))
                     .SingleInstance();
             }
         }

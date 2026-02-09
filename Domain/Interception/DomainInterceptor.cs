@@ -1,9 +1,11 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Autofac;
+﻿using Autofac;
+using Castle.Core.Logging;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Linq;
+using System.Security.Authentication;
+using System.Threading.Tasks;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
@@ -14,7 +16,7 @@ namespace TKW.Framework.Domain.Interception;
 /// </summary>
 /// <remarks>
 /// 1. 支持方法级、控制器级、全局级过滤器（全局 Filter 由 DomainHost 统一管理）
-/// 2. 通过 DomainContext 自动注入当前 DomainUser<TUserInfo>
+/// 2. 通过 DomainContext 自动注入当前 DomainUser{TUserInfo}
 /// 3. 支持异步过滤器（Pre/PostProceedAsync）
 /// 4. 全局异常统一处理（可被应用层替换）
 /// 
@@ -24,16 +26,16 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     where TUserInfo : class, IUserInfo, new()
 {
     private readonly DomainHost<TUserInfo> _DomainHost;
-    private readonly IDomainGlobalExceptionFactory _GlobalExceptionFactory;
+    private readonly DefaultExceptionLoggerFactory? _GlobalExceptionLoggerFactory;
     private readonly ILifetimeScope _LifetimeScope;
 
-    public DomainInterceptor(DomainHost<TUserInfo> domainHost, IDomainGlobalExceptionFactory globalExceptionFactory)
+    public DomainInterceptor(DomainHost<TUserInfo> domainHost)
     {
         ArgumentNullException.ThrowIfNull(domainHost);
         ArgumentNullException.ThrowIfNull(domainHost.Container);
 
         _DomainHost = domainHost;
-        _GlobalExceptionFactory = globalExceptionFactory;
+        _GlobalExceptionLoggerFactory = domainHost.ExceptionLoggerFactory;
         _LifetimeScope = _DomainHost.Container.BeginLifetimeScope();
     }
 
@@ -105,16 +107,42 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
         }
     }
 
-    protected override void OnException(InterceptorExceptionContext context)
+    protected override void LogException(InterceptorExceptionContext context)
     {
-        Context?.Logger.LogError(context.Exception,
+        Context?.Logger?.LogError(context.Exception,
             "Domain 方法异常: {MethodName} - 用户: {UserName}",
             context.Invocation.Method.Name,
             Context.DomainUser.UserInfo.UserName);
 
-        _GlobalExceptionFactory.HandleException(context);
+        if (context == null || context.Exception == null)
+            return;
 
-        context.ExceptionHandled = true;
+        var ex = context.Exception;
+
+        // 安全获取上下文信息
+        var methodName = context.Invocation?.Method?.Name ?? "UnknownMethod";
+        var userName = context.UserName
+                       ?? context.UserName
+                       ?? "Anonymous";
+        var targetType = context.Invocation?.InvocationTarget?.GetType()?.Name ?? "UnknownTarget";
+
+        // 把错误信息放入上下文，让上层（表现层）可以获取
+        context.ErrorMessage = ex.Message;
+        context.IsAuthenticationError = ex is AuthenticationException;
+        context.IsAuthorizationError = ex is UnauthorizedAccessException;
+        context.Method = methodName;
+        context.UserName = userName;
+        context.TargetType = targetType;
+
+        if (context.IsAuthenticationError)
+            context.ErrorCode = "AUTH_001";   // 未认证
+        else if (context.IsAuthorizationError)
+            context.ErrorCode = "AUTH_002";   // 权限不足
+
+        // 交给全局异常日志工厂（如果有）进行统一处理（如记录日志、发送告警等）
+        _GlobalExceptionLoggerFactory?.LogException(context);
+        // 避免不小心被修改为 true 导致异常被吞掉
+        context.ExceptionHandled = false; 
     }
 
     public void Dispose()

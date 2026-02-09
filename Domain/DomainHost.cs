@@ -94,12 +94,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
 
-        // 注册默认全局异常工厂（可被应用层替换）
-        containerBuilder.RegisterType<DefaultDomainGlobalExceptionFactory>().AsSelf();
-
-        // 注册日志工厂（默认 NullLoggerFactory，可被表现层覆盖）
-        containerBuilder.UseLogger(new NullLoggerFactory()).As<ILoggerFactory>();
-
         // 执行应用层初始化
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
@@ -110,37 +104,37 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
         // 创建 DomainHost 实例
         Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, isExternalContainer);
+        containerBuilder.RegisterInstance(Root).AsSelf();
         containerBuilder.Register(_ => Root);
 
-        // 外部容器场景：构建完成后回调
-        if (isExternalContainer)
+        // 容器构建完成后回调
+        containerBuilder.RegisterBuildCallback(context =>
         {
-            containerBuilder.RegisterBuildCallback(context =>
+            if (Root == null) return;
+
+            if (context is IContainer container)
+                Root.Container = container;
+            else
             {
-                if (Root == null) return;
-
-                if (context is IContainer container)
-                    Root.Container = container;
-                else
+                try
                 {
-                    try
-                    {
-                        var maybe = context.ResolveOptional<IContainer>();
-                        if (maybe != null) Root.Container = maybe;
-                    }
-                    catch { /* 忽略，保持容器继续启动 */ }
+                    var maybe = context.ResolveOptional<IContainer>();
+                    if (maybe != null) Root.Container = maybe;
                 }
+                catch { /* 忽略，保持容器继续启动 */ }
+            }
 
-                if (Root.Container != null)
-                {
-                    initializer.ContainerBuiltCallback(Root, isExternalContainer);
+            if (Root.Container != null)
+            {
+                initializer.ContainerBuiltCallback(Root, isExternalContainer);
 
-                    // 更新日志工厂（优先使用外部注册的实现）
-                    if (Root.Container.IsRegistered<ILoggerFactory>())
-                        Root.LoggerFactory = Root.Container.Resolve<ILoggerFactory>();
-                }
-            });
-        }
+                // 更新日志工厂（优先使用外部注册的实现）
+                if (Root.Container.IsRegistered<ILoggerFactory>())
+                    Root.LoggerFactory = Root.Container.Resolve<ILoggerFactory>();
+            }
+        });
+        // 如果不是外部容器，则构建Autofac容器
+        if (!isExternalContainer) Root.Container = containerBuilder.Build();
 
         return Root;
     }
@@ -168,10 +162,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
         // 配置项
         Configuration = configuration;
-
-        // 构建Autofac容器
-        if (!isExternalContainer)
-            Container = containerBuilder.Build();
     }
 
     public DomainHelperBase<TUserInfo> UserHelper { get; }
@@ -179,9 +169,14 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     public IConfiguration? Configuration { get; private set; }
 
     /// <summary>
-    /// 日志工厂（永远非 null，默认使用 NullLoggerFactory）
+    /// 日志工厂（默认使用 NullLoggerFactory）
     /// </summary>
     public ILoggerFactory LoggerFactory { get; private set; } = new NullLoggerFactory();
+
+    /// <summary>
+    /// 全局异常工厂（可选，默认为 null，框架内部会有默认处理逻辑）
+    /// </summary>
+    public DefaultExceptionLoggerFactory? ExceptionLoggerFactory { get; internal set; }
 
     public IContainer? Container { get; private set; }
 

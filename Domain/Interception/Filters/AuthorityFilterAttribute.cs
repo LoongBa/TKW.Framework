@@ -47,7 +47,7 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
         // 1. 认证检查
         if (!user.IsAuthenticated)
         {
-            logger.LogWarning(
+            logger?.LogWarning(
                 "未认证访问尝试 - 方法: {Method} - 用户: {UserName} - 来源: {Where}",
                 context.Invocation.Method.Name,
                 user.UserInfo.UserName,
@@ -63,7 +63,7 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
             .OfType<RequireRoleFlagAttribute>()
             .ToList();
 
-        if (!allRequireFlags.Any())
+        if (allRequireFlags.Count == 0)
         {
             return; // 无角色要求，直接通过
         }
@@ -83,7 +83,7 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
                 var required = string.Join(", ", flag.Roles);
                 var logicDesc = flag.Logic == RoleLogic.Any ? "任一" : "全部";
 
-                logger.LogWarning(
+                logger?.LogWarning(
                     "权限不足 - 方法: {Method} - 用户: {UserName} - 需要{Logic}角色: {Roles} - 来源: {Where}",
                     context.Invocation.Method.Name,
                     user.UserInfo.UserName,

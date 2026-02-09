@@ -8,14 +8,13 @@ using TKW.Framework.Domain.Interception;
 namespace TKW.Framework.Web.Filters;
 
 /// <summary>
-/// Web 环境下的默认领域异常工厂，继承自 DefaultDomainGlobalExceptionFactory
+/// Web 环境下的默认领域异常工厂，继承自 DefaultExceptionLoggerFactory
 /// </summary>
-/// <param name="logger"></param>
 /// <param name="httpContextAccessor"></param>
-public class WebGlobalExceptionFactory(ILogger logger, IHttpContextAccessor httpContextAccessor)
-    : DefaultDomainGlobalExceptionFactory(logger)
+public class WebGlobalExceptionFactory(IHttpContextAccessor httpContextAccessor)
+    : DefaultExceptionLoggerFactory
 {
-    public override void HandleException(InterceptorExceptionContext context)
+    public override void LogException(InterceptorExceptionContext context)
     {
         var ex = context.Exception;
 
@@ -44,6 +43,6 @@ public class WebGlobalExceptionFactory(ILogger logger, IHttpContextAccessor http
         }
 
         // 调用基类日志记录，并标记为已处理
-        base.HandleException(context);
+        base.LogException(context);
     }
 }
