@@ -1,6 +1,6 @@
-﻿#nullable enable
-using System;
+﻿using System;
 using System.Threading.Tasks;
+using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -26,7 +26,7 @@ public abstract class DomainHelperBase<TUserInfo>(Func<DomainHost<TUserInfo>>? h
         DomainUser<TUserInfo> user,
         string userName,
         string passwordHashed,
-        LoginFromEnum authType);
+        EnumLoginFrom loginFrom);
 
     internal async Task<SessionInfo<TUserInfo>> CreateNewGuestSessionAsync(SessionInfo<TUserInfo> session)
     {
@@ -50,7 +50,7 @@ public abstract class DomainHelperBase<TUserInfo>(Func<DomainHost<TUserInfo>>? h
         DomainUser<TUserInfo> user,
         string userName,
         string passwordHashed,
-        LoginFromEnum loginFrom)
+        EnumLoginFrom loginFrom)
     {
         return await OnUserLoginAsync(
                 user.EnsureNotNull(),

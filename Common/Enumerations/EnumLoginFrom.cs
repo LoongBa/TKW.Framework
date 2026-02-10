@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Common.Enumerations;
 
-public enum LoginFromEnum
+public enum EnumLoginFrom
 {
     [Display(Name = "Œ¥…Ë÷√")]
     Unset = -1,

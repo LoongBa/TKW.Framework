@@ -1,6 +1,7 @@
 ﻿using System;
+using TKW.Framework.Domain.Interfaces;
 
-namespace TKW.Framework.Domain.Interfaces;
+namespace TKW.Framework.Domain.Interception.Filters;
 /*
 // 标注示例（优化后，配置量减少50%）
 [DtoField(CreateRequired = true, DetailsHidden = true)] // 替代复杂的new DtoSceneOverride

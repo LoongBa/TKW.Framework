@@ -3,7 +3,6 @@ using Autofac;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
-using System.Diagnostics;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;

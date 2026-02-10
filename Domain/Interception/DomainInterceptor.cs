@@ -1,5 +1,4 @@
 ﻿using Autofac;
-using Castle.Core.Logging;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
 using System;

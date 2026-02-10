@@ -6,4 +6,5 @@ public class DomainException(string message, Exception innerException) : Excepti
 {
     public bool IsAuthenticationError { get; init; }
     public bool IsAuthorizationError { get; init; }
+    public string ErrorCode { get; set; } = string.Empty;
 }

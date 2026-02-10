@@ -2,16 +2,15 @@
 using System.Security.Authentication;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using TKW.Framework.Domain.Interception;
 
 namespace TKW.Framework.Web.Filters;
 
 /// <summary>
-/// Web 环境下的默认领域异常工厂，继承自 DefaultExceptionLoggerFactory
+/// Web 环境下的默认异常日志工厂，继承自 DefaultExceptionLoggerFactory
 /// </summary>
 /// <param name="httpContextAccessor"></param>
-public class WebGlobalExceptionFactory(IHttpContextAccessor httpContextAccessor)
+public class WebExceptionLoggerFactory(IHttpContextAccessor httpContextAccessor)
     : DefaultExceptionLoggerFactory
 {
     public override void LogException(InterceptorExceptionContext context)

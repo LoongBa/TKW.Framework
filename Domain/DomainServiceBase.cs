@@ -1,5 +1,4 @@
-﻿#nullable enable
-using TKW.Framework.Common.Extensions;
+﻿using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;

@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>TKWF.Domain.Blazor</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 核心 WASM 包（包含 ProtectedLocalStorage） -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.2" />
+
+    <!-- 认证相关（ProtectedSessionStorage、AuthenticationStateProvider 等） -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.2" />
+
+    <!-- 日志支持 -->
+  </ItemGroup>
+
+  <!-- 强制引入 ASP.NET Core App 框架（类库项目中常需） -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Domain\TKWF.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

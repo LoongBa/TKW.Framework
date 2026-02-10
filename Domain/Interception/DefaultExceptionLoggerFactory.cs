@@ -1,7 +1,5 @@
-﻿#nullable enable
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System;
-using System.Reflection;
 using System.Security.Authentication;
 using System.Threading.Tasks;
 using TKW.Framework.Domain.Interception.Filters;
@@ -27,9 +25,6 @@ public class DefaultExceptionLoggerFactory
 
     public virtual void LogException(InterceptorExceptionContext context)
     {
-        if (context == null || context.Exception == null)
-            return;
-
         var ex = context.Exception;
         // 根据级别决定是否记录及日志级别
         if (_LogLevel >= EnumDomainLogLevel.Minimal)

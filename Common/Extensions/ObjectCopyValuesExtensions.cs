@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using TKW.Framework.Common.DataType;
-
-namespace TKW.Framework.Common.Extensions;
+﻿namespace TKW.Framework.Common.Extensions;
 
 /// <summary>
 /// 基于反射的对象属性值复制与比较扩展方法

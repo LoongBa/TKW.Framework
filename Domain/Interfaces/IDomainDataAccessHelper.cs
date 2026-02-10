@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 //using TKW.Framework.EntityFramework;
 
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Domain.Interfaces;
 
 public interface IDomainDataAccessHelper
 {
