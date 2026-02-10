@@ -1,7 +1,8 @@
 ﻿using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.Logging;
+using TKW.Framework.Domain.Session;
 
-namespace TKWF.Domain.Blazor.Storage;
+namespace TKW.Framework.Domain.Blazor.Storage;
 
 /// <summary>
 /// 封装 ProtectedLocalStorage 的会话存储服务
@@ -9,9 +10,9 @@ namespace TKWF.Domain.Blazor.Storage;
 /// </summary>
 public class ProtectedSessionStorage(
     ProtectedLocalStorage protectedStorage,
-    ILogger<ProtectedSessionStorage> logger)
+    ILogger<ProtectedSessionStorage> logger): ISessionStorage
 {
-    private readonly ProtectedLocalStorage _protectedStorage = protectedStorage ?? throw new ArgumentNullException(nameof(protectedStorage));
+    private readonly ProtectedLocalStorage _ProtectedStorage = protectedStorage ?? throw new ArgumentNullException(nameof(protectedStorage));
 
     private const string SessionKeyStorageName = "TKWF_SessionKey";
 
@@ -22,7 +23,7 @@ public class ProtectedSessionStorage(
     {
         try
         {
-            var result = await _protectedStorage.GetAsync<string>(SessionKeyStorageName);
+            var result = await _ProtectedStorage.GetAsync<string>(SessionKeyStorageName);
             if (result.Success)
             {
                 logger?.LogDebug("从 ProtectedLocalStorage 读取 SessionKey 成功");
@@ -52,7 +53,7 @@ public class ProtectedSessionStorage(
 
         try
         {
-            await _protectedStorage.SetAsync(SessionKeyStorageName, sessionKey);
+            await _ProtectedStorage.SetAsync(SessionKeyStorageName, sessionKey);
             logger?.LogInformation("SessionKey 保存成功");
         }
         catch (Exception ex)
@@ -69,7 +70,7 @@ public class ProtectedSessionStorage(
     {
         try
         {
-            await _protectedStorage.DeleteAsync(SessionKeyStorageName);
+            await _ProtectedStorage.DeleteAsync(SessionKeyStorageName);
             logger?.LogInformation("SessionKey 已清除");
         }
         catch (Exception ex)

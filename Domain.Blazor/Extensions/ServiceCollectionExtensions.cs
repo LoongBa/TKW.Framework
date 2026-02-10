@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.DependencyInjection;
+using TKW.Framework.Domain.Blazor.Authentication;
 using TKW.Framework.Domain.Interfaces;
-using TKWF.Domain.Blazor.Authentication;
 
-namespace TKWF.Domain.Blazor.Extensions;
+namespace TKW.Framework.Domain.Blazor.Extensions;
 
 public static class ServiceCollectionExtensions
 {

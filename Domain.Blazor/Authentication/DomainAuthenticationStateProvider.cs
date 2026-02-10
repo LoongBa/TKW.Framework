@@ -1,12 +1,11 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using TKW.Framework.Domain;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 
-namespace TKWF.Domain.Blazor.Authentication;
+namespace TKW.Framework.Domain.Blazor.Authentication;
 
 /// <summary>
 /// Blazor 专用的 AuthenticationStateProvider
@@ -23,7 +22,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
     private readonly ISessionManager<TUserInfo> _SessionManager;
     private readonly ILogger<DomainAuthenticationStateProvider<TUserInfo>> _Logger;
     private readonly DomainHost<TUserInfo> _DomainHost;
-    private readonly ProtectedLocalStorage _protectedLocalStorage;
+    private readonly ProtectedLocalStorage _ProtectedLocalStorage;
 
     /// <summary>
     /// Blazor 专用的 AuthenticationStateProvider
@@ -42,7 +41,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
         _DomainHost = domainHost ?? throw new ArgumentException();
 
         _SessionManager = sessionManager;
-        _protectedLocalStorage = protectedLocalStorage ?? throw new ArgumentNullException(nameof(protectedLocalStorage));
+        _ProtectedLocalStorage = protectedLocalStorage ?? throw new ArgumentNullException(nameof(protectedLocalStorage));
     }
 
     private const string SessionKeyStorageName = "TKWF_SessionKey";
@@ -52,7 +51,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
         try
         {
             // 1. 尝试从 ProtectedLocalStorage 读取 SessionKey
-            var sessionKeyResult = await _protectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
+            var sessionKeyResult = await _ProtectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
             string? sessionKey = sessionKeyResult.Success ? sessionKeyResult.Value : null;
 
             DomainUser<TUserInfo>? domainUser = null;
@@ -71,7 +70,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
                 domainUser = guestSession.User!;
 
                 // 保存游客 SessionKey（保持会话连续性）
-                await _protectedLocalStorage.SetAsync(SessionKeyStorageName, guestSession.Key);
+                await _ProtectedLocalStorage.SetAsync(SessionKeyStorageName, guestSession.Key);
             }
 
             // 4. 转换为 ClaimsPrincipal
@@ -96,7 +95,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
     public async Task NotifyLoginAsync()
     {
         // 可选：重新从 storage 读取最新 SessionKey
-        var sessionKeyResult = await _protectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
+        var sessionKeyResult = await _ProtectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
         if (sessionKeyResult.Success)
         {
             // 强制刷新
@@ -109,7 +108,7 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
     /// </summary>
     public async Task NotifyLogoutAsync()
     {
-        await _protectedLocalStorage.DeleteAsync(SessionKeyStorageName);
+        await _ProtectedLocalStorage.DeleteAsync(SessionKeyStorageName);
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 }

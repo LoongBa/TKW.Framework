@@ -4,7 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>TKWF.Domain.Blazor</RootNamespace>
+    <RootNamespace>TKW.Framework.Domain.Blazor</RootNamespace>
+    <AssemblyName>TKWF.Domain.Blazor</AssemblyName>
+    <AssemblyTitle>TKWF.Domain.Blazor</AssemblyTitle>
   </PropertyGroup>
 
   <ItemGroup>

@@ -6,7 +6,7 @@ namespace TKW.Framework.Domain.Session;
 /// <summary>
 /// 会话状态
 /// </summary>
-public enum SessionState
+public enum EnumSessionState
 {
     /// <summary>
     /// 活动
