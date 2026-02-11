@@ -10,7 +10,7 @@ namespace TKW.Framework.Domain;
 /// <summary>
 /// 领域帮助基类（抽象）
 /// </summary>
-public abstract class DomainHelperBase<TUserInfo>(Func<DomainHost<TUserInfo>>? hostFactory = null)
+public abstract class DomainUserHelperBase<TUserInfo>(Func<DomainHost<TUserInfo>>? hostFactory = null)
     where TUserInfo : class, IUserInfo, new()
 {
     protected Func<DomainHost<TUserInfo>> DomainHostFactory { get; } = hostFactory ?? DomainHost<TUserInfo>.Factory;

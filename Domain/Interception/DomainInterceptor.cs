@@ -113,17 +113,15 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
             context.Invocation.Method.Name,
             Context.DomainUser.UserInfo.UserName);
 
-        if (context == null || context.Exception == null)
-            return;
-
         var ex = context.Exception;
 
         // 安全获取上下文信息
-        var methodName = context.Invocation?.Method?.Name ?? "UnknownMethod";
+        var methodName = context.Invocation.Method.Name;
         var userName = context.UserName
                        ?? context.UserName
                        ?? "Anonymous";
-        var targetType = context.Invocation?.InvocationTarget?.GetType()?.Name ?? "UnknownTarget";
+        var targetType = context.Invocation.InvocationTarget.GetType().Name;
+        if (string.IsNullOrEmpty(targetType)) targetType = "UnknownTarget";
 
         // 把错误信息放入上下文，让上层（表现层）可以获取
         context.ErrorMessage = ex.Message;

@@ -31,6 +31,8 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// 静态根实例，确保整个应用只有一个 DomainHost 实例
     /// </summary>
     public static DomainHost<TUserInfo>? Root { get; private set; }
+    public bool IsExternalContainer { get; private set; }
+    public bool IsDevelopment { get; internal set; }
 
     /// <summary>
     /// 全局过滤器列表（实例级别，默认为空）
@@ -81,7 +83,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         ContainerBuilder? upLevelContainer = null,
         IConfiguration? configuration = null)
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo, TDomainHelper>, new()
-        where TDomainHelper : DomainHelperBase<TUserInfo>
+        where TDomainHelper : DomainUserHelperBase<TUserInfo>
         where TSessionManager : class, ISessionManager<TUserInfo>
     {
         if (Root != null)
@@ -147,12 +149,12 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <param name="services">兼容第三方组件的依赖注入的服务集合</param>
     /// <param name="configuration">配置项</param>
     /// <param name="isExternalContainer"></param>
-    private DomainHost(DomainHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
+    private DomainHost(DomainUserHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
         IServiceCollection services, IConfiguration? configuration = null, bool isExternalContainer = false)
     {
         ArgumentNullException.ThrowIfNull(userHelper);
         UserHelper = userHelper;
-        IsIsExternalContainer = isExternalContainer;
+        IsExternalContainer = isExternalContainer;
 
         // 断言containerBuilder不为空
         containerBuilder.EnsureNotNull(name: nameof(containerBuilder));
@@ -164,7 +166,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         Configuration = configuration;
     }
 
-    public DomainHelperBase<TUserInfo> UserHelper { get; }
+    public DomainUserHelperBase<TUserInfo> UserHelper { get; }
 
     public IConfiguration? Configuration { get; private set; }
 
@@ -183,8 +185,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     internal ISessionManager<TUserInfo>? SessionManager => field ??= Container?.Resolve<ISessionManager<TUserInfo>>();
 
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
-
-    public bool IsIsExternalContainer { get; private set; }
 
     /// <summary>
     /// 创建新的领域上下文（每次 AOP 方法调用时执行）

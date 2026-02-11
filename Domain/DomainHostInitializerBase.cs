@@ -1,7 +1,7 @@
-﻿using System;
-using Autofac;
+﻿using Autofac;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections.Generic;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
@@ -11,49 +11,16 @@ namespace TKW.Framework.Domain;
 
 public abstract class DomainHostInitializerBase<TUserInfo, TDomainHelper>
 where TUserInfo : class, IUserInfo, new()
-where TDomainHelper : DomainHelperBase<TUserInfo>
+where TDomainHelper : DomainUserHelperBase<TUserInfo>
 {
+    protected bool IsDevelopment { get; private set; }    // 是否处于开发环境
+    protected string ConnectionString { get; private set; } = string.Empty; // 数据库连接字符串
+    protected Dictionary<string, string> ConfigDictionary { get; } = new(); // 其他配置项
     private DomainHost<TUserInfo>? Host
     {
         get => field ?? throw new InvalidOperationException("Host 尚未初始化，无法访问");
         set;
     }
-
-    /// <summary>
-    /// 配置依赖注入容器，添加应用程序特定的服务和设置
-    /// </summary>
-    /// <remarks>重写此方法以注册应用程序所需的自定义服务、模块或配置源。
-    /// 此方法通常在应用程序启动期间调用，用于在构建依赖注入容器之前对其进行准备。</remarks>
-    /// <param name="containerBuilder">容器构建器，用于注册依赖注入的组件和服务</param>
-    /// <param name="services">服务描述符集合，可以向其中添加或配置服务</param>
-    /// <param name="configuration">应用程序配置设置，用于配置服务和组件</param>
-    protected abstract void OnInitializeContainer(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration);
-
-    /// <summary>
-    /// 注册领域服务，例如领域服务、领域事件处理器、领域模型等。这些服务通常是领域层的核心组件，直接支持业务逻辑实现。
-    /// </summary>
-    protected abstract TDomainHelper OnRegisterDomainServices(ContainerBuilder containerBuilder,
-        IServiceCollection services, IConfiguration? configuration);
-
-    /// <summary>
-    /// 注册领域基础设施服务，例如数据库上下文、日志记录、缓存等。这些服务通常是领域层依赖的第三方组件。
-    /// </summary>
-    protected abstract void OnRegisterInfrastructureServices(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration);
-
-    /// <summary>
-    /// 在依赖注入容器构建完成后调用，以允许进行额外的配置或初始化。
-    /// </summary>
-    /// <remarks>重写此方法可以在容器完全构建后、但在使用容器解析服务之前执行自定义操作。
-    /// 此方法适用于需要构建后配置的高级场景。</remarks>
-    protected internal abstract void OnContainerBuilt(IContainer? container, IConfiguration? configuration,
-        bool isExternalContainer = false);
-
-    /// <summary>
-    /// 构造默认的全局过滤器，例如日志记录、权限检查等。
-    /// 这些过滤器将应用于所有领域方法调用，提供统一的横切关注点处理。
-    /// 例如：base.EnableDomainLogging(); base.EnableAuthorityFilter();
-    /// </summary>
-    protected abstract void ConfigureGlobalFilterInstances(IContainer? container, IConfiguration? configuration);
 
     /// <summary>
     /// 配置 DMP_Lite 领域服务（数据库、日志、AOP等）
@@ -65,16 +32,56 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
     public TDomainHelper InitializeDiContainer(
         ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration)
     {
-        // 注册默认全局异常工厂（可被应用层替换）
-        containerBuilder.RegisterType<DefaultExceptionLoggerFactory>().AsSelf().AsImplementedInterfaces();
+        // 初始化容器所需的配置项，例如是否处于开发环境、数据库连接字符串等
+        OnConfigInitializer(containerBuilder, configuration,
+            ConfigDictionary, out var isDevelopment, out var connectionString);
 
-        // 初始化容器
-        OnInitializeContainer(containerBuilder, services, configuration);
+        IsDevelopment = isDevelopment;
+        ConnectionString = connectionString;
+
         // 注册领域基础设施服务
         OnRegisterInfrastructureServices(containerBuilder, services, configuration);
         // 注册领域服务
         return OnRegisterDomainServices(containerBuilder, services, configuration);
     }
+
+    /// <summary>
+    /// 配置初始化器：比如根据环境确认是否调试模式、读取连接字符串等。
+    /// </summary>
+    /// <param name="containerBuilder">容器构建器，用于注册依赖注入的组件和服务</param>
+    /// <param name="configuration">应用程序配置设置，用于配置服务和组件</param>
+    /// <param name="configDictionary">其他配置项</param>
+    /// <param name="isDevelopment">是否处于开发环境</param>
+    /// <param name="connectionString">数据库连接字符串</param>
+    protected abstract void OnConfigInitializer(ContainerBuilder containerBuilder,
+        IConfiguration? configuration, Dictionary<string, string> configDictionary, out bool isDevelopment,
+        out string connectionString);
+
+    /// <summary>
+    /// 注册领域基础设施服务，例如数据库上下文、日志记录、缓存等。这些服务通常是领域层依赖的第三方组件。
+    /// </summary>
+    protected virtual void OnRegisterInfrastructureServices(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration)
+    {
+        // 派生类可根据需要覆盖此方法进行额外的配置或初始化
+    }
+
+    /// <summary>
+    /// 注册领域服务，例如领域服务、领域事件处理器、领域模型等。这些服务通常是领域层的核心组件，直接支持业务逻辑实现。
+    /// </summary>
+    protected abstract TDomainHelper OnRegisterDomainServices(ContainerBuilder containerBuilder,
+        IServiceCollection services, IConfiguration? configuration);
+
+    /// <summary>
+    /// 在依赖注入容器构建完成后调用，以允许进行额外的配置或初始化。
+    /// </summary>
+    /// <remarks>重写此方法可以在容器完全构建后、但在使用容器解析服务之前执行自定义操作。
+    /// 此方法适用于需要构建后配置的高级场景。</remarks>
+    protected internal virtual void OnContainerBuilt(IContainer? container, IConfiguration? configuration,
+        bool isExternalContainer = false)
+    {
+        // 默认实现不执行任何操作，派生类可根据需要覆盖此方法进行额外的配置或初始化
+    }
+
 
     /// <summary>
     /// 在依赖注入容器构建完成后调用，以允许进行额外的配置或初始化。
@@ -85,11 +92,39 @@ where TDomainHelper : DomainHelperBase<TUserInfo>
 
         // 设置 Host 属性，供后续方法使用
         Host = host;
-        // 调用虚方法，让派生类决定默认 Filter
-        ConfigureGlobalFilterInstances(host.Container, host.Configuration);
+        host.IsDevelopment = IsDevelopment;
+
+        // 构建基本的全局过滤器（例如权限过滤器、日志过滤器等），不需要注册和注入
+        ConfigGlobalFilters(host.Container, host.Configuration);
 
         // 调用派生类的 OnContainerBuilt 方法，允许进行额外的配置或初始化
         OnContainerBuilt(host.Container, host.Configuration, isExternalContainer);
+    }
+
+    /// <summary>
+    /// 构建基本的全局过滤器（例如权限过滤器、日志过滤器等），不需要注册和注入
+    /// 这些过滤器将应用于所有领域方法调用，提供统一的横切关注点处理。
+    /// 表现层的派生类可在此注册全局异常工厂覆盖默认全局异常日志工厂
+    /// 例如：Web/Desktop 替换默认全局异常工厂（例如记录日志、设置 HTTP 响应等）
+    ///     UseExceptionLoggerFactory{WebGlobalExceptionFactory}();
+    /// 注入业务级别的过滤器，例如：base.AddGlobalFilter(new MerchantFilter());
+    /// <remarks>注意：后续可通过 builder.ConfigDomainFilters(cfg =>{ cfg.EnableAuthorityFilter()}) 、
+    /// app.ConfigDomainWeb(cfg =>{ cfg.UseSessionUserMiddleware()}) 代替</remarks>
+    /// </summary>
+    protected virtual void ConfigGlobalFilters(IContainer? container, IConfiguration? configuration)
+    {
+        // 启用、注册全局过滤器（例如权限过滤器、日志过滤器等）
+
+        // 1. 所有环境都开启权限检查（最低安全保障）
+        EnableAuthorityFilter();
+        // 2. 使用默认全局异常工厂：可在 Web/Desktop 环境替换为适合该环境的全局异常工厂（例如记录日志、设置 HTTP 响应等）
+        if (IsDevelopment)
+            UseDefaultExceptionLoggerFactory();
+        //else UseNullExceptionLoggerFactory();
+
+        // 3. 启用日志：开发环境额外开启详细日志，生产环境甚至不开日志
+        if (IsDevelopment)
+            EnableDomainLogging(EnumDomainLogLevel.Minimal);
     }
 
     #region 供派生类使用的设置全局过滤器的函数
