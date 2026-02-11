@@ -79,12 +79,10 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <summary>
     /// 初始化 DomainHost 的静态入口方法
     /// </summary>
-    public static DomainHost<TUserInfo> Build<TDomainInitializer, TDomainHelper, TSessionManager>(
+    public static DomainHost<TUserInfo> Build<TDomainInitializer>(
         ContainerBuilder? upLevelContainer = null,
         IConfiguration? configuration = null)
-        where TDomainInitializer : DomainHostInitializerBase<TUserInfo, TDomainHelper>, new()
-        where TDomainHelper : DomainUserHelperBase<TUserInfo>
-        where TSessionManager : class, ISessionManager<TUserInfo>
+        where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
         if (Root != null)
             throw new InvalidOperationException("不能重复初始化 DomainHost");
@@ -100,9 +98,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
         var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration);
-
-        // 注册会话管理器
-        containerBuilder.UseSessionManager<TSessionManager, TUserInfo>();
 
         // 创建 DomainHost 实例
         Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, isExternalContainer);

@@ -42,7 +42,7 @@ public class LoggingFilterAttribute<TUserInfo>(EnumDomainLogLevel level) : Domai
             ? string.Join(", ", context.Invocation.Arguments.Select(SafeToString))
             : "参数已省略（非 Verbose 模式）";
 
-        logger.LogInformation(
+        logger?.LogInformation(
             "领域方法进入 - 方法: {Method} - 用户: {UserName} - 参数: {Args} - 来源: {Where}",
             method, user.UserInfo?.UserName ?? "Anonymous", argsInfo, where);
 
@@ -64,7 +64,7 @@ public class LoggingFilterAttribute<TUserInfo>(EnumDomainLogLevel level) : Domai
         // 可根据级别决定日志级别（Warning for slow calls）
         var logLevel = durationMs > 500 ? LogLevel.Warning : LogLevel.Information;
 
-        logger.Log(logLevel,
+        logger?.Log(logLevel,
             "领域方法完成 - 方法: {Method} - 耗时: {DurationMs}ms - 来源: {Where}",
             method, durationMs, where);
 

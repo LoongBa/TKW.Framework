@@ -1,4 +1,5 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -14,11 +15,9 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 校验经纬度是否合法
         /// </summary>
-        /// <param name="coord">地理坐标</param>
         /// <returns>经纬度均为合法数值时返回 true</returns>
         public bool IsValid()
-            => coord is not null
-               && !double.IsNaN(coord.Latitude)
+            => !double.IsNaN(coord.Latitude)
                && !double.IsNaN(coord.Longitude)
                && coord.Latitude is >= -90 and <= 90
                && coord.Longitude is >= -180 and <= 180;
@@ -26,7 +25,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 计算与另一点的球面距离（单位：米）
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="other">目标坐标</param>
         /// <returns>距离（米）</returns>
         public double DistanceTo(GeoCoordinate other)
@@ -35,7 +33,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 计算与一组点的球面距离（单位：米）
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="others">目标坐标集合</param>
         /// <returns>距离集合（米）</returns>
         public IEnumerable<double> DistancesTo(IEnumerable<GeoCoordinate> others)
@@ -44,7 +41,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 计算一组点中距离当前点最近的点
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="points">目标坐标集合</param>
         /// <returns>最近的点，若集合为空则返回 null</returns>
         public GeoCoordinate? NearestTo(IEnumerable<GeoCoordinate> points)
@@ -66,7 +62,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 判断当前点是否在指定半径（米）范围内
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="center">圆心坐标</param>
         /// <param name="radiusMeters">半径（米）</param>
         /// <returns>在范围内返回 true</returns>
@@ -76,7 +71,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 输出度分秒格式字符串（如 31°12'45.123"N, 121°30'15.456"E）
         /// </summary>
-        /// <param name="coord">地理坐标</param>
         /// <returns>度分秒格式字符串</returns>
         public string ToDmsString()
         {
@@ -87,7 +81,6 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 判断当前点是否在指定矩形区域内
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="leftTop">矩形左上角</param>
         /// <param name="rightBottom">矩形右下角</param>
         /// <returns>在区域内返回 true</returns>
@@ -101,12 +94,11 @@ public static class GeoCoordinateExtensions
         /// <summary>
         /// 判断当前点是否在多边形内（射线法，适用于经纬度简单多边形）
         /// </summary>
-        /// <param name="coord">当前坐标</param>
         /// <param name="polygon">多边形顶点集合（顺序闭合）</param>
         /// <returns>在多边形内返回 true</returns>
         public bool IsInPolygon(IEnumerable<GeoCoordinate> polygon)
         {
-            if (!coord.IsValid() || polygon is null) return false;
+            if (!coord.IsValid()) return false;
             var points = polygon.ToList();
             var n = points.Count;
             if (n < 3) return false;
@@ -215,13 +207,13 @@ public static class GeoCoordinateExtensions
             var yi = points[i].Latitude * Math.PI / 180 * earthRadius;
             var xj = points[j].Longitude * Math.PI / 180 * earthRadius * Math.Cos(points[j].Latitude * Math.PI / 180);
             var yj = points[j].Latitude * Math.PI / 180 * earthRadius;
-            var a = xj * yi - xi * yj;
-            area += a;
-            cx += (xi + xj) * a;
-            cy += (yi + yj) * a;
+            var d = xj * yi - xi * yj;
+            area += d;
+            cx += (xi + xj) * d;
+            cy += (yi + yj) * d;
         }
         area *= 0.5;
-        if (Math.Abs(area) < 1e-10) return PathCenter(points);
+        if (Math.Abs(area) < 1e-10) return points.PathCenter();
         cx /= (6 * area);
         cy /= (6 * area);
         // 反投影回经纬度

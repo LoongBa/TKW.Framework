@@ -6,12 +6,12 @@ using System.Collections.Generic;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain;
 
-public abstract class DomainHostInitializerBase<TUserInfo, TDomainHelper>
+public abstract class DomainHostInitializerBase<TUserInfo>
 where TUserInfo : class, IUserInfo, new()
-where TDomainHelper : DomainUserHelperBase<TUserInfo>
 {
     protected bool IsDevelopment { get; private set; }    // 是否处于开发环境
     protected string ConnectionString { get; private set; } = string.Empty; // 数据库连接字符串
@@ -29,7 +29,7 @@ where TDomainHelper : DomainUserHelperBase<TUserInfo>
     /// <param name="services">.NET Core DI 服务集合</param>
     /// <param name="configuration">配置项</param>
     /// <returns>配置好的 DMPDomainHelper 实例</returns>
-    public TDomainHelper InitializeDiContainer(
+    public DomainUserHelperBase<TUserInfo> InitializeDiContainer(
         ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration)
     {
         // 初始化容器所需的配置项，例如是否处于开发环境、数据库连接字符串等
@@ -62,13 +62,15 @@ where TDomainHelper : DomainUserHelperBase<TUserInfo>
     /// </summary>
     protected virtual void OnRegisterInfrastructureServices(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration)
     {
+        // 注册会话管理器
+        UseDefaultSessionManager(containerBuilder);
         // 派生类可根据需要覆盖此方法进行额外的配置或初始化
     }
 
     /// <summary>
     /// 注册领域服务，例如领域服务、领域事件处理器、领域模型等。这些服务通常是领域层的核心组件，直接支持业务逻辑实现。
     /// </summary>
-    protected abstract TDomainHelper OnRegisterDomainServices(ContainerBuilder containerBuilder,
+    protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(ContainerBuilder containerBuilder,
         IServiceCollection services, IConfiguration? configuration);
 
     /// <summary>
@@ -144,6 +146,16 @@ where TDomainHelper : DomainUserHelperBase<TUserInfo>
     {
         Host?.AddGlobalFilters(filters);
     }
+
+    /// <summary>
+    /// 使用默认的会话管理器实现，提供基本的会话管理功能，例如创建、更新、销毁会话等。
+    /// </summary>
+    protected ContainerBuilder UseDefaultSessionManager(ContainerBuilder containerBuilder)
+    {
+        containerBuilder.UseSessionManager<SessionManager<TUserInfo>, TUserInfo>();
+        return containerBuilder;
+    }
+
     /// <summary>
     /// 允许启用领域日志记录过滤器，自动记录领域方法的调用、参数、返回值和异常等信息。
     /// 日志级别可配置（Normal、Detailed等）。需要配合具体的日志实现（例如 Microsoft.Extensions.Logging）使用。
