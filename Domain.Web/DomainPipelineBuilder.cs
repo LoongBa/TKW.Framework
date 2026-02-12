@@ -8,7 +8,7 @@ namespace TKW.Framework.Domain.Web;
 public class DomainPipelineBuilder
 {
     private readonly DomainWebConfigurationOptions _Options;
-
+    private readonly IHostApplicationBuilder _Builder;
     // 维护一个有序的动作列表
     private readonly List<Action<WebApplication>> _PipelineActions = [];
     private RoutingMode _RoutingMode = RoutingMode.None;
@@ -16,11 +16,20 @@ public class DomainPipelineBuilder
     internal DomainPipelineBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options)
     {
         _Options = options;
-
+        _Builder = builder;
         // 注册统一的 StartupFilter，引用当前 Builder 的动作列表
         builder.Services.AddSingleton<IStartupFilter>(new DomainPipelineFilter(_PipelineActions));
     }
 
+    /// <summary>
+    /// 注册第三方服务 (立即执行)
+    /// </summary>
+    public DomainPipelineBuilder RegisterServices(Action<IServiceCollection> action)
+    {
+        // 注意：服务注册必须立即执行，不能放入延迟执行列表
+        action(_Builder.Services);
+        return this;
+    }
     public DomainPipelineBuilder BeforeRouting(Action<WebApplication> action)
     {
         _PipelineActions.Add(action);
@@ -63,19 +72,3 @@ public class DomainPipelineBuilder
 }
 
 // 统一管道过滤器：确保按 List 顺序执行
-sealed class DomainPipelineFilter(List<Action<WebApplication>> actions) : IStartupFilter
-{
-    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
-    {
-        return app =>
-        {
-            var webApp = (WebApplication)app;
-            // 严格按顺序执行用户配置的所有步骤
-            foreach (var action in actions)
-            {
-                action(webApp);
-            }
-            next(app);
-        };
-    }
-}

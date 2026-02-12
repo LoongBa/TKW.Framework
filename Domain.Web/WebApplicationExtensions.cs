@@ -18,11 +18,12 @@ public static class WebApplicationExtensions
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        var options = new DomainWebConfigurationOptions();
-
-        // 1. 表现层主导：自动提取宿主环境的默认配置
-        options.IsDevelopment = builder.Environment.IsDevelopment();
-        options.ConnectionString = builder.Configuration.GetConnectionString("Default") ?? "";
+        var options = new DomainWebConfigurationOptions
+        {
+            // 1. 表现层主导：自动提取宿主环境的默认配置
+            IsDevelopment = builder.Environment.IsDevelopment(),
+            ConnectionString = builder.Configuration.GetConnectionString("Default") ?? ""
+        };
 
         // 2. 执行用户自定义配置（允许在 Program.cs 中覆盖默认值）
         configure?.Invoke(options);
