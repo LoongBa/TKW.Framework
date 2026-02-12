@@ -14,14 +14,14 @@ namespace TKW.Framework.Domain.Web.Middlewares;
 /// </summary>
 public class DomainExceptionMiddleware(RequestDelegate next, ILogger<DomainExceptionMiddleware> logger)
 {
-    private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
-    private readonly ILogger<DomainExceptionMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly RequestDelegate _Next = next ?? throw new ArgumentNullException(nameof(next));
+    private readonly ILogger<DomainExceptionMiddleware> _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await _next(context);
+            await _Next(context);
         }
         catch (Exception ex)
         {
@@ -32,7 +32,7 @@ public class DomainExceptionMiddleware(RequestDelegate next, ILogger<DomainExcep
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         // 记录完整异常（包括堆栈）
-        _logger.LogError(exception, "未处理的异常 - 请求路径: {Path} - 方法: {Method}",
+        _Logger.LogError(exception, "未处理的异常 - 请求路径: {Path} - 方法: {Method}",
             context.Request.Path, context.Request.Method);
 
         // 统一响应格式
@@ -63,7 +63,7 @@ public class DomainExceptionMiddleware(RequestDelegate next, ILogger<DomainExcep
         {
             response.StatusCode = (int)HttpStatusCode.BadRequest;
             response.Message = domainEx.Message;
-            response.ErrorCode = domainEx.ErrorCode ?? "DOMAIN_ERROR";
+            response.ErrorCode = domainEx.ErrorCode;
             response.Details = domainEx.Data;  // 如果有额外数据
         }
 

@@ -1,9 +1,10 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Web.Middlewares;
 
@@ -11,62 +12,38 @@ namespace TKW.Framework.Domain.Web;
 
 public static class WebApplicationExtensions
 {
-    /// <summary>
-    /// 一行配置 TKWF Domain：领域初始化 + Web 适配层中间件注册
-    /// </summary>
-    public static WebApplicationBuilder ConfigTKWDomain<TUserInfo, TInitializer>(
+    public static DomainPipelineBuilder ConfigTkwDomain<TUserInfo, TInitializer>(
         this WebApplicationBuilder builder,
-        Action<DomainWebConfigurationOptions<TUserInfo>>? configureWeb = null)
+        Action<DomainWebConfigurationOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        // 1. 准备 Web 配置选项
-        var webOptions = new DomainWebConfigurationOptions<TUserInfo>();
-        configureWeb?.Invoke(webOptions);
+        var options = new DomainWebConfigurationOptions();
 
-        // 2. 切换 Autofac 工厂（必须显式）
+        // 1. 表现层主导：自动提取宿主环境的默认配置
+        options.IsDevelopment = builder.Environment.IsDevelopment();
+        options.ConnectionString = builder.Configuration.GetConnectionString("Default") ?? "";
+
+        // 2. 执行用户自定义配置（允许在 Program.cs 中覆盖默认值）
+        configure?.Invoke(options);
+
+        // 3. 将 options 传给领域层进行“守门员”审查和 DI 构建
         builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureContainer<ContainerBuilder>(cb =>
-            {
-                DomainHost<TUserInfo>.Build<TInitializer>(
-                    upLevelContainer: cb,
-                    configuration: builder.Configuration);
-            });
+                DomainHost<TUserInfo>.Build<TInitializer>(cb, builder.Configuration, options));
 
-        // 3. 注册 IStartupFilter，在管道构建时自动执行 Web 中间件注册
-        builder.Services.AddSingleton<IStartupFilter>(sp => new DomainWebStartupFilter<TUserInfo>(webOptions));
+        // 4. 初始化管道构建器
+        var pipelineBuilder = new DomainPipelineBuilder(builder, options);
 
-        return builder;
-    }
-
-    /// <summary>
-    /// IStartupFilter 实现：在 ASP.NET Core 管道构建阶段拿到 IApplicationBuilder
-    /// </summary>
-    private sealed class DomainWebStartupFilter<TUserInfo>(DomainWebConfigurationOptions<TUserInfo> options)
-        : IStartupFilter
-        where TUserInfo : class, IUserInfo, new()
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        pipelineBuilder.BeforeRouting(app =>
         {
-            return app =>
-            {
-                // 执行所有 Web 层中间件注册
-                if (options.UseSessionUserMiddleware)
-                {
-                    app.UseMiddleware<SessionUserMiddleware<TUserInfo>>();
-                }
+            if (options.UseDomainExceptionMiddleware) app.UseMiddleware<DomainExceptionMiddleware>();
+            if (options.UseSessionUserMiddleware) app.UseMiddleware<SessionUserMiddleware<TUserInfo>>();
+        });
 
-                if (options.UseDomainExceptionMiddleware)
-                {
-                    app.UseMiddleware<DomainExceptionMiddleware>();
-                }
+        builder.Services.AddHostedService<RoutingWarningHostedService>(sp =>
+            new RoutingWarningHostedService(sp.GetRequiredService<ILogger<RoutingWarningHostedService>>(), options));
 
-                // 可以在这里继续添加其他 Web 配置（如 CORS、异常页面等）
-                // 但建议把核心中间件放在这里，顺序由注册顺序控制
-
-                // 调用原始管道（继续后续 UseCors、MapGraphQL 等）
-                next(app);
-            };
-        }
+        return pipelineBuilder;
     }
 }

@@ -21,67 +21,34 @@ namespace TKW.Framework.Domain;
 /// <summary>
 /// 领域主机类，用于初始化和管理领域服务（整个框架的统一入口）
 /// </summary>
-/// <remarks>
-/// 负责容器构建、用户上下文、会话管理、全局 Filter 注册等核心基础设施。
-/// 全局过滤器现在统一由本类管理，支持运行时添加和环境差异化配置。
-/// </remarks>
 public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    /// <summary>
-    /// 静态根实例，确保整个应用只有一个 DomainHost 实例
-    /// </summary>
     public static DomainHost<TUserInfo>? Root { get; private set; }
     public bool IsExternalContainer { get; private set; }
     public bool IsDevelopment { get; internal set; }
 
-    /// <summary>
-    /// 全局过滤器列表（实例级别，默认为空）
-    /// 通过 AddGlobalFilter / EnableXXX 方法显式添加，支持按环境启用
-    /// </summary>
     private readonly List<DomainFilterAttribute<TUserInfo>> _GlobalFilters = [];
-
-    /// <summary>
-    /// 只读全局过滤器集合，供 DomainInterceptor 使用
-    /// </summary>
     public IReadOnlyList<DomainFilterAttribute<TUserInfo>> GlobalFilters => _GlobalFilters.AsReadOnly();
 
-    /// <summary>
-    /// 添加单个全局过滤器（推荐在 OnContainerBuilt 或扩展方法中调用）
-    /// </summary>
+    private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
+
     internal void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        // 避免完全相同的实例重复添加
-        if (_GlobalFilters.Contains(filter))
-        {
-            return;
-        }
-
-        // 可选：再加一层类型检查（防止不同参数的同类型 Filter 重复）
-        if (_GlobalFilters.Any(f => f.GetType() == filter.GetType()))
-        {
-            // 可以选择记录日志或抛异常
-            // _domainHost.LoggerFactory?.CreateLogger<DomainHost<TUserInfo>>()
-            //     .LogWarning("尝试重复添加相同类型的全局过滤器: {FilterType}", filter.GetType().Name);
-            return;
-        }
+        if (_GlobalFilters.Contains(filter)) return;
+        if (_GlobalFilters.Any(f => f.GetType() == filter.GetType())) return;
         _GlobalFilters.Add(filter);
     }
 
-    /// <summary>
-    /// 批量添加全局过滤器
-    /// </summary>
-    internal void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters)
-    {
-        _GlobalFilters.AddRange(filters);
-    }
+    internal void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters) => _GlobalFilters.AddRange(filters);
 
     /// <summary>
     /// 初始化 DomainHost 的静态入口方法
     /// </summary>
     public static DomainHost<TUserInfo> Build<TDomainInitializer>(
         ContainerBuilder? upLevelContainer = null,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        DomainOptions? options = null) // 重构点：接收表现层配置
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
         if (Root != null)
@@ -90,21 +57,22 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         var isExternalContainer = upLevelContainer != null;
         var containerBuilder = upLevelContainer ?? new ContainerBuilder();
 
-        // 注册核心组件
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
 
-        // 执行应用层初始化
+        // 确保 options 不为 null
+        options ??= new DomainOptions();
+
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
-        var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration);
 
-        // 创建 DomainHost 实例
+        // 调用 Initializer，此时 options 包含表现层的初始值，领域层可在内部进行“守门员”修正
+        var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration, options);
+
         Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, isExternalContainer);
         containerBuilder.RegisterInstance(Root).AsSelf();
-        containerBuilder.Register(_ => Root);
+        containerBuilder.Register(_ => Root); // 保留原始代码的双重注册
 
-        // 容器构建完成后回调
         containerBuilder.RegisterBuildCallback(context =>
         {
             if (Root == null) return;
@@ -113,37 +81,29 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
                 Root.Container = container;
             else
             {
+                // 保留原始代码中的健壮性处理逻辑
                 try
                 {
                     var maybe = context.ResolveOptional<IContainer>();
                     if (maybe != null) Root.Container = maybe;
                 }
-                catch { /* 忽略，保持容器继续启动 */ }
+                catch { /* 忽略异常以保持启动 */ }
             }
 
             if (Root.Container != null)
             {
                 initializer.ContainerBuiltCallback(Root, isExternalContainer);
 
-                // 更新日志工厂（优先使用外部注册的实现）
                 if (Root.Container.IsRegistered<ILoggerFactory>())
                     Root.LoggerFactory = Root.Container.Resolve<ILoggerFactory>();
             }
         });
-        // 如果不是外部容器，则构建Autofac容器
+
         if (!isExternalContainer) Root.Container = containerBuilder.Build();
 
         return Root;
     }
 
-    /// <summary>
-    /// 私有构造函数，用于初始化DomainHost实例
-    /// </summary>
-    /// <param name="userHelper"></param>
-    /// <param name="containerBuilder">Autofac容器构建器</param>
-    /// <param name="services">兼容第三方组件的依赖注入的服务集合</param>
-    /// <param name="configuration">配置项</param>
-    /// <param name="isExternalContainer"></param>
     private DomainHost(DomainUserHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
         IServiceCollection services, IConfiguration? configuration = null, bool isExternalContainer = false)
     {
@@ -151,45 +111,32 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         UserHelper = userHelper;
         IsExternalContainer = isExternalContainer;
 
-        // 断言containerBuilder不为空
-        containerBuilder.EnsureNotNull(name: nameof(containerBuilder));
+        containerBuilder.EnsureNotNull(nameof(containerBuilder));
+        containerBuilder.Populate(services); // 将 Web 层的注册 Populate 进 Autofac
 
-        // 兼容第三方组件的依赖注入的服务集合
-        containerBuilder.Populate(services);
-
-        // 配置项
         Configuration = configuration;
     }
 
     public DomainUserHelperBase<TUserInfo> UserHelper { get; }
-
     public IConfiguration? Configuration { get; private set; }
-
-    /// <summary>
-    /// 日志工厂（默认使用 NullLoggerFactory）
-    /// </summary>
     public ILoggerFactory LoggerFactory { get; private set; } = new NullLoggerFactory();
-
-    /// <summary>
-    /// 全局异常工厂（可选，默认为 null，框架内部会有默认处理逻辑）
-    /// </summary>
     public DefaultExceptionLoggerFactory? ExceptionLoggerFactory { get; internal set; }
-
     public IContainer? Container { get; private set; }
-
     internal ISessionManager<TUserInfo>? SessionManager => field ??= Container?.Resolve<ISessionManager<TUserInfo>>();
 
-    private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
-
     /// <summary>
-    /// 创建新的领域上下文（每次 AOP 方法调用时执行）
+    /// 创建新的领域上下文（供 DomainInterceptor 调用）
+    /// </summary>
+    /// <summary>
+    /// 创建新的领域上下文（供 DomainInterceptor 调用）
     /// </summary>
     internal DomainContext<TUserInfo> NewDomainContext(IInvocation invocation, ILifetimeScope lifetimeScope)
     {
-        // 处理控制器级 Filters + Flags
+        // 1. 查找核心业务接口（排除 IDomainService 等基础框架接口）
         var interfaceType = invocation.TargetType.GetInterfaces()
             .First(i => !i.Name.StartsWith("IDomainService", StringComparison.OrdinalIgnoreCase));
 
+        // 2. 处理并缓存控制器（接口）级的过滤器与标志
         var key = $"{interfaceType.FullName}";
         if (!_ControllerContracts.TryGetValue(key, out var interfaceContract))
         {
@@ -202,7 +149,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
             _ControllerContracts.TryAdd(key, interfaceContract);
         }
 
-        // 处理方法级 Filters + Flags
+        // 3. 处理并缓存方法级的过滤器与标志
         key = $"{invocation.TargetType.FullName}:{invocation.Method.Name}";
         if (!_ControllerContracts.TryGetValue(key, out var methodContract))
         {
@@ -211,6 +158,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
             var filters = method.GetCustomAttributes<DomainFilterAttribute<TUserInfo>>(true);
             var flags = method.GetCustomAttributes<DomainFlagAttribute>(true);
 
+            // 合并方法级与控制器级的配置
             foreach (var filter in filters)
                 methodContract.MethodFilters.Add(filter);
             foreach (var filter in interfaceContract.ControllerFilters)
@@ -224,19 +172,20 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
             _ControllerContracts.TryAdd(key, methodContract);
         }
 
-        // 注入 LoggerFactory（已确保非 null）
-        var context = lifetimeScope.Resolve<DomainContext<TUserInfo>>(
-            TypedParameter.From(((DomainServiceBase<TUserInfo>)invocation.InvocationTarget).User),
-            TypedParameter.From(invocation),
-            TypedParameter.From(methodContract),
-            TypedParameter.From(LoggerFactory));
+        // 4. 核心联动：将当前 AOP 开启的子作用域存入异步上下文（AsyncLocal）
+        // 这确保了在该方法随后的异步流中，User.Use<T> 会自动使用此 lifetimeScope
+        DomainUser<TUserInfo>._ActiveScope.Value = lifetimeScope;
 
-        return context;
+        // 5. 手动实例化 DomainContext，跳过 Autofac Resolve 以提升性能
+        return new DomainContext<TUserInfo>(
+            ((DomainServiceBase<TUserInfo>)invocation.InvocationTarget).User,
+            invocation,
+            methodContract,
+            lifetimeScope,
+            LoggerFactory);
     }
 
     public static Func<DomainHost<TUserInfo>> Factory => () => Root!;
-
-    #region 会话相关方法
 
     public async Task<SessionInfo<TUserInfo>> NewGuestSessionAsync()
     {
@@ -251,6 +200,4 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey).ConfigureAwait(false);
         return session.User!;
     }
-
-    #endregion
 }

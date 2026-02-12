@@ -1,18 +1,16 @@
-﻿using TKW.Framework.Domain.Interception.Filters;
-using TKW.Framework.Domain.Interfaces;
+﻿using TKW.Framework.Domain;
 
 namespace TKW.Framework.Domain.Web;
 
-public class DomainWebConfigurationOptions<TUserInfo> where TUserInfo : class, IUserInfo, new()
+/// <summary>
+/// Web 专用领域配置扩展
+/// </summary>
+public class DomainWebConfigurationOptions : DomainOptions
 {
-    public bool UseSessionUserMiddleware { get; set; } = true;
     public bool UseDomainExceptionMiddleware { get; set; } = true;
+    public bool UseSessionUserMiddleware { get; set; } = true;
+    public bool EnableDomainLogging { get; set; } = false;
 
-    public bool EnableDomainLogging { get; set; }
-    public EnumDomainLogLevel LoggingLevel { get; set; } = EnumDomainLogLevel.Minimal;
-
-    public Type? SessionManagerType { get; set; }               // 允许覆盖，带警告
-    public Type? ExceptionLoggerFactoryType { get; set; }       // 允许覆盖，带警告
-
-    internal bool AttemptedToOverrideUserHelper { get; set; } = false;
+    public bool SuppressRoutingWarning { get; set; } = false;
+    internal bool HasRoutingPhase { get; set; } = false;
 }

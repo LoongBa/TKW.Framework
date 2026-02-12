@@ -12,8 +12,8 @@ namespace TKW.Framework.Domain.Web.Middlewares;
 /// </summary>
 public class SessionUserMiddleware<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    public const string KeyName_DomainUser = "DomainUser";
-    private readonly RequestDelegate _next;
+    public const string KeyNameDomainUser = "DomainUser";
+    private readonly RequestDelegate _Next;
     private readonly ISessionManager<TUserInfo> _SessionManager;
     private readonly ILogger<SessionUserMiddleware<TUserInfo>> _Logger;
     private readonly DomainHost<TUserInfo> _DomainHost;
@@ -26,7 +26,7 @@ public class SessionUserMiddleware<TUserInfo> where TUserInfo : class, IUserInfo
         DomainHost<TUserInfo> domainHost, ISessionManager<TUserInfo> sessionManager)
     {
         _DomainHost = domainHost.EnsureNotNull();
-        _next = next ?? throw new ArgumentNullException(nameof(next));
+        _Next = next ?? throw new ArgumentNullException(nameof(next));
         _SessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
         _Logger = domainHost.LoggerFactory.CreateLogger<SessionUserMiddleware<TUserInfo>>();
     }
@@ -54,10 +54,10 @@ public class SessionUserMiddleware<TUserInfo> where TUserInfo : class, IUserInfo
             }
 
             // 注入到 HttpContext（供 Controller、Endpoint、Blazor 使用）
-            context.Items[KeyName_DomainUser] = domainUser;
+            context.Items[KeyNameDomainUser] = domainUser;
             context.User = domainUser.ToClaimsPrincipal();   // 假设你有这个扩展方法
 
-            await _next(context);
+            await _Next(context);
         }
         catch (Exception ex)
         {
