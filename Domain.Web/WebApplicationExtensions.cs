@@ -1,6 +1,7 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,9 +11,13 @@ using TKW.Framework.Domain.Web.Middlewares;
 
 namespace TKW.Framework.Domain.Web;
 
+
+// ───────────────────────────────────────────────────────────────
+// 主入口返回 RegisterServicesBuilder（可选起点）
+// ───────────────────────────────────────────────────────────────
 public static class WebApplicationExtensions
 {
-    public static DomainPipelineBuilder ConfigTkwDomain<TUserInfo, TInitializer>(
+    public static RegisterServicesBuilder ConfigTkwDomain<TUserInfo, TInitializer>(
         this WebApplicationBuilder builder,
         Action<DomainWebConfigurationOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
@@ -20,31 +25,36 @@ public static class WebApplicationExtensions
     {
         var options = new DomainWebConfigurationOptions
         {
-            // 1. 表现层主导：自动提取宿主环境的默认配置
             IsDevelopment = builder.Environment.IsDevelopment(),
             ConnectionString = builder.Configuration.GetConnectionString("Default") ?? ""
         };
-
-        // 2. 执行用户自定义配置（允许在 Program.cs 中覆盖默认值）
         configure?.Invoke(options);
 
-        // 3. 将 options 传给领域层进行“守门员”审查和 DI 构建
-        builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory())
+        builder.Host
+            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureContainer<ContainerBuilder>(cb =>
                 DomainHost<TUserInfo>.Build<TInitializer>(cb, builder.Configuration, options));
 
-        // 4. 初始化管道构建器
-        var pipelineBuilder = new DomainPipelineBuilder(builder, options);
-
-        pipelineBuilder.BeforeRouting(app =>
+        var pipelineActions = new List<Action<WebApplication>>
         {
-            if (options.UseDomainExceptionMiddleware) app.UseMiddleware<DomainExceptionMiddleware>();
-            if (options.UseSessionUserMiddleware) app.UseMiddleware<SessionUserMiddleware<TUserInfo>>();
-        });
+            // 注入基础中间件（始终执行）
+            app =>
+            {
+                if (options.UseDomainExceptionMiddleware)
+                    app.UseMiddleware<DomainExceptionMiddleware>();
 
-        builder.Services.AddHostedService<RoutingWarningHostedService>(sp =>
+                if (options.UseSessionUserMiddleware)
+                    app.UseMiddleware<SessionUserMiddleware<TUserInfo>>();
+            }
+        };
+
+        // 注册统一执行器
+        builder.Services.AddSingleton<IStartupFilter>(new DomainPipelineFilter(pipelineActions));
+
+        // 注册警告服务
+        builder.Services.AddHostedService(sp =>
             new RoutingWarningHostedService(sp.GetRequiredService<ILogger<RoutingWarningHostedService>>(), options));
 
-        return pipelineBuilder;
+        return new RegisterServicesBuilder(builder, options, pipelineActions);
     }
 }
