@@ -44,6 +44,8 @@
 
 ---
 
+<img title="" src="./images_TKWF.Domain.Web%20配置教程/743baaa1857fbf67191c614a15d9f9eaf32cf93b.png" alt="loading-ag-673" width="586" data-align="center">
+
 ```mermaid
 graph TD
     %% 节点定义
@@ -67,7 +69,7 @@ graph TD
 
     %% 路径 B: 标准路由流
     RSB -- "BeforeRouting()" --> BRB
-    
+
     subgraph 路由配置阶段
         BRB -- "UseAspNetCoreRouting()" --> RB
         BRB -- "UseCustomRouting()" --> RB
@@ -76,17 +78,8 @@ graph TD
     %% 路由后阶段 (可循环)
     RB -- "AfterRouting()" --> ARB
     ARB -- "AfterRouting()" --> ARB
-    
-    ARB --> End
 
-    %% 样式美化
-    style NR fill:#f96,stroke:#333,stroke-width:2px
-    style RSB fill:#d4f1f9,stroke:#057492
-    style BRB fill:#d4f1f9,stroke:#057492
-    style RB fill:#d4f1f9,stroke:#057492
-    style ARB fill:#d4f1f9,stroke:#057492
-    style Start fill:#dfd
-    style End fill:#fdd
+    ARB --> End
 ```
 
 ### 4. WebAPI 项目完整范本（采用 GraphQL + FastEndpoints）
@@ -316,5 +309,3 @@ cfg.SuppressRoutingWarning = true;
 ---
 
 如果需要进一步调整（例如增加 Blazor WASM 示例、修改警告文案、或补充 OnPreInitialize 示例），随时告诉我。
-
-

@@ -35,7 +35,7 @@ public static class WebApplicationExtensions
             .ConfigureContainer<ContainerBuilder>(cb =>
                 DomainHost<TUserInfo>.Build<TInitializer>(cb, builder.Configuration, options));
 
-        var pipelineActions = new List<Action<WebApplication>>
+        var pipelineActions = new List<Action<IApplicationBuilder>>
         {
             // 注入基础中间件（始终执行）
             app =>
