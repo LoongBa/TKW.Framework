@@ -13,7 +13,5 @@ public class DomainOptions
     public string ConnectionString { get; set; } = string.Empty;
     public Dictionary<string, string> ConfigDictionary { get; set; } = new();
     public EnumDomainLogLevel LoggingLevel { get; set; } = EnumDomainLogLevel.Minimal;
-
-    public Type? SessionManagerType { get; set; }
     public Type? ExceptionLoggerFactoryType { get; set; }
 }

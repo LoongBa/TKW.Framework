@@ -10,6 +10,11 @@ using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain;
 
+/// <summary>
+/// 领域主机初始化基类
+/// 负责领域层服务的注册与 DI 容器的初始化逻辑。
+/// </summary>
+/// <typeparam name="TUserInfo">用户信息类型</typeparam>
 public abstract class DomainHostInitializerBase<TUserInfo>
 where TUserInfo : class, IUserInfo, new()
 {
@@ -55,25 +60,26 @@ where TUserInfo : class, IUserInfo, new()
     /// </summary>
     protected virtual void OnPreInitialize(DomainOptions options, IConfiguration? configuration) { }
 
+    /// <summary>
+    /// 注册领域基础设施服务
+    /// </summary>
     protected virtual void OnRegisterInfrastructureServices(
         ContainerBuilder containerBuilder,
         IServiceCollection services,
         IConfiguration? configuration,
         DomainOptions options)
     {
-        if (options.SessionManagerType != null)
-        {
-            containerBuilder.RegisterType(options.SessionManagerType)
-                .As<ISessionManager<TUserInfo>>()
-                .SingleInstance();
-        }
-        else
-        {
-            UseDefaultSessionManager(containerBuilder);
-        }
+        // 【微调】：由于 SessionManagerType 已从 DomainOptions 移除，
+        // 具体的 ISessionManager 注册现在主要由 Web 层的 UseDomainSession 负责。
+        // 这里仅提供默认实现作为保底（使用 RegisterTypeReplaceable 确保不覆盖 Web 层的显式注册）。
+        UseDefaultSessionManager(containerBuilder);
+
         containerBuilder.UseLogger();
     }
 
+    /// <summary>
+    /// 注册领域业务服务（由子类实现）
+    /// </summary>
     protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(
         ContainerBuilder containerBuilder,
         IServiceCollection services,
@@ -91,6 +97,9 @@ where TUserInfo : class, IUserInfo, new()
         OnContainerBuilt(host.Container, host.Configuration, isExternalContainer);
     }
 
+    /// <summary>
+    /// 配置全局过滤器
+    /// </summary>
     protected virtual void ConfigGlobalFilters(IContainer? container, IConfiguration? configuration)
     {
         EnableAuthorityFilter();
@@ -102,8 +111,12 @@ where TUserInfo : class, IUserInfo, new()
 
     protected void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter) => Host?.AddGlobalFilter(filter);
 
+    /// <summary>
+    /// 注册默认的会话管理器实现
+    /// </summary>
     protected ContainerBuilder UseDefaultSessionManager(ContainerBuilder containerBuilder)
     {
+        // 使用 Replaceable 注册，允许 Web 层的 UseDomainSession 覆盖它
         containerBuilder.RegisterTypeReplaceable<ISessionManager<TUserInfo>, SessionManager<TUserInfo>>();
         return containerBuilder;
     }
