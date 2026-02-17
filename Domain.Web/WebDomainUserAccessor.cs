@@ -11,11 +11,22 @@ public abstract class WebDomainUserAccessor<TUserInfo> : IDomainUserAccessor<TUs
 
     protected WebDomainUserAccessor(IHttpContextAccessor httpContextAccessor)
     {
-        var user = httpContextAccessor.HttpContext?
-                .Items[SessionUserMiddleware<TUserInfo>.ContextKeyName_DomainUser]
-            as DomainUser<TUserInfo>;
-
+        var user = httpContextAccessor.GetDomainUser<TUserInfo>();
         ArgumentNullException.ThrowIfNull(user);
         DomainUser = user;
+    }
+}
+public static class WebDomainUserAccessorExtension{
+    extension(IHttpContextAccessor context)
+    {
+        public DomainUser<TUserInfo> GetDomainUser<TUserInfo>()
+            where TUserInfo : class, IUserInfo, new()
+        {
+            var user = context.HttpContext?
+                    .Items[SessionUserMiddleware<TUserInfo>.ContextKeyName_DomainUser]
+                as DomainUser<TUserInfo>;
+            ArgumentNullException.ThrowIfNull(user);
+            return user;
+        }
     }
 }

@@ -1,5 +1,4 @@
-﻿using Autofac;
-using Castle.DynamicProxy;
+﻿using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
@@ -11,53 +10,67 @@ using TKW.Framework.Domain.Interfaces;
 namespace TKW.Framework.Domain.Interception;
 
 /// <summary>
-/// 领域拦截器（核心 AOP 组件）：负责注入 DomainContext、执行前后置过滤器、异常处理
+/// 领域拦截器：实现物理隔离的“按需开启作用域”模式。
+/// 确保在高并发环境下，每一个方法调用都拥有独立的数据库连接、事务和缓存上下文。
 /// </summary>
-/// <remarks>
-/// 1. 支持方法级、控制器级、全局级过滤器（全局 Filter 由 DomainHost 统一管理）
-/// 2. 通过 DomainContext 自动注入当前 DomainUser{TUserInfo}
-/// 3. 支持异步过滤器（Pre/PostProceedAsync）
-/// 4. 全局异常统一处理（可被应用层替换）
-/// 
-/// 注意：全局过滤器默认为空，需要通过 DomainHost.AddGlobalFilter 或 EnableDomainLogging 等方式显式启用。
-/// </remarks>
 public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposable
     where TUserInfo : class, IUserInfo, new()
 {
     private readonly DomainHost<TUserInfo> _DomainHost;
     private readonly DefaultExceptionLoggerFactory? _GlobalExceptionLoggerFactory;
-    private readonly ILifetimeScope _LifetimeScope;
 
     public DomainInterceptor(DomainHost<TUserInfo> domainHost)
     {
         ArgumentNullException.ThrowIfNull(domainHost);
-        ArgumentNullException.ThrowIfNull(domainHost.Container);
-
         _DomainHost = domainHost;
         _GlobalExceptionLoggerFactory = domainHost.ExceptionLoggerFactory;
-        _LifetimeScope = _DomainHost.Container.BeginLifetimeScope();
     }
 
+    /// <summary>
+    /// 初始化：为当前方法调用开启专属的“逻辑沙箱”。
+    /// </summary>
     protected override async Task InitialAsync(IInvocation invocation)
     {
-        Context = _DomainHost.NewDomainContext(invocation, _LifetimeScope);
+        if (_DomainHost.Container == null)
+            throw new InvalidOperationException("领域主机尚未完成初始化，无法开启拦截作用域。");
+
+        // 【重构核心】：从根容器开启一个全新的生命周期作用域
+        // 这确保了 Context 解析出的所有 DomainService 都是该方法独占的。
+        var perCallScope = _DomainHost.Container.BeginLifetimeScope();
+
+        // 将此作用域绑定到领域上下文中
+        Context = _DomainHost.NewDomainContext(invocation, perCallScope);
         Context.EnsureNotNull();
 
         await Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 清理：方法执行完毕后立即释放子容器，回收内存和数据库连接。
+    /// </summary>
+    protected override async Task CleanUpAsync()
+    {
+        // 只有在 Context 及其关联的作用域存在时才进行释放
+        if (Context?.LifetimeScope != null)
+        {
+            // 使用异步释放，防止在处理数据库连接等 I/O 资源时阻塞线程
+            await Context.LifetimeScope.DisposeAsync();
+        }
+    }
+
+    #region 过滤器执行逻辑 (保持原有的多级顺序)
+
     protected override async Task PreProceedAsync(IInvocation invocation)
     {
         if (Context == null) return;
 
-        // 全局过滤器（从 DomainHost 获取）
+        // 全局 -> 控制器 -> 方法
         foreach (var filter in _DomainHost.GlobalFilters)
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Global, Context))
                 await filter.PreProceedAsync(DomainInvocationWhereType.Global, Context);
         }
 
-        // 控制器级（排除与方法级重复的 Filter）
         var controllerFilters = Context.ControllerFilters
             .Where(cf => Context.MethodFilters.All(mf => mf.TypeId != cf.TypeId));
 
@@ -67,7 +80,6 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
                 await filter.PreProceedAsync(DomainInvocationWhereType.Controller, Context);
         }
 
-        // 方法级
         foreach (var filter in Context.MethodFilters)
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Method, Context))
@@ -79,18 +91,16 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
     {
         if (Context == null) return;
 
-        // 方法级后置（逆序执行）
+        // 方法 -> 控制器 -> 全局 (逆序)
         foreach (var filter in Context.MethodFilters.AsEnumerable().Reverse())
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Method, Context))
                 await filter.PostProceedAsync(DomainInvocationWhereType.Method, Context);
         }
 
-        // 控制器级后置（逆序执行）
         var controllerFilters = Context.ControllerFilters
             .Where(cf => Context.MethodFilters.All(mf => mf.TypeId != cf.TypeId))
-            .AsEnumerable()
-            .Reverse();
+            .AsEnumerable().Reverse();
 
         foreach (var filter in controllerFilters)
         {
@@ -98,7 +108,6 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
                 await filter.PostProceedAsync(DomainInvocationWhereType.Controller, Context);
         }
 
-        // 全局后置（逆序执行）
         foreach (var filter in _DomainHost.GlobalFilters.AsEnumerable().Reverse())
         {
             if (filter.CanWeGo(DomainInvocationWhereType.Global, Context))
@@ -106,45 +115,33 @@ public class DomainInterceptor<TUserInfo> : BaseInterceptor<TUserInfo>, IDisposa
         }
     }
 
+    #endregion
+
     protected override void LogException(InterceptorExceptionContext context)
     {
         Context?.Logger?.LogError(context.Exception,
-            "Domain 方法异常: {MethodName} - 用户: {UserName}",
+            "领域方法执行异常 | 方法: {MethodName} | 用户: {UserName}",
             context.Invocation.Method.Name,
             Context.DomainUser.UserInfo.UserName);
 
         var ex = context.Exception;
-
-        // 安全获取上下文信息
-        var methodName = context.Invocation.Method.Name;
-        var userName = context.UserName
-                       ?? context.UserName
-                       ?? "Anonymous";
-        var targetType = context.Invocation.InvocationTarget.GetType().Name;
-        if (string.IsNullOrEmpty(targetType)) targetType = "UnknownTarget";
-
-        // 把错误信息放入上下文，让上层（表现层）可以获取
         context.ErrorMessage = ex.Message;
         context.IsAuthenticationError = ex is AuthenticationException;
         context.IsAuthorizationError = ex is UnauthorizedAccessException;
-        context.Method = methodName;
-        context.UserName = userName;
-        context.TargetType = targetType;
+        context.Method = context.Invocation.Method.Name;
+        context.UserName = Context?.DomainUser?.UserInfo?.UserName ?? "Unknown";
+        context.TargetType = context.Invocation.InvocationTarget.GetType().Name;
 
-        if (context.IsAuthenticationError)
-            context.ErrorCode = "AUTH_001";   // 未认证
-        else if (context.IsAuthorizationError)
-            context.ErrorCode = "AUTH_002";   // 权限不足
+        if (context.IsAuthenticationError) context.ErrorCode = "AUTH_001";
+        else if (context.IsAuthorizationError) context.ErrorCode = "AUTH_002";
 
-        // 交给全局异常日志工厂（如果有）进行统一处理（如记录日志、发送告警等）
         _GlobalExceptionLoggerFactory?.LogException(context);
-        // 避免不小心被修改为 true 导致异常被吞掉
-        context.ExceptionHandled = false; 
+        context.ExceptionHandled = false;
     }
 
     public void Dispose()
     {
-        _LifetimeScope.Dispose();
+        // 拦截器实例本身的清理
         GC.SuppressFinalize(this);
     }
 }

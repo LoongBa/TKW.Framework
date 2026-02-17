@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,21 +11,34 @@ using TKW.Framework.Domain.Web.Middlewares;
 namespace TKW.Framework.Domain.Web;
 
 /// <summary>
-/// Web 专用服务注册构建器
+/// Web 专用服务注册构建器（状态机起点）
 /// 负责初始的服务注册和配置，是构建管道的起点。
 /// </summary>
 public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterServicesBuilder>
 {
-    // 延迟执行的管道配置委托列表，用于存储在 Configure 阶段执行的中间件注册逻辑
+    // 引用传递的管道配置委托列表。即使此时为空，后续链式调用也会持续填充该引用。
     private readonly List<Action<IApplicationBuilder>> _PipelineActions;
 
-    internal RegisterServicesBuilder(
-        IHostApplicationBuilder builder,
-        DomainWebConfigurationOptions options,
-        List<Action<IApplicationBuilder>> pipelineActions)
+    /// <summary>
+    /// 初始化构建器：在此处完成 IStartupFilter 的注册和基础中间件的挂载。
+    /// </summary>
+    internal RegisterServicesBuilder(IHostApplicationBuilder builder, 
+        DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
         : base(builder, options)
     {
-        _PipelineActions = pipelineActions;
+        // 1. 创建共享的动作列表（这是所有中间件挂载的物理容器）
+        _PipelineActions = pipelineActions ?? [];
+
+        // 2. 在此处注册唯一的 IStartupFilter。
+        // 这样做使得 WebApplicationExtensions 无需感知管道执行细节，只需关注注册。
+        builder.Services.AddSingleton<IStartupFilter>(new DomainPipelineFilter(_PipelineActions));
+
+        // 3. 自动挂载全局异常中间件。
+        // 确保 WebExceptionMiddleware 永远处于管道的最顶层，优先捕获后续所有组件的异常。
+        if (options.UseDomainExceptionMiddleware)
+        {
+            _PipelineActions.Add(app => app.UseMiddleware<WebExceptionMiddleware>());
+        }
     }
 
     /// <summary>
@@ -39,19 +53,16 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
         where TSessionManager : class, ISessionManager<TUserInfo>
         where TUserInfo : class, IUserInfo, new()
     {
-        // 获取 Web 特定的配置选项
         var webOptions = (DomainWebConfigurationOptions)Options;
 
         // 应用用户提供的会话配置
         setupAction?.Invoke(webOptions.Session);
 
-        // 将具体的 SessionManager 实现注册到 DI 容器
-        // 注意：此处注册为 Singleton（单例），以确保会话数据在整个应用生命周期内共享
-        // 这也覆盖了 Initializer 中的默认注册值
+        // 【重要】：将具体的 SessionManager 实现注册为 Singleton
+        // 确保会话数据在整个 Web 应用生命周期内共享，解决内存版会话数据不一致问题。
         Builder.Services.AddSingleton<ISessionManager<TUserInfo>, TSessionManager>();
 
         // 将 SessionUserMiddleware 加入管道配置列表
-        // 泛型 TUserInfo 在此处闭环，后续 Builder (SessionSetupBuilder) 无需再携带该泛型参数
         _PipelineActions.Add(app => app.UseMiddleware<SessionUserMiddleware<TUserInfo>>(webOptions.Session));
 
         // 返回下一个阶段的构建器
@@ -59,165 +70,103 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
     }
 }
 
-
 /// <summary>
 /// 会话设置构建器
-/// 位于 UseDomainSession 之后，用于配置路由之前的中间件。
+/// 用于在 UseDomainSession 之后，路由配置之前的中间件挂载。
 /// </summary>
-public class SessionSetupBuilder
+public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
-    private readonly IHostApplicationBuilder _Builder;
-    private readonly DomainWebConfigurationOptions _Options;
-    private readonly List<Action<IApplicationBuilder>> _PipelineActions;
-
-    internal SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
-    {
-        _Builder = builder;
-        _Options = options;
-        _PipelineActions = pipelineActions;
-    }
-
     /// <summary>
-    /// 配置路由之前的中间件
+    /// 配置路由之前的自定义中间件
     /// </summary>
-    /// <param name="action">配置委托</param>
-    /// <returns>路由前构建器</returns>
     public BeforeRoutingBuilder BeforeRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> action)
     {
-        _PipelineActions.Add(app => action(app, _Options));
-        return new BeforeRoutingBuilder(_Builder, _Options, _PipelineActions);
+        pipelineActions.Add(app => action(app, options));
+        return new BeforeRoutingBuilder(builder, options, pipelineActions);
     }
 
     /// <summary>
-    /// 极简模式：不使用标准路由，直接配置应用管道。
-    /// 调用此方法后，将无法使用 UseAspNetCoreRouting 或 UseEndpoints 相关的功能。
+    /// 极简模式：直接配置应用管道，不使用标准路由
     /// </summary>
-    /// <param name="action">最终的应用配置委托</param>
     public void NoRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> action)
     {
-        _Options.HasRoutingPhase = true;
-        _PipelineActions.Add(app => action(app, _Options));
+        options.HasRoutingPhase = true;
+        pipelineActions.Add(app => action(app, options));
     }
 }
 
 /// <summary>
 /// 路由前构建器
-/// 用于配置 UseRouting 之前的中间件，如异常处理、HTTPS重定向、静态文件、认证等。
+/// 负责配置 UseRouting 之前的标准中间件（如重定向、认证等）。
 /// </summary>
-public class BeforeRoutingBuilder
+public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
-    private readonly IHostApplicationBuilder _Builder;
-    private readonly DomainWebConfigurationOptions _Options;
-    private readonly List<Action<IApplicationBuilder>> _PipelineActions;
-
-    internal BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
-    {
-        _Builder = builder;
-        _Options = options;
-        _PipelineActions = pipelineActions;
-    }
-
     /// <summary>
-    /// 启用 ASP.NET Core 标准路由和授权
+    /// 启用 ASP.NET Core 标准路由和授权体系
     /// </summary>
     /// <param name="enableUseAuthorization">是否启用授权中间件</param>
     /// <param name="authOptions">授权策略配置委托</param>
-    /// <returns>路由构建器，用于配置终结点映射</returns>
     public RoutingBuilder UseAspNetCoreRouting(bool enableUseAuthorization = true, Action<AuthorizationOptions>? authOptions = null)
     {
-        _Options.HasRoutingPhase = true;
+        options.HasRoutingPhase = true;
 
         // 1. 添加路由中间件
-        _PipelineActions.Add(app => app.UseRouting());
+        pipelineActions.Add(app => app.UseRouting());
 
-        // 2. 如果启用授权，配置相关服务和中间件
+        // 2. 配置认证与授权服务
         if (enableUseAuthorization)
         {
-            // 注册身份验证服务
-            _Builder.Services.AddAuthentication();
+            builder.Services.AddAuthentication();
 
-            // 注册授权服务
             if (authOptions != null)
-                _Builder.Services.AddAuthorization(authOptions);
+                builder.Services.AddAuthorization(authOptions);
             else
-                _Builder.Services.AddAuthorization();
+                builder.Services.AddAuthorization();
 
-            // 添加身份验证中间件（必须在 UseRouting 之后，UseAuthorization 之前）
-            _PipelineActions.Add(app => app.UseAuthentication());
-            // 添加授权中间件
-            _PipelineActions.Add(app => app.UseAuthorization());
+            // 认证中间件必须在路由之后
+            pipelineActions.Add(app => app.UseAuthentication());
+            pipelineActions.Add(app => app.UseAuthorization());
         }
 
-        return new RoutingBuilder(_Builder, _Options, _PipelineActions);
+        return new RoutingBuilder(builder, options, pipelineActions);
     }
 
     /// <summary>
     /// 使用自定义路由逻辑
     /// </summary>
-    /// <param name="customAction">自定义路由配置委托</param>
-    /// <returns>路由构建器</returns>
     public RoutingBuilder UseCustomRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> customAction)
     {
-        _Options.HasRoutingPhase = true;
-        _PipelineActions.Add(app => customAction(app, _Options));
-        return new RoutingBuilder(_Builder, _Options, _PipelineActions);
+        options.HasRoutingPhase = true;
+        pipelineActions.Add(app => customAction(app, options));
+        return new RoutingBuilder(builder, options, pipelineActions);
     }
 }
 
 /// <summary>
-/// 路由构建器
-/// 用于配置终结点映射，如 MapControllers, MapRazorPages, MapHub, MapGraphQL 等。
+/// 路由终结点映射构建器
+/// 专门负责 MapControllers, MapHub 等终结点配置。
 /// </summary>
-public class RoutingBuilder
+public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
-    private readonly IHostApplicationBuilder _Builder;
-    private readonly DomainWebConfigurationOptions _Options;
-    private readonly List<Action<IApplicationBuilder>> _PipelineActions;
-
-    internal RoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
-    {
-        _Builder = builder;
-        _Options = options;
-        _PipelineActions = pipelineActions;
-    }
-
     /// <summary>
-    /// 配置路由终结点
+    /// 配置具体的终结点映射。
+    /// 【调整点】：将方法名由 AfterRouting 改为更贴切的 MapEndpoints。
     /// </summary>
-    /// <param name="action">终结点配置委托</param>
-    /// <returns>路由后构建器，支持链式配置</returns>
     public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebConfigurationOptions> action)
     {
-        _PipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, _Options)));
-        return new AfterRoutingBuilder(_Builder, _Options, _PipelineActions);
+        pipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, options)));
+        return new AfterRoutingBuilder(builder, options, pipelineActions);
     }
 }
 
 /// <summary>
-/// 路由后构建器
-/// 用于在终结点配置之后继续添加配置，支持链式调用。
+/// 路由后构建器：支持终结点映射后的后续链式配置。
 /// </summary>
-public class AfterRoutingBuilder
+public class AfterRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
-    private readonly IHostApplicationBuilder _Builder;
-    private readonly DomainWebConfigurationOptions _Options;
-    private readonly List<Action<IApplicationBuilder>> _PipelineActions;
-
-    internal AfterRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
-    {
-        _Builder = builder;
-        _Options = options;
-        _PipelineActions = pipelineActions;
-    }
-
-    /// <summary>
-    /// 继续添加终结点配置
-    /// </summary>
-    /// <param name="action">终结点配置委托</param>
-    /// <returns>当前构建器实例，支持链式调用</returns>
     public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebConfigurationOptions> action)
     {
-        _PipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, _Options)));
+        pipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, options)));
         return this;
     }
 }

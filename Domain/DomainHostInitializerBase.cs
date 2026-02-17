@@ -49,7 +49,7 @@ where TUserInfo : class, IUserInfo, new()
         SyncOptionsToProperties(options);
 
         // 4. 注册基础设施服务（包含日志能力、会话管理等）
-        OnRegisterInfrastructureServices(containerBuilder, services, configuration, options);
+        RegisterInfrastructureInternal(containerBuilder, services, configuration, options);
 
         // 5. 注册业务逻辑服务（由子类实现）
         return OnRegisterDomainServices(containerBuilder, services, configuration);
@@ -71,22 +71,33 @@ where TUserInfo : class, IUserInfo, new()
     /// <summary>
     /// 注册领域层基础设施服务
     /// </summary>
-    protected virtual void OnRegisterInfrastructureServices(
+    protected virtual void RegisterInfrastructureInternal(
         ContainerBuilder containerBuilder,
         IServiceCollection services,
         IConfiguration? configuration,
         DomainOptions options)
     {
-        // 【关键增强】：内存版 SessionManager 必须注册为单例 (SingleInstance)
+        // 1. 执行派生类的“钩子”方法，让业务层先进行配置（如 JSON 序列化设置）
+        OnRegisterInfrastructureServices(containerBuilder, services, configuration, options);
+
+        // 2. 强制执行框架基类的基础设施注册
+        // 配置 HybridCache：SessionManager 默认使用内存缓存
+        services.AddHybridCache();
+
+        // 内存版 SessionManager 必须注册为单例 (SingleInstance)
         // 否则在 Scoped 生命周期下，跨请求的会话数据将无法共享，导致“孤儿 Cookie”问题无法闭环
         containerBuilder.RegisterTypeReplaceable<ISessionManager<TUserInfo>, SessionManager<TUserInfo>>()
             .SingleInstance();
 
-        // 【日志优化】：仅在开启 EnableDomainLogging 时才启用 Autofac 的日志注入能力
-        // 这决定了是否可以通过构造函数注入 ILogger，而不涉及具体的输出 Provider 注册
+        // 开启 AOP 日志注入能力
         if (options.EnableDomainLogging)
             containerBuilder.UseLogger();
     }
+
+    /// <summary>
+    /// 注册领域层基础设施服务
+    /// </summary>
+    protected abstract void OnRegisterInfrastructureServices(ContainerBuilder containerBuilder, IServiceCollection services, IConfiguration? configuration, DomainOptions options);
 
     /// <summary>
     /// 注册领域业务服务（必须由具体的领域项目实现）
