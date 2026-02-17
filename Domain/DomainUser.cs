@@ -44,7 +44,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
         ?? throw new InvalidOperationException("无法获取解析作用域，请确保容器已初始化。");
 
     [JsonInclude]
-    public TUserInfo UserInfo { get; protected internal set; } = null!;
+    public TUserInfo UserInfo { get; set; } = null!;
 
     #region 服务解析
 
