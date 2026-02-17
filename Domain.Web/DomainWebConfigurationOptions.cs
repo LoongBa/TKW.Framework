@@ -11,7 +11,6 @@ public class DomainWebConfigurationOptions : DomainOptions
     /// 许多领域服务（如获取当前会话用户）依赖于此服务。
     /// </summary>
     public bool AutoAddHttpContextAccessor { get; set; } = true;
-    public bool EnableDomainLogging { get; set; } = false;
     public bool SuppressRoutingWarning { get; set; } = false;
     internal bool HasRoutingPhase { get; set; } = false;
     // 聚合 Session 配置

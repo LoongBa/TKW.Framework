@@ -74,6 +74,12 @@ public class SessionManager<TUserInfo>(
         return updated;
     }
 
+    public async Task<SessionInfo<TUserInfo>?> TryGetAndActiveSessionAsync(string sessionKey)
+    {
+        var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        return value;
+    }
+
     public async Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync(string sessionKey, Func<SessionInfo<TUserInfo>, SessionInfo<TUserInfo>> updater)
     {
         var current = await GetSessionAsync(sessionKey).ConfigureAwait(false);
@@ -98,7 +104,7 @@ public class SessionManager<TUserInfo>(
         OnSessionAbandon(value!);
         return value;
     }
-    
+
     public virtual void OnSessionCreated(SessionInfo<TUserInfo> session)
     {
         if (SessionCreated == null) return;

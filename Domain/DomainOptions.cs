@@ -14,4 +14,9 @@ public class DomainOptions
     public Dictionary<string, string> ConfigDictionary { get; set; } = new();
     public EnumDomainLogLevel LoggingLevel { get; set; } = EnumDomainLogLevel.Minimal;
     public Type? ExceptionLoggerFactoryType { get; set; }
+
+    /// <summary>
+    /// 是否开启领域层 AOP 日志（拦截方法调用、耗时等）
+    /// </summary>
+    public bool EnableDomainLogging { get; set; }
 }

@@ -4,59 +4,70 @@ using System.Linq;
 namespace TKW.Framework.Domain.Interception.Filters;
 
 /// <summary>
-/// 要求指定角色才能访问（标记类）
+/// 要求指定角色才能访问的标记属性。
+/// 支持多组标记叠加，组内逻辑可配置（Any/All）。
 /// </summary>
 /// <remarks>
-/// 使用方式：
-/// [RequireRoleFlag("admin")]
-/// [RequireRoleFlag("manager", "supervisor")]
-/// [RequireRoleFlag(RoleLogic.All, "admin", "finance")]
-/// 支持多个标记叠加，默认使用 Any 逻辑
+/// 推荐写法（支持枚举）：
+/// [RequireRoleFlag(UserRole.Admin, UserRole.SuperUser)]
+/// [RequireRoleFlag(RoleLogic.All, "Finance", "Audit")]
 /// </remarks>
 [AttributeUsage(AttributeTargets.Interface | AttributeTargets.Method, AllowMultiple = true)]
 public class RequireRoleFlagAttribute : DomainFlagAttribute
 {
     /// <summary>
-    /// 需要的角色列表
+    /// 需要的角色列表（统一存储为字符串以兼容 Claims 机制）
     /// </summary>
     public string[] Roles { get; }
 
     /// <summary>
-    /// 多个角色之间的逻辑关系（默认：Any）
+    /// 多个角色之间的逻辑关系
     /// </summary>
     public RoleLogic Logic { get; }
 
     /// <summary>
-    /// 兼容旧写法，默认使用 Any 逻辑
+    /// 默认构造：满足任一角色即可
     /// </summary>
-    public RequireRoleFlagAttribute(params string[] roles)
+    public RequireRoleFlagAttribute(params object[] roles)
         : this(RoleLogic.Any, roles)
     {
     }
 
-    public RequireRoleFlagAttribute(RoleLogic logic, params string[]? roles)
+    /// <summary>
+    /// 全功能构造
+    /// </summary>
+    /// <param name="logic">逻辑关系（Any/All）</param>
+    /// <param name="roles">角色列表（支持 string 或 Enum）</param>
+    public RequireRoleFlagAttribute(RoleLogic logic, params object[]? roles)
     {
         Logic = logic;
-        Roles = roles?.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray()
-                ?? [];
+
+        // 优化方案：一步到位过滤 null、无效字符串及重复项
+        // 这样既保证了 non-nullable 的 string[] 结果，也确保了安全性
+        Roles = roles?
+            .Select(r => r.ToString())
+            .OfType<string>() // 过滤 null 并转换类型为 IEnumerable<string>
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Distinct()
+            .ToArray() ?? [];
 
         if (Roles.Length == 0)
-            throw new ArgumentException("至少需要指定一个角色", nameof(roles));
+            throw new ArgumentException("权限标记至少需要指定一个有效的角色名称或枚举值。", nameof(roles));
     }
 }
 
 /// <summary>
-/// 角色组合的逻辑关系
+/// 角色组合的逻辑关系策略
 /// </summary>
 public enum RoleLogic
 {
     /// <summary>
-    /// 满足任一角色即可（OR）
+    /// 满足任一角色即可（逻辑或 OR）
     /// </summary>
     Any,
 
     /// <summary>
-    /// 必须全部满足（AND）
+    /// 必须全部满足（逻辑与 AND）
     /// </summary>
     All
 }

@@ -33,7 +33,7 @@ public class SessionUserMiddleware<TUserInfo>(
 
             // 2. 如果存在 Key，尝试从缓存/数据库加载并激活会话
             if (!string.IsNullOrWhiteSpace(sessionKey))
-                session = await sessionManager.GetAndActiveSessionAsync(sessionKey);
+                session = await sessionManager.TryGetAndActiveSessionAsync(sessionKey);
 
             // 3. 如果会话无效，创建新的游客会话
             if (session == null)
@@ -55,7 +55,7 @@ public class SessionUserMiddleware<TUserInfo>(
         {
             _Logger.LogError(ex, "SessionUserMiddleware 执行异常");
             // 注意：这里不再直接处理响应（WriteAsync），而是抛出异常。
-            // 这样做的好处是让外层的全局异常过滤器（如 DomainExceptionMiddleware）统一处理错误格式，
+            // 这样做的好处是让外层的全局异常过滤器（如 WebExceptionMiddleware）统一处理错误格式，
             // 保证 API 返回的 JSON 格式一致性，避免中间件直接写入文本导致的格式混乱。
             throw;
         }

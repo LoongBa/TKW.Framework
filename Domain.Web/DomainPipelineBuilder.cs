@@ -10,37 +10,26 @@ using TKW.Framework.Domain.Web.Middlewares;
 namespace TKW.Framework.Domain.Web;
 
 /// <summary>
-/// 服务注册构建器
+/// Web 专用服务注册构建器
 /// 负责初始的服务注册和配置，是构建管道的起点。
 /// </summary>
-public class RegisterServicesBuilder
+public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterServicesBuilder>
 {
-    private readonly IHostApplicationBuilder _Builder;
-    private readonly DomainWebConfigurationOptions _Options;
-    // 延迟执行的管道配置委托列表
+    // 延迟执行的管道配置委托列表，用于存储在 Configure 阶段执行的中间件注册逻辑
     private readonly List<Action<IApplicationBuilder>> _PipelineActions;
 
-    internal RegisterServicesBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+    internal RegisterServicesBuilder(
+        IHostApplicationBuilder builder,
+        DomainWebConfigurationOptions options,
+        List<Action<IApplicationBuilder>> pipelineActions)
+        : base(builder, options)
     {
-        _Builder = builder;
-        _Options = options;
         _PipelineActions = pipelineActions;
     }
 
     /// <summary>
-    /// 注册自定义服务到 DI 容器
-    /// </summary>
-    /// <param name="action">配置委托</param>
-    /// <returns>当前构建器实例，支持链式调用</returns>
-    public RegisterServicesBuilder RegisterServices(Action<IServiceCollection, DomainWebConfigurationOptions> action)
-    {
-        action(_Builder.Services, _Options);
-        return this;
-    }
-
-    /// <summary>
-    /// 强制开启领域会话。这是进入后续管道配置的必经环节。
-    /// 该方法会注册 SessionManager 并将 SessionUserMiddleware 加入管道。
+    /// 强制开启领域会话。
+    /// 此方法会注册 SessionManager 并将 SessionUserMiddleware 加入管道。
     /// </summary>
     /// <typeparam name="TSessionManager">具体的 SessionManager 实现类型</typeparam>
     /// <typeparam name="TUserInfo">用户信息类型</typeparam>
@@ -50,20 +39,26 @@ public class RegisterServicesBuilder
         where TSessionManager : class, ISessionManager<TUserInfo>
         where TUserInfo : class, IUserInfo, new()
     {
-        // 应用用户提供的会话配置
-        setupAction?.Invoke(_Options.Session);
+        // 获取 Web 特定的配置选项
+        var webOptions = (DomainWebConfigurationOptions)Options;
 
-        // 将具体的 SessionManager 实现注册到 DI 容器（Scoped 生命周期）
-        _Builder.Services.AddScoped<ISessionManager<TUserInfo>, TSessionManager>();
+        // 应用用户提供的会话配置
+        setupAction?.Invoke(webOptions.Session);
+
+        // 将具体的 SessionManager 实现注册到 DI 容器
+        // 注意：此处注册为 Singleton（单例），以确保会话数据在整个应用生命周期内共享
+        // 这也覆盖了 Initializer 中的默认注册值
+        Builder.Services.AddSingleton<ISessionManager<TUserInfo>, TSessionManager>();
 
         // 将 SessionUserMiddleware 加入管道配置列表
-        // 泛型在此处闭环，后续 Builder 无需再携带 TUserInfo
-        _PipelineActions.Add(app => app.UseMiddleware<SessionUserMiddleware<TUserInfo>>(_Options.Session));
+        // 泛型 TUserInfo 在此处闭环，后续 Builder (SessionSetupBuilder) 无需再携带该泛型参数
+        _PipelineActions.Add(app => app.UseMiddleware<SessionUserMiddleware<TUserInfo>>(webOptions.Session));
 
-        // 返回下一个阶段的构建器（已去掉类泛型）
-        return new SessionSetupBuilder(_Builder, _Options, _PipelineActions);
+        // 返回下一个阶段的构建器
+        return new SessionSetupBuilder(Builder, webOptions, _PipelineActions);
     }
 }
+
 
 /// <summary>
 /// 会话设置构建器

@@ -12,10 +12,10 @@ namespace TKW.Framework.Domain.Web.Middlewares;
 /// 捕获所有未处理的异常，返回标准化的 JSON 错误响应
 /// 支持开发模式显示详细堆栈、生产模式隐藏敏感信息
 /// </summary>
-public class DomainExceptionMiddleware(RequestDelegate next, ILogger<DomainExceptionMiddleware> logger)
+public class WebExceptionMiddleware(RequestDelegate next, ILogger<WebExceptionMiddleware> logger)
 {
     private readonly RequestDelegate _Next = next ?? throw new ArgumentNullException(nameof(next));
-    private readonly ILogger<DomainExceptionMiddleware> _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ILogger<WebExceptionMiddleware> _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task InvokeAsync(HttpContext context)
     {

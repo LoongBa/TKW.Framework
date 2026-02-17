@@ -63,6 +63,14 @@ public interface ISessionManager<TUserInfo> where TUserInfo : class, IUserInfo, 
     Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync(string sessionKey);
 
     /// <summary>
+    /// 异步获取并激活指定会话
+    /// </summary>
+    /// <param name="sessionKey">会话 key</param>
+    /// <returns>返回被激活的会话对象</returns>
+    /// <exception cref="SessionException">当会话键无效时抛出</exception>
+    Task<SessionInfo<TUserInfo>?> TryGetAndActiveSessionAsync(string sessionKey);
+
+    /// <summary>
     /// 异步放弃指定会话
     /// </summary>
     /// <param name="sessionKey">会话 key</param>
