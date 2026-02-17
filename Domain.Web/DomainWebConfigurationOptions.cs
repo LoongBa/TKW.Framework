@@ -13,6 +13,5 @@ public class DomainWebConfigurationOptions : DomainOptions
     public bool AutoAddHttpContextAccessor { get; set; } = true;
     public bool SuppressRoutingWarning { get; set; } = false;
     internal bool HasRoutingPhase { get; set; } = false;
-    // 聚合 Session 配置
-    public DomainSessionOptions Session { get; } = new();
+    public WebSessionOptions WebSession { get; set; } = new();
 }

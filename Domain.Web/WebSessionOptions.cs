@@ -2,10 +2,10 @@
 
 namespace TKW.Framework.Domain.Web;
 
-public class DomainSessionOptions
+public class WebSessionOptions : DomainSessionOptions
 {
     // Cookie 相关设置
-    public string CookieName { get; set; } = "SessionKey";
+    public string CookieName => SessionKeyName;
     public TimeSpan MaxAge { get; set; } = TimeSpan.FromMinutes(30);
     public SameSiteMode SameSite { get; set; } = SameSiteMode.Lax;
     public bool HttpOnly { get; set; } = true;

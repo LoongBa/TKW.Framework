@@ -49,14 +49,14 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
     /// <typeparam name="TUserInfo">用户信息类型</typeparam>
     /// <param name="setupAction">会话选项配置委托</param>
     /// <returns>会话设置构建器，用于配置路由前的中间件</returns>
-    public SessionSetupBuilder UseDomainSession<TSessionManager, TUserInfo>(Action<DomainSessionOptions>? setupAction = null)
+    public SessionSetupBuilder UseDomainSession<TSessionManager, TUserInfo>(Action<WebSessionOptions>? setupAction = null)
         where TSessionManager : class, ISessionManager<TUserInfo>
         where TUserInfo : class, IUserInfo, new()
     {
         var webOptions = (DomainWebConfigurationOptions)Options;
 
         // 应用用户提供的会话配置
-        setupAction?.Invoke(webOptions.Session);
+        setupAction?.Invoke(webOptions.WebSession);
 
         // 【重要】：将具体的 SessionManager 实现注册为 Singleton
         // 确保会话数据在整个 Web 应用生命周期内共享，解决内存版会话数据不一致问题。

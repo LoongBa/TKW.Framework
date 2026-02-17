@@ -14,7 +14,7 @@ public class SessionUserMiddleware<TUserInfo>(
     RequestDelegate next,
     DomainHost<TUserInfo> domainHost,
     ISessionManager<TUserInfo> sessionManager,
-    DomainSessionOptions options)
+    WebSessionOptions options)
     where TUserInfo : class, IUserInfo, new()
 {
     // 使用配置选项类，替代了硬编码的常量，提高了灵活性
@@ -96,7 +96,7 @@ public class SessionUserMiddleware<TUserInfo>(
             HttpOnly = options.HttpOnly,
             Secure = context.Request.IsHttps,
             SameSite = options.SameSite,
-            MaxAge = options.MaxAge
+            MaxAge = options.ExpiredTimeSpan
         });
 
         // 同时也写入 Header，方便非浏览器客户端（如 App、小程序）获取

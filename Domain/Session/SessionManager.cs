@@ -7,26 +7,43 @@ using TKW.Framework.Domain.Interfaces;
 namespace TKW.Framework.Domain.Session;
 
 /// <summary>
-/// 会话管理器，负责处理用户会话的创建、获取、更新和废弃等操作
-/// 使用 HybridCache 作为存储后端，支持内存 + 分布式缓存（后期可无缝接入 Redis）
+/// 领域会话管理器实现类
+/// 负责处理用户会话的生命周期，支持内存与分布式二级缓存。
 /// </summary>
-public class SessionManager<TUserInfo>(
-    HybridCache cache,
-    string sessionKeyPrefix = "session:",
-    TimeSpan? sessionExpiredTimeSpan = null,
-    string sessionKeyKeyName = "SessionKey") : ISessionManager<TUserInfo>
+/// <typeparam name="TUserInfo">用户信息类型</typeparam>
+public class SessionManager<TUserInfo> : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
-    private readonly HybridCache _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
+    private readonly HybridCache _Cache;
+    private readonly DomainOptions _Options;
 
-    public TimeSpan SessionExpiredTimeSpan { get; } = sessionExpiredTimeSpan ?? TimeSpan.FromMinutes(10);
+    /// <summary>
+    /// 初始化会话管理器
+    /// </summary>
+    /// <param name="cache">HybridCache 缓存实例</param>
+    /// <param name="options">领域层全局配置对象</param>
+    public SessionManager(HybridCache cache, DomainOptions options)
+    {
+        _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _Options = options ?? throw new ArgumentNullException(nameof(options));
+    }
 
-    public string SessionKeyKeyName { get; } = sessionKeyKeyName;
+    /// <summary>
+    /// 获取会话过期时长（从全局配置获取）
+    /// </summary>
+    public TimeSpan SessionExpiredTimeSpan => _Options.Session.ExpiredTimeSpan;
+
+    /// <summary>
+    /// 获取会话在存储/传输中的键名
+    /// </summary>
+    public string SessionKeyKeyName => _Options.Session.SessionKeyName;
 
     public event SessionCreated<TUserInfo>? SessionCreated;
-
     public event SessionAbandon<TUserInfo>? SessionAbandon;
 
+    /// <summary>
+    /// 异步创建新会话
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>> NewSessionAsync()
     {
         var sessionKey = GenerateNewSessionKey();
@@ -37,53 +54,71 @@ public class SessionManager<TUserInfo>(
                 var session = new SessionInfo<TUserInfo>(sessionKey, null);
                 OnSessionCreated(session);
                 return ValueTask.FromResult(session);
-            }).ConfigureAwait(false);
+            },
+            new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
+            .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 异步检查指定会话是否存在
+    /// </summary>
     public async Task<bool> ContainsSessionAsync(string sessionKey)
     {
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
+        if (string.IsNullOrWhiteSpace(sessionKey)) return false;
         var (exists, _) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
         return exists;
     }
 
+    /// <summary>
+    /// 异步获取指定会话
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>> GetSessionAsync(string sessionKey)
     {
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
         var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
         return exists ? value! : throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
     }
 
+    /// <summary>
+    /// 异步获取并激活指定会话（性能优化版）
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync(string sessionKey)
     {
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            throw new SessionException(sessionKey, SessionExceptionType.InvalidSessionKey);
-
-        var current = await GetSessionAsync(sessionKey).ConfigureAwait(false);
-
-        var updated = current.Active();
-
-        await _Cache.SetAsync(sessionKey, updated,
-            new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
-            .ConfigureAwait(false);
-
-        return updated;
+        var user = await TryGetAndActiveSessionAsync(sessionKey).ConfigureAwait(false);
+        return user ?? throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
     }
 
+    /// <summary>
+    /// 尝试获取并激活指定会话（不抛出 SessionNotFound 异常）
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>?> TryGetAndActiveSessionAsync(string sessionKey)
     {
-        var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
-        return value;
+        if (string.IsNullOrWhiteSpace(sessionKey)) return null;
+
+        var (exists, current) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
+        if (!exists || current == null) return null;
+
+        // 【滑动过期优化】：半程触发机制
+        // 只有当距离上次激活的时间超过了过期时长的一半，才重写缓存。
+        var elapsed = DateTime.Now - current.TimeLastActivated;
+        if (elapsed > (SessionExpiredTimeSpan / 2))
+        {
+            var updated = current.Active();
+            await _Cache.SetAsync(sessionKey, updated,
+                new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
+                .ConfigureAwait(false);
+            return updated;
+        }
+
+        return current;
     }
 
+    /// <summary>
+    /// 异步更新并激活指定会话
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync(string sessionKey, Func<SessionInfo<TUserInfo>, SessionInfo<TUserInfo>> updater)
     {
         var current = await GetSessionAsync(sessionKey).ConfigureAwait(false);
-        var updated = updater(current);
+        var updated = updater(current).Active();
 
         await _Cache.SetAsync(sessionKey, updated,
                 new HybridCacheEntryOptions { Expiration = SessionExpiredTimeSpan })
@@ -92,10 +127,12 @@ public class SessionManager<TUserInfo>(
         return updated;
     }
 
+    /// <summary>
+    /// 异步放弃指定会话
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>?> AbandonSessionAsync(string sessionKey)
     {
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            return null;
+        if (string.IsNullOrWhiteSpace(sessionKey)) return null;
 
         var (exists, value) = await TryGetSessionInternalAsync(sessionKey).ConfigureAwait(false);
         if (!exists) return null;
@@ -105,51 +142,17 @@ public class SessionManager<TUserInfo>(
         return value;
     }
 
-    public virtual void OnSessionCreated(SessionInfo<TUserInfo> session)
-    {
-        if (SessionCreated == null) return;
-
-        var handler = SessionCreated;
-        foreach (var delegateItem in handler.GetInvocationList())
-        {
-            try
-            {
-                ((SessionCreated<TUserInfo>)delegateItem)(session.Key, session);
-            }
-            catch
-            {
-                // 记录日志，忽略异常，防止影响其他订阅者或主流程
-            }
-        }
-    }
-
-    protected virtual void OnSessionAbandon(SessionInfo<TUserInfo> session)
-    {
-        if (SessionAbandon == null) return;
-
-        var handler = SessionAbandon;
-        foreach (var delegateItem in handler.GetInvocationList())
-        {
-            try
-            {
-                ((SessionAbandon<TUserInfo>)delegateItem)(session.Key, session);
-            }
-            catch
-            {
-                // 记录日志，忽略异常
-            }
-        }
-    }
+    #region 内部逻辑与事件触发
 
     protected virtual string GenerateNewSessionKey()
     {
-        return BatchIdGenerator.GenerateBatchId(64, sessionKeyPrefix);
+        // 使用配置的前缀生成 64 位随机 Key
+        return BatchIdGenerator.GenerateBatchId(64, _Options.Session.SessionKeyPrefix);
     }
 
     private async Task<(bool Exists, SessionInfo<TUserInfo>? Value)> TryGetSessionInternalAsync(string sessionKey)
     {
         var exists = true;
-
         var value = await _Cache.GetOrCreateAsync<SessionInfo<TUserInfo>?>(
             sessionKey.AsSpan(),
             _ =>
@@ -159,6 +162,7 @@ public class SessionManager<TUserInfo>(
             },
             new HybridCacheEntryOptions
             {
+                // 仅读取，不写入“空”值到缓存
                 Flags = HybridCacheEntryFlags.DisableLocalCacheWrite |
                         HybridCacheEntryFlags.DisableDistributedCacheWrite
             })
@@ -166,4 +170,16 @@ public class SessionManager<TUserInfo>(
 
         return (exists, value);
     }
+
+    public virtual void OnSessionCreated(SessionInfo<TUserInfo> session)
+    {
+        SessionCreated?.Invoke(session.Key, session);
+    }
+
+    protected virtual void OnSessionAbandon(SessionInfo<TUserInfo> session)
+    {
+        SessionAbandon?.Invoke(session.Key, session);
+    }
+
+    #endregion
 }
