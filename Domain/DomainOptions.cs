@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interception.Filters;
 
 namespace TKW.Framework.Domain;
@@ -14,6 +15,7 @@ public class DomainOptions
     public Dictionary<string, string> ConfigDictionary { get; set; } = new();
     public EnumDomainLogLevel LoggingLevel { get; set; } = EnumDomainLogLevel.Minimal;
     public Type? ExceptionLoggerFactoryType { get; set; }
+    public Type IIdGeneratorType { get; set; } = typeof(DefaultIdGenerator);
     public DomainSessionOptions Session { get; } = new();
 
     /// <summary>

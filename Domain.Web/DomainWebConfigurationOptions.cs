@@ -3,9 +3,9 @@
 /// <summary>
 /// Web 专用领域配置扩展
 /// </summary>
-public class DomainWebConfigurationOptions : DomainOptions
+public class DomainWebConfigurationOptions: DomainOptions
 {
-    public bool UseDomainExceptionMiddleware { get; set; } = true;
+    public bool UseWebExceptionMiddleware { get; set; } = true;
     /// <summary>
     /// 是否自动注入 IHttpContextAccessor。默认为 true。
     /// 许多领域服务（如获取当前会话用户）依赖于此服务。

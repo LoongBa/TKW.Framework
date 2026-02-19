@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Autofac;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 using TKW.Framework.Domain.Web.Middlewares;
@@ -22,7 +25,7 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
     /// <summary>
     /// 初始化构建器：在此处完成 IStartupFilter 的注册和基础中间件的挂载。
     /// </summary>
-    internal RegisterServicesBuilder(IHostApplicationBuilder builder, 
+    internal RegisterServicesBuilder(IHostApplicationBuilder builder,
         DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
         : base(builder, options)
     {
@@ -35,15 +38,15 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
 
         // 3. 自动挂载全局异常中间件。
         // 确保 WebExceptionMiddleware 永远处于管道的最顶层，优先捕获后续所有组件的异常。
-        if (options.UseDomainExceptionMiddleware)
+        if (options.UseWebExceptionMiddleware)
         {
             _PipelineActions.Add(app => app.UseMiddleware<WebExceptionMiddleware>());
         }
     }
 
     /// <summary>
-    /// 强制开启领域会话。
-    /// 此方法会注册 SessionManager 并将 SessionUserMiddleware 加入管道。
+    /// 用指定的 SessionManager 开启领域会话。
+    /// 此方法会注册 TSessionManager 并将 SessionUserMiddleware 加入管道。
     /// </summary>
     /// <typeparam name="TSessionManager">具体的 SessionManager 实现类型</typeparam>
     /// <typeparam name="TUserInfo">用户信息类型</typeparam>
@@ -58,7 +61,10 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
         // 应用用户提供的会话配置
         setupAction?.Invoke(webOptions.WebSession);
 
-        // 【重要】：将具体的 SessionManager 实现注册为 Singleton
+        // 注册 ID 生成器（即使没配置，也有 Options 里的默认值）
+        // 使用 TryAddSingleton 防止重复注册，允许用户在外部先行注册自定义实现
+        Builder.Services.TryAddSingleton(typeof(IIdGenerator), webOptions.IIdGeneratorType);
+        // 将具体的 SessionManager 实现注册为 Singleton
         // 确保会话数据在整个 Web 应用生命周期内共享，解决内存版会话数据不一致问题。
         Builder.Services.AddSingleton<ISessionManager<TUserInfo>, TSessionManager>();
 
@@ -67,6 +73,18 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
 
         // 返回下一个阶段的构建器
         return new SessionSetupBuilder(Builder, webOptions, _PipelineActions);
+    }
+    /// <summary>
+    /// 用指定的 SessionManager 开启领域会话。
+    /// 此方法会注册默认的 SessionManager 并将 SessionUserMiddleware 加入管道。
+    /// </summary>
+    /// <typeparam name="TUserInfo">用户信息类型</typeparam>
+    /// <param name="setupAction">会话选项配置委托</param>
+    /// <returns>会话设置构建器，用于配置路由前的中间件</returns>
+    public SessionSetupBuilder UseDomainSession<TUserInfo>(Action<WebSessionOptions>? setupAction = null)
+        where TUserInfo : class, IUserInfo, new()
+    {
+        return UseDomainSession<SessionManager<TUserInfo>, TUserInfo>(setupAction);
     }
 }
 

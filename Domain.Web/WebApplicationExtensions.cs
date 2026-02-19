@@ -1,7 +1,6 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -37,5 +36,11 @@ public static class WebApplicationExtensions
 
         // 返回构建器，它会在内部自动添加 WebExceptionMiddleware（如果 options 开启）
         return new RegisterServicesBuilder(builder, options);
+    }
+
+    public static DomainConfigurationBinder BindOptions(
+        this DomainWebConfigurationOptions cfg, WebApplicationBuilder builder)
+    {
+        return new DomainConfigurationBinder(builder, cfg);
     }
 }

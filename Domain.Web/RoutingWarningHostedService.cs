@@ -32,7 +32,7 @@ internal class RoutingWarningHostedService(
             1. 使用标准 ASP.NET Core 路由：
                .UseAspNetCoreRouting()
             2. 使用自定义路由逻辑（可手动插入 UseRouting 等）：
-               .UseCustomRouting(app => { app.UseRouting(); ... })
+               .UseCustomRouting(app => {{ app.UseRouting(); ... }})
             3. 显式跳过路由阶段（无路由需求时）：
                .NoRouting()
             4. 如果确实不需要路由，可关闭此警告：
