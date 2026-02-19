@@ -12,11 +12,11 @@ public static class WebApplicationExtensions
 {
     public static RegisterServicesBuilder ConfigTkwDomain<TUserInfo, TInitializer>(
         this WebApplicationBuilder builder,
-        Action<DomainWebConfigurationOptions>? configure = null)
+        Action<DomainWebOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        var options = new DomainWebConfigurationOptions
+        var options = new DomainWebOptions
         {
             IsDevelopment = builder.Environment.IsDevelopment(),
             ConnectionString = builder.Configuration.GetConnectionString("Default") ?? ""
@@ -39,7 +39,7 @@ public static class WebApplicationExtensions
     }
 
     public static DomainConfigurationBinder BindOptions(
-        this DomainWebConfigurationOptions cfg, WebApplicationBuilder builder)
+        this DomainWebOptions cfg, WebApplicationBuilder builder)
     {
         return new DomainConfigurationBinder(builder, cfg);
     }

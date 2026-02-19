@@ -10,7 +10,7 @@ namespace TKW.Framework.Domain.Web;
 /// </summary>
 internal class RoutingWarningHostedService(
     ILogger<RoutingWarningHostedService> logger,
-    DomainWebConfigurationOptions options)
+    DomainWebOptions options)
     : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)

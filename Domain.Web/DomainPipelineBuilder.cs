@@ -26,7 +26,7 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
     /// 初始化构建器：在此处完成 IStartupFilter 的注册和基础中间件的挂载。
     /// </summary>
     internal RegisterServicesBuilder(IHostApplicationBuilder builder,
-        DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
+        DomainWebOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
         : base(builder, options)
     {
         // 1. 创建共享的动作列表（这是所有中间件挂载的物理容器）
@@ -56,7 +56,7 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
         where TSessionManager : class, ISessionManager<TUserInfo>
         where TUserInfo : class, IUserInfo, new()
     {
-        var webOptions = (DomainWebConfigurationOptions)Options;
+        var webOptions = (DomainWebOptions)Options;
 
         // 应用用户提供的会话配置
         setupAction?.Invoke(webOptions.WebSession);
@@ -69,7 +69,7 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
         Builder.Services.AddSingleton<ISessionManager<TUserInfo>, TSessionManager>();
 
         // 将 SessionUserMiddleware 加入管道配置列表
-        _PipelineActions.Add(app => app.UseMiddleware<SessionUserMiddleware<TUserInfo>>(webOptions.Session));
+        _PipelineActions.Add(app => app.UseMiddleware<SessionUserMiddleware<TUserInfo>>(webOptions.WebSession));
 
         // 返回下一个阶段的构建器
         return new SessionSetupBuilder(Builder, webOptions, _PipelineActions);
@@ -92,12 +92,12 @@ public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterService
 /// 会话设置构建器
 /// 用于在 UseDomainSession 之后，路由配置之前的中间件挂载。
 /// </summary>
-public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 配置路由之前的自定义中间件
     /// </summary>
-    public BeforeRoutingBuilder BeforeRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> action)
+    public BeforeRoutingBuilder BeforeRouting(Action<IApplicationBuilder, DomainWebOptions> action)
     {
         pipelineActions.Add(app => action(app, options));
         return new BeforeRoutingBuilder(builder, options, pipelineActions);
@@ -106,7 +106,7 @@ public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebConfi
     /// <summary>
     /// 极简模式：直接配置应用管道，不使用标准路由
     /// </summary>
-    public void NoRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> action)
+    public void NoRouting(Action<IApplicationBuilder, DomainWebOptions> action)
     {
         options.HasRoutingPhase = true;
         pipelineActions.Add(app => action(app, options));
@@ -117,7 +117,7 @@ public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebConfi
 /// 路由前构建器
 /// 负责配置 UseRouting 之前的标准中间件（如重定向、认证等）。
 /// </summary>
-public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 启用 ASP.NET Core 标准路由和授权体系
@@ -152,7 +152,7 @@ public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebConf
     /// <summary>
     /// 使用自定义路由逻辑
     /// </summary>
-    public RoutingBuilder UseCustomRouting(Action<IApplicationBuilder, DomainWebConfigurationOptions> customAction)
+    public RoutingBuilder UseCustomRouting(Action<IApplicationBuilder, DomainWebOptions> customAction)
     {
         options.HasRoutingPhase = true;
         pipelineActions.Add(app => customAction(app, options));
@@ -164,13 +164,13 @@ public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebConf
 /// 路由终结点映射构建器
 /// 专门负责 MapControllers, MapHub 等终结点配置。
 /// </summary>
-public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 配置具体的终结点映射。
     /// 【调整点】：将方法名由 AfterRouting 改为更贴切的 MapEndpoints。
     /// </summary>
-    public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebConfigurationOptions> action)
+    public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebOptions> action)
     {
         pipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, options)));
         return new AfterRoutingBuilder(builder, options, pipelineActions);
@@ -180,9 +180,9 @@ public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurat
 /// <summary>
 /// 路由后构建器：支持终结点映射后的后续链式配置。
 /// </summary>
-public class AfterRoutingBuilder(IHostApplicationBuilder builder, DomainWebConfigurationOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class AfterRoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
-    public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebConfigurationOptions> action)
+    public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebOptions> action)
     {
         pipelineActions.Add(app => app.UseEndpoints(endpoints => action(endpoints, options)));
         return this;

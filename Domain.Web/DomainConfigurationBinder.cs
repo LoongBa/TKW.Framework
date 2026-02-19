@@ -6,14 +6,14 @@ using TKW.Framework.Common.Extensions;
 
 namespace TKW.Framework.Domain.Web;
 
-public class DomainConfigurationBinder(WebApplicationBuilder builder, DomainWebConfigurationOptions domainOptions)
+public class DomainConfigurationBinder(WebApplicationBuilder builder, DomainWebOptions domainOptions)
 {
     /// <summary>
     /// 绑定当前领域的主配置项
     /// </summary>
-    public OptionsBuilder<DomainWebConfigurationOptions> DomainOptions(string sectionName = "TKWDomain", bool reloadOnChange = true)
+    public OptionsBuilder<DomainWebOptions> DomainOptions(string sectionName = "TKWDomain", bool reloadOnChange = true)
     {
-        return BusinessOptions<DomainWebConfigurationOptions>(sectionName, reloadOnChange);
+        return BusinessOptions<DomainWebOptions>(sectionName, reloadOnChange);
     }
 
     /// <summary>

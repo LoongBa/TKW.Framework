@@ -78,6 +78,9 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
 
         options ??= new DomainOptions();
+        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
+        containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
+
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
 

@@ -3,7 +3,7 @@
 /// <summary>
 /// Web 专用领域配置扩展
 /// </summary>
-public class DomainWebConfigurationOptions: DomainOptions
+public class DomainWebOptions: DomainOptions
 {
     public bool UseWebExceptionMiddleware { get; set; } = true;
     /// <summary>
