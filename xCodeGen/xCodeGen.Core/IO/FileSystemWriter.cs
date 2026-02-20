@@ -29,6 +29,7 @@ public class FileSystemWriter : IFileWriter
     /// <param name="basePath">基础路径</param>
     /// <param name="className">类名</param>
     /// <param name="fileNameFormat">文件名格式（含占位符）</param>
+    /// <returns>解析后的完整文件路径</returns>
     public string ResolveOutputPath(string basePath, string className, string fileNameFormat)
     {
         // 1. 应用文件名格式（业务逻辑）
@@ -37,6 +38,12 @@ public class FileSystemWriter : IFileWriter
         return ResolvePath(basePath, fileName);
     }
 
+    /// <summary>
+    /// 将内容写入指定文件
+    /// </summary>
+    /// <param name="content">要写入的文件内容</param>
+    /// <param name="filePath">目标文件路径</param>
+    /// <param name="overwrite">是否覆盖已存在的文件</param>
     public void Write(string content, string filePath, bool overwrite)
     {
         if (string.IsNullOrEmpty(filePath)) throw new ArgumentNullException(nameof(filePath));
@@ -49,6 +56,11 @@ public class FileSystemWriter : IFileWriter
         File.WriteAllText(filePath, content);
     }
 
+    /// <summary>
+    /// 检查指定文件是否存在
+    /// </summary>
+    /// <param name="filePath">要检查的文件路径</param>
+    /// <returns>如果文件存在返回true，否则返回false</returns>
     public bool Exists(string filePath)
     {
         return File.Exists(filePath);

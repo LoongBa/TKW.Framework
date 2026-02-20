@@ -26,6 +26,9 @@ public class Engine(
     /// <summary>
     /// 执行代码生成，支持多产物类型映射
     /// </summary>
+    /// <param name="options">生成选项配置</param>
+    /// <param name="config">代码生成全局配置</param>
+    /// <returns>生成结果对象，包含成功/失败状态和统计信息</returns>
     public async Task<GenerateResult> GenerateAsync(GenerateOptions options, CodeGenConfig config)
     {
         var result = new GenerateResult();
@@ -37,7 +40,7 @@ public class Engine(
             var (enabledExtractors, invalidSources) = GetEnabledExtractors(options.MetadataSources);
             foreach (var inv in invalidSources) result.AddWarning($"无效来源: {inv}");
 
-            if (enabledExtractors.Count == 0) // 逻辑修复
+            if (enabledExtractors.Count == 0)
             {
                 result.AddError("未找到可用的元数据提取器。");
                 return result;
@@ -114,6 +117,11 @@ public class Engine(
         return result;
     }
 
+    /// <summary>
+    /// 获取启用的元数据提取器
+    /// </summary>
+    /// <param name="sources">元数据来源集合</param>
+    /// <returns>元组：第一个元素为有效的提取器列表，第二个元素为无效的来源列表</returns>
     private (List<IMetaDataExtractor> enabled, List<string> invalid) GetEnabledExtractors(IEnumerable<string> sources)
     {
         var enabled = new List<IMetaDataExtractor>();

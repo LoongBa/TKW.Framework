@@ -71,7 +71,7 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"        ClassName = \"{EscapeString(metadata.ClassName)}\",");
             codeBuilder.AppendLine($"        FullName = \"{EscapeString(metadata.FullName)}\",");
             codeBuilder.AppendLine($"        Mode = \"{EscapeString(metadata.Mode)}\",");
-            codeBuilder.AppendLine($"        SourceType = {metadata.SourceType},");
+            codeBuilder.AppendLine($"        SourceType = MetadataSource.{metadata.SourceType},");
             codeBuilder.AppendLine($"        TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
             codeBuilder.AppendLine($"        BaseType = \"{EscapeString(metadata.BaseType)}\",");
             codeBuilder.AppendLine("        ImplementedInterfaces = new Collection<string>");
