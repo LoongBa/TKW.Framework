@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using xCodeGen.Abstractions.Extractors;
@@ -13,7 +14,7 @@ using xCodeGen.Core.Services;
 namespace xCodeGen.Core;
 
 /// <summary>
-/// 重构后的核心引擎：支持多产物并行生成
+/// 优化后的核心引擎：支持多产物并行、双模板驱动与双文件保护
 /// </summary>
 public class Engine(
     IEnumerable<IMetaDataExtractor> extractors,
@@ -24,7 +25,7 @@ public class Engine(
     IncrementalChecker incrementalChecker)
 {
     /// <summary>
-    /// 执行代码生成，支持多产物类型映射
+    /// 执行代码生成流程
     /// </summary>
     /// <param name="options">生成选项配置</param>
     /// <param name="config">代码生成全局配置</param>
@@ -36,68 +37,64 @@ public class Engine(
 
         try
         {
-            // 1. 提取器加载与校验
+            // 1. 获取并验证启用的提取器
             var (enabledExtractors, invalidSources) = GetEnabledExtractors(options.MetadataSources);
-            foreach (var inv in invalidSources) result.AddWarning($"无效来源: {inv}");
+            if (enabledExtractors.Count == 0) throw new Exception("未找到有效提取器");
 
-            if (enabledExtractors.Count == 0)
-            {
-                result.AddError("未找到可用的元数据提取器。");
-                return result;
-            }
-
-            // 2. 预加载所有配置的模板
+            // 2. 加载所有配置的模板
             templateEngine.LoadTemplates(config.TemplatesPath);
 
-            // 3. 提取原始元数据
+            // 3. 从提取器收集原始元数据
             var allRawMetadata = new List<RawMetadata>();
             foreach (var extractor in enabledExtractors)
             {
                 var extracted = await extractor.ExtractAsync(new ExtractorOptions { ProjectPath = options.ProjectPath });
-                var metadatas = extracted as RawMetadata[] ?? extracted.ToArray();
-                allRawMetadata.AddRange(metadatas);
-                result.AddExtracted(extractor.SourceType.ToString(), metadatas.Length);
+                allRawMetadata.AddRange(extracted);
             }
 
-            // 4. 转换并生成多产物
+            // 4. 遍历元数据，根据产物类型映射进行多目标生成
             foreach (var raw in allRawMetadata)
             {
                 var classMeta = metadataConverter.Convert(raw);
 
-                // 核心重构：遍历配置中的所有产物类型映射
-                // 示例：若配置了 Dto 和 Validator，则同一个 classMeta 会进入两次循环
                 foreach (var mapping in config.TemplateMappings)
                 {
-                    var artifactType = mapping.Key;   // 例如: "Dto"
-                    var templatePath = mapping.Value; // 例如: "Templates/Artifact/Dto.cshtml"
+                    var artifactType = mapping.Key;   // 如 "Dto", "Repository"
+                    var logicTemplatePath = mapping.Value; // 如 "Templates/Repository.cshtml"
 
                     try
                     {
-                        // A. 计算目标产物名称（通过 NamingService）
-                        var targetName = namingService.GetTargetName(classMeta.ClassName, artifactType);
+                        // A. 计算目标名称与输出路径
+                        string targetName = namingService.GetTargetName(classMeta.ClassName, artifactType);
+                        string subDir = config.OutputDirectories.TryGetValue(artifactType, out var dir) ? dir : artifactType;
+                        string outputBase = Path.Combine(config.OutputRoot, subDir);
 
-                        // B. 确定输出子目录
-                        var subDir = config.OutputDirectories.TryGetValue(artifactType, out var dir) ? dir : artifactType;
-                        var outputBase = System.IO.Path.Combine(config.OutputRoot, subDir);
-
-                        // C. 增量检查：判断当前元数据对应的产物是否需要重新生成
-                        // 参数 1: 当前类的元数据; 参数 2: 产物存放的绝对目录
-                        if (!incrementalChecker.NeedRegenerate(classMeta, outputBase, targetName))
+                        // B. 生成并处理逻辑文件 (.generated.cs)
+                        var genPath = fileWriter.ResolveOutputPath(outputBase, targetName, "{ClassName}.generated.cs");
+                        if (incrementalChecker.NeedRegenerate(classMeta, outputBase, targetName))
                         {
-                            result.SkippedCount++; // 记录跳过的文件数
-                            continue;              // 跳过本次生成流程
+                            var generatedCode = await templateEngine.RenderAsync(classMeta, logicTemplatePath);
+                            fileWriter.Write(generatedCode, genPath, true);
+                            result.AddGenerated($"{targetName}[Logic]", genPath);
                         }
+                        else { result.SkippedCount++; }
 
-                        // D. 渲染与写入
-                        var code = await templateEngine.RenderAsync(classMeta, templatePath);
-                        var finalPath = fileWriter.ResolveOutputPath(outputBase, targetName, options.FileNameFormat);
-
-                        fileWriter.Write(code, finalPath, options.Overwrite);
-                        result.AddGenerated($"{classMeta.ClassName}[{artifactType}]", finalPath);
+                        // C. 生成并处理扩展文件骨架 (.cs) - 模板驱动
+                        var extensionPath = genPath.Replace(".generated.cs", ".cs");
+                        if (!fileWriter.Exists(extensionPath))
+                        {
+                            // 检查配置中是否有该产物类型的骨架模板定义
+                            if (config.SkeletonMappings.TryGetValue(artifactType, out var skeletonTemplatePath))
+                            {
+                                var skeletonCode = await templateEngine.RenderAsync(classMeta, skeletonTemplatePath);
+                                fileWriter.Write(skeletonCode, extensionPath, false);
+                                result.AddGenerated($"{targetName}[Skeleton]", extensionPath);
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
-                        result.AddError($"生成产物 {artifactType} (源: {classMeta.ClassName}) 失败: {ex.Message}");
+                        result.AddError($"产物 {artifactType} 处理失败: {ex.Message}");
                     }
                 }
             }
@@ -106,13 +103,8 @@ public class Engine(
         catch (Exception ex)
         {
             result.AddError($"引擎崩溃: {ex.Message}");
-            result.Success = false;
         }
-        finally
-        {
-            timer.Stop();
-            result.ElapsedMilliseconds = timer.ElapsedMilliseconds;
-        }
+        finally { timer.Stop(); result.ElapsedMilliseconds = timer.ElapsedMilliseconds; }
 
         return result;
     }

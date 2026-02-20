@@ -17,6 +17,7 @@ namespace xCodeGen.Core.Configuration
         public List<NamingRule> NamingRules { get; set; } = [];
         public Dictionary<string, string> TemplateMappings { get; set; } = new(); // ArtifactType -> TemplatePath
         public Dictionary<string, string> OutputDirectories { get; set; } = new(); // ArtifactType -> SubDir
+        public Dictionary<string, string> SkeletonMappings { get; set; } = new(); // ArtifactType -> SkeletonTemplatePath
 
         public static CodeGenConfig FromJson(string json) =>
             JsonSerializer.Deserialize<CodeGenConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
