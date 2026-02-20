@@ -339,3 +339,77 @@ xCodeGen/
   ]
 }
 ```
+
+### 4.1 OutputRoot
+
+- **类型**：string
+- **必填**：是
+- **默认值**：无（必须指定）
+- **说明**：生成产物的根目录路径。所有生成的 *.generated.cs 和 *.cs 文件将置于此目录下，支持相对路径（相对于 config.json）或绝对路径。设计为根目录，便于与 TKWF.Domain 项目结构集成（如 Generated/ 隔离自动代码）。若目录不存在，生成器会自动创建。
+- **示例**："src/MyProject/Generated"
+- **影响**：影响输出位置。如果路径无效，会导致生成失败。最佳实践：在 TKWF.Domain 项目中设为 "Generated/"，避免污染源代码区。
+
+### 4.2 TemplatesPath
+
+- **类型**：string
+- **必填**：是
+- **默认值**：无（必须指定）
+- **说明**：存放 Razor 模板文件的目录路径（.cshtml）。支持相对/绝对路径。生成器会从中加载 TemplateMappings 和 SkeletonMappings 指定的模板。路径设计为可自定义，便于团队共享模板库。
+- **示例**："Templates"
+- **影响**：若路径不存在或模板文件缺失，TemplateExecutor.cs 会抛 FileNotFoundException。最佳实践：将 Skeletons/ 子目录置于此路径下，分离逻辑模板与骨架模板。
+
+### 4.3 TemplateMappings
+
+- **类型**：object (key: string, value: string)
+- **必填**：是（至少一个映射）
+- **默认值**：无
+- **说明**：产物类型 (ArtifactType) 与逻辑模板路径的映射。键为 ArtifactType（如 "Dto"），值为相对 TemplatesPath 的 .cshtml 文件路径。该映射驱动阶段二渲染，用于生成 *.generated.cs 的核心逻辑（如属性映射、方法签名）。支持多个映射，实现多类型产物生成。
+- **示例**：{ "Dto": "Templates/Dto.cshtml", "Repository": "Templates/Repository.cshtml" }
+- **影响**：若 ArtifactType 未映射，生成器跳过该产物。最佳实践：在 TKWF.Domain 中添加 "DomainService" 映射，生成支持 AOP Filter 的服务基类。
+
+### 4.4 SkeletonMappings
+
+- **类型**：object (key: string, value: string)
+- **必填**：否
+- **默认值**：空对象
+- **说明**：产物类型与业务扩展骨架模板的映射。类似于 TemplateMappings，但用于生成 *.cs 文件的初始骨架（partial 类扩展点）。仅首次生成时执行，后续不覆盖。设计为可选，便于纯生成场景（无手动扩展）。
+- **示例**：{ "Repository": "Templates/Skeletons/RepoSkeleton.cshtml" }
+- **影响**：若未配置，则不生成 *.cs 文件，仅 *.generated.cs。最佳实践：为 TKWF.Domain 的 Repository 配置骨架，预置 DomainUser<TUserInfo> 注入方法。
+
+### 4.5 OutputDirectories
+
+- **类型**：object (key: string, value: string)
+- **必填**：否
+- **默认值**：空对象（默认使用 ArtifactType 作为子目录）
+- **说明**：产物类型与输出子目录的映射。键为 ArtifactType，值为相对 OutputRoot 的子路径。允许自定义组织结构（如 Dtos/、Repositories/）。若未指定，则默认 ArtifactType 小写 + "s/"。
+- **示例**：{ "Dto": "Dtos", "Repository": "Repositories" }
+- **影响**：影响文件组织。如果冲突，会覆盖旧文件（最新代码中添加覆盖警告）。最佳实践：在 TKWF.Domain 项目中设为 "Domain/Generated/{ArtifactType}"，符合领域自治分层。
+
+### 4.6 NamingRules
+
+- **类型**：array of objects ({ "ArtifactType": string, "Pattern": string })
+- **必填**：否
+- **默认值**：空数组（默认使用 {Name}{ArtifactType}）
+- **说明**：命名规范定义。每个对象指定 ArtifactType 和 Pattern（支持占位符如 {Name} 为类名）。NamingUtility.cs 会应用这些规则生成类/接口名，确保一致性（如 I{Name}Repository）。支持多个规则，按顺序匹配。
+- **示例**：[ { "ArtifactType": "Dto", "Pattern": "{Name}Dto" }, { "ArtifactType": "Repository", "Pattern": "I{Name}Repository" } ]
+- **影响**：影响生成代码的可读性。若无规则，使用默认模式。最佳实践：为 TKWF.Domain 添加 { "ArtifactType": "Service", "Pattern": "Domain{Name}Service<TUserInfo>" }，支持泛型。
+
+### 4.7 Debug
+
+- **类型**：object ({ "Enabled": boolean, "Directory": string })
+- **必填**：否
+- **默认值**：{ "Enabled": false, "Directory": "_Debug" }
+- **说明**：调试配置。Enabled 启用时，DebugLogger.cs 会输出提取的元数据 JSON、日志到指定 Directory。Directory 支持相对/绝对路径。设计为可选，便于生产环境关闭。
+- **示例**：{ "Enabled": true, "Directory": "_Debug" }
+- **影响**：Enabled 时增加 IO 开销，但便于排查。最佳实践：在开发 TKWF.Domain 时启用，检查语义提取准确性（如 XML 注释继承）。
+
+### 4.8 EnabledUtilities
+
+- **类型**：array of strings
+- **必填**：否
+- **默认值**：空数组（默认启用所有 Utilities）
+- **说明**：允许模板调用的工具类全限定名（如 "xCodeGen.Utilities.Naming.NamingUtility"）。限制访问，增强安全性。模板中通过 @Model.Utilities 调用。
+- **示例**：[ "xCodeGen.Utilities.Naming.NamingUtility", "xCodeGen.Utilities.TypeHandling.TypeUtility" ]
+- **影响**：若未启用，模板调用会失败。最佳实践：在 TKWF.Domain 中启用 ValidationUtility.cs，生成领域验证规则。
+
+**配置加载与验证**：GeneratorConfig.cs 使用 System.Text.Json 反序列化，支持环境变量覆盖（如 ${OutputRoot}）。加载后验证路径/映射存在性，记录 Warning 日志。扩展方向：未来添加 schema.json 验证。
