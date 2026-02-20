@@ -1,59 +1,286 @@
-以下是基于 `xCodeGen` 命名的中性化设计文档及核心代码文件更新，彻底剥离业务概念，聚焦元数据驱动的通用代码生成能力：
-
-# # xCodeGen 设计文档 (Ver 1.2)
+# xCodeGen 设计文档 (Ver 1.2)
 
 xCodeGen 是一个**两阶段、元数据驱动**的通用代码生成系统。它通过深度集成 Roslyn 编译器能力，将业务模型自动转化为分层架构中的各类产物 。
+
+**版本**：Ver 1.2 **更新日期**：2026-02-20 **状态**：功能原型稳定，新增端到端示例与最佳实践，基于最新代码（master 分支）验证 **变更历史**：
+
+- Ver 1.0：初始中性化设计（元数据驱动、两阶段生成）。
+- Ver 1.1：优化语义提取、增量校验机制。
+- Ver 1.2：同步最新代码（RazorLight 引擎确认、子项目分层完善）；新增对 Models 目录生成 Repository & DTO 的端到端示例；补充一步步配置指南，用于检验与完善生成器最佳实践。
+
+此文档作为 TKW.Framework 的工具链补充，与 TKWF.Domain 领域自治思路对齐：自动化生成领域层代码（如 DTO、Repository），减少样板，确保领域模型（Models）作为单一事实来源。后续迭代将记录在 xCodeGen 仓库根 README.md 中，便于持续讨论。
 
 ## 1. 核心哲学：两阶段工作流
 
 为了平衡性能与灵活性，xCodeGen 采用了两阶段生成模式：
 
+xCodeGen 是一个**两阶段、元数据驱动**的通用代码生成系统。它通过深度集成 Roslyn 编译器能力，将业务模型自动转化为分层架构中的各类产物（如 DTO、Repository）。框架中性化设计，确保不耦合 TKWF.Domain 特定逻辑，但高度适配其领域自治（e.g., 生成支持 DomainUser<TUserInfo> 的服务）。
+
 - **阶段一：元数据实时固化 (Source Generator)**
+  - **职责**：在编译期间，利用源生成器（xCodeGen.SourceGenerator 项目）监测标记了 [GenerateArtifact] 特性的 Model 类/方法。
+  - **产出**：生成隐藏的 .Meta.cs 强类型对象。这些对象包含类结构、方法签名、XML 文档注释、可空性、集合特征等，作为系统的“静态指纹”。
+  - **最新更新**：支持语义提取（SemanticModel），准确捕获泛型约束、required 属性（.NET 10+ 兼容）。
+- **阶段二：业务产物弹性生成 (CLI + RazorLight)**
+  - **职责**：命令行工具（xCodeGen.Cli 项目）读取固化的元数据，根据用户配置的 Razor 模板（基于 RazorLight 引擎）渲染代码。
+  - **产出**：生成的业务类（如 DTO、Repository、GraphQL Query）。
+  - **最新更新**：确认模板引擎为 RazorLight（独立 Razor 实现，支持 .cshtml 文件、自定义模型输入）；新增 --watch 模式的文件监听逻辑（使用 FileSystemWatcher）。
+
+## 2. 核心架构
+
+### 2.1 架构关键特性
+
+- ****双文件保护策略**：系统为每个产物生成两个文件：
   
-  - **职责**：在编译期间，利用源生成器监测标记了特性的 Model 类 。
+  - *.generated.cs：包含机械生成的属性和方法逻辑，由引擎全权维护，禁止手动修改。
+  - *.cs：业务扩展文件骨架（通过 SkeletonMappings 配置的模板驱动），仅在首次生成时创建，供开发人员编写手写逻辑，生成器永不覆盖。支持 partial 类扩展。
+  - **最新更新**：在最新代码中，检查文件存在性前添加哈希验证（IncrementalChecker），仅结构变更时更新 *.generated.cs。
+
+- **语义化提取 (Semantic Extraction)**：不仅解析语法树，还通过 SemanticModel 准确提取类型的可空性、集合特征以及跨文件的 XML 文档注释 (Summary)。
   
-  - **产出**：生成隐藏的 `.Meta.cs` 强类型对象。这些对象包含类结构、方法签名及 XML 文档注释，作为系统的“静态指纹”。
+  - **最新更新**：RoslynExtractor.cs 支持 .NET 10+ 特性（如 record、init-only 属性）；提取 AttributeMetadata 时处理 TKWF.Domain 特定属性（如 [RequireRoleFlag]）。
 
-- **阶段二：业务产物弹性生成 (CLI + Razor)**
+- **增量校验机制**：基于元数据关键结构的哈希计算（IncrementalChecker），确保只有在数据结构发生实质变更时才触发物理 IO 写入，优化构建性能。
   
-  - **职责**：命令行工具读取固化的元数据，根据用户配置的 Razor 模板渲染代码 。
+  - **最新更新**：集成到 GeneratorEngine.cs，减少 CI/CD 构建时间。
+
+- **命名服务 (NamingService)**：支持基于产物类型的模式匹配（如 {Name}Dto 或 I{Name}Repository），确保全项目命名规范的一致性。
   
-  - **产出**：生成的业务类（如 DTO、Repository、GraphQL Query） 。
+  - **最新更新**：NamingUtility.cs 新增 TKWF.Domain 适配规则（如 Domain{Name}Service）。
 
-## 2. 关键架构特性
-
-- **双文件保护策略**：系统为每个产物生成两个文件：
+- **模板引擎**：RazorLight（LightRazor 简称），支持 .cshtml 模板、@model 指令、自定义 Utilities 调用。
   
-  - `*.generated.cs`：包含机械生成的属性和方法逻辑，由引擎全权维护，禁止手动修改。
-  
-  - `*.cs`：业务扩展文件骨架（通过模板驱动），仅在首次生成时创建，供开发人员编写手写逻辑，生成器永不覆盖。
+  - **最新更新**：TemplateExecutor.cs 优化为异步加载（async Task<string> ExecuteAsync），兼容大模板。
 
-- **语义化提取 (Semantic Extraction)**：不仅解析语法树，还通过 `SemanticModel` 准确提取类型的可空性、集合特征以及跨文件的 XML 注释 (Summary) 。
-  
-  +1
+### 2.2 子项目划分（基于最新仓库结构）：
 
-- **增量校验机制**：基于元数据关键结构的哈希计算（`IncrementalChecker`），确保只有在数据结构发生实质变更时才触发物理 IO 写入，优化构建性能。
+- **xCodeGen.Abstractions**：抽象定义（如 GenerateArtifactAttribute.cs、Metadata 类）。最新：新增 ArtifactMetadataAttribute.cs，支持补充版本/描述。
+- **xCodeGen.Core**：核心引擎（GeneratorEngine.cs、RoslynExtractor.cs、TemplateExecutor.cs、DebugLogger.cs）。最新：Debugging 目录下新增元数据 JSON 输出。
+- **xCodeGen.Cli**：命令行入口（Program.cs，支持 gen、--watch）。最新：添加 --config 参数，允许自定义 config.json 路径。
+- **xCodeGen.SourceGenerator**：源生成器（IMetadataExtractor 实现）。最新：支持方法级元数据固化。
+- **xCodeGen.Utilities**：工具类（NamingUtility.cs、TypeUtility.cs）。最新：新增 ValidationUtility.cs，支持生成 FluentValidation 规则。
+- **Templates/**：存放 .cshtml 模板（e.g., Dto.cshtml、Repository.cshtml、Skeletons/RepoSkeleton.cshtml）。最新：默认模板支持 TKWF.Domain 的泛型 TUserInfo。
 
-- **命名服务 (NamingService)**：支持基于产物类型的模式匹配（如 `{Name}Dto` 或 `I{Name}Repository`），确保全项目命名规范的一致性。
+```mermaid
+graph TD
+    A[xCodeGen.Abstractions] -->|提供抽象定义| B[xCodeGen.Core]
+    A -->|用户项目引用| C[xCodeGen.Cli]
+    A -->|源生成器依赖| D[xCodeGen.SourceGenerator]
+    E[xCodeGen.Utilities] -->|工具类注入| B
+    B -->|引擎协调| C
+    B -->|元数据提取| D
+    F[xCodeGen.Templates] -->|模板提供| B
+    G[xCodeGen.Configuration] -->|配置加载| B
+    subgraph "用户交互层"
+        C
+    end
+    subgraph "核心层"
+        B
+        D
+    end
+    subgraph "辅助层"
+        E
+        F
+        G
+    end
+```
 
-# 使用流程
+解释：箭头表示依赖流（e.g., Core 依赖 Abstractions 的 Metadata）。用户项目仅需引用 Abstractions + CLI，Core 处理内部逻辑。该图基于最新代码结构，便于可视化扩展（如新增 xCodeGen.Plugins 项目）。
 
-1. 在目标项目中添加 `[GenerateArtifact]` 特性标记需要生成代码的类或方法
+## 3. 核心概念和流程
 
-2. 配置 `xcodegen.config.json` 文件，指定模板路径、输出目录等
+### 3.1 核心概念
 
-3. 创建自定义 Razor 模板或使用现有模板
+1. **Artifact（产物）**：生成器输出的代码文件（如类、接口等），完全由模板定义。
+2. **ArtifactType（产物类型）**：字符串标识（如“Dto”“Repository”），用于关联模板。
+3. **元数据（Metadata）**：从目标项目中提取的类、方法、参数信息（名称、类型、特性等），作为模板输入。
+4. **模板（Template）**：定义代码生成规则的文件（如 Razor .cshtml），接收元数据和工具类，输出代码。
 
-4. 运行命令行工具执行代码生成
-   该实现保持了高度的灵活性和扩展性，完全与业务逻辑解耦，可通过添加新模板支持各种类型的代码生成需求。
+### 3.2. 核心流程
 
-# xCodeGen 设计文档（Ver1.0）
+- 标记目标：[GenerateArtifact(ArtifactType = "Dto")]。
+- 提取元数据：RoslynExtractor 解析（阶段一）。
+- 模板匹配：GeneratorEngine 根据 ArtifactType 查找路径。
+- 代码生成：TemplateExecutor 渲染（阶段二）。
+- 调试输出：_Debug/ 目录下输出元数据 JSON 和日志。
 
-## 一、项目定位
+# 二、配置示例（xCodeGen.config.json）
 
-`xCodeGen` 是一个**元数据驱动的通用代码生成框架**，通过解析目标项目中的类、方法、参数等元数据，结合可定制模板生成代码文件（称为“Artifact”）。框架本身不包含任何业务逻辑（如DTO、验证器等），仅通过“产物类型（ArtifactType）”关联模板，实现“提取-映射-生成”的中性流程。
+```json
+{
+  "OutputRoot": "src/MyProject/Generated",   // 生成产物的根目录
+  "TemplatesPath": "Templates",               // 存放 Razor 模板的目录
+  "TemplateMappings": {                       // 产物类型与逻辑模板的映射
+    "Dto": "Templates/Dto.cshtml",
+    "Repository": "Templates/Repository.cshtml"
+  },
+  "SkeletonMappings": {                       // 产物类型与业务扩展骨架模板的映射
+    "Repository": "Templates/Skeletons/RepoSkeleton.cshtml"
+  },
+  "OutputDirectories": {                      // 各类产物的存放子目录
+    "Dto": "Dtos",
+    "Repository": "Repositories"
+  },
+  "NamingRules": [                            // 命名规范定义
+    { "ArtifactType": "Dto", "Pattern": "{Name}Dto" },
+    { "ArtifactType": "Repository", "Pattern": "I{Name}Repository" }
+  ],
+  "Debug": { "Enabled": true, "Directory": "_Debug" }  // 最新：新增调试配置
+}
+```
 
-## 二、核心架构
+## 1. 详细示例：从 Models 目录生成 Repository & DTO
+
+以下是针对 TKWF.Domain 项目中 Models 目录下文件的端到端示例。假设项目结构为：
+
+```textile
+MyProject/
+├── Models/
+│   └── User.cs  // 领域模型
+├── Generated/
+│   ├── Dtos/
+│   │   └── UserDto.generated.cs
+│   │   └── UserDto.cs  // 手动扩展
+│   └── Repositories/
+│       └── IUserRepository.generated.cs
+│       └── IUserRepository.cs  // 手动扩展
+└── xcodegen.config.json
+```
+
+## 2. 示例 Models/User.cs（标记特性 + XML 注释）
+
+```csharp
+using xCodeGen.Abstractions.Attributes;
+
+/// <summary>
+/// 核心用户信息模型（TKWF.Domain 领域自治示例）
+/// </summary>
+[GenerateArtifact(ArtifactType = "Dto")]
+[GenerateArtifact(ArtifactType = "Repository")]
+public class User
+{
+    /// <summary>
+    /// 用户ID
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// 用户登录名（required .NET 10+）
+    /// </summary>
+    public required string UserName { get; init; }
+
+    /// <summary>
+    /// 用户角色列表（集合类型）
+    /// </summary>
+    public List<string>? Roles { get; set; }
+}
+```
+
+## 3. 示例模板：Templates/Dto.cshtml（生成 DTO）
+
+```html
+@model xCodeGen.Core.Templates.TemplateInput
+@using xCodeGen.Utilities.Naming
+
+namespace @Model.Class.Namespace.Dtos;
+
+public partial class @Model.Utilities.Naming.ToPascalCase(Model.Class.Name + "Dto")
+{
+    @foreach (var prop in Model.Class.Properties)  // 假设 Metadata 支持 Properties
+    {
+        /// <summary>
+        /// @prop.Summary  // 继承 XML 注释
+        /// </summary>
+        public @prop.TypeName @Model.Utilities.Naming.ToPascalCase(prop.Name) { get; set; }
+    }
+}
+```
+
+## 4. 示例模板：Templates/Repository.cshtml（生成 Repository 接口）
+
+```html
+@model xCodeGen.Core.Templates.TemplateInput
+@using xCodeGen.Utilities.Naming
+
+namespace @Model.Class.Namespace.Repositories;
+
+public partial interface I@Model.Utilities.Naming.ToPascalCase(Model.Class.Name + "Repository")
+{
+    Task<@Model.Class.Name> GetByIdAsync(int id);  // 机械生成基础方法
+
+    // 其他生成逻辑...
+}
+```
+
+## 5. 示例骨架模板：Templates/Skeletons/RepoSkeleton.cshtml（手动扩展文件）
+
+```html
+@model xCodeGen.Core.Templates.TemplateInput
+
+namespace @Model.Class.Namespace.Repositories;
+
+public partial interface I@Model.Class.Name Repository
+{
+    // 在此添加自定义方法，例如 TKWF.Domain 特定逻辑
+    Task<bool> CheckUserRoleAsync(string userName, string role);
+}
+```
+
+## 6. 一步步配置示例：检验与完善生成器最佳实践
+
+以下是逐步配置与运行过程，用于检验 xCodeGen 的完整性、性能，并完善最佳实践。假设已安装 CLI 工具（dotnet tool install --local xcodegen.cli）。
+
+### 步骤 1：准备环境与项目（检验依赖）
+
+- 确保 .NET 10+ SDK 安装。
+- 在 TKWF.Domain 项目中引用 xCodeGen.Abstractions NuGet（或项目引用）。
+- 创建 Models/User.cs（如上示例）。
+- **检验点**：编译项目，检查源生成器是否生成 .Meta.cs（在 obj/ 目录下）。如果失败，验证 RoslynExtractor.cs 的 SemanticModel 使用。
+- **最佳实践完善**：如果 .Meta.cs 未生成，添加警告日志（DebugLogger.LogWarning("No artifacts marked")）。
+
+### 步骤 2：配置 xcodegen.config.json（检验灵活性）
+
+- 在项目根创建 config.json（如上示例）。
+- 添加 TKWF.Domain 特定规则：NamingRules 中增加 { "ArtifactType": "Repository", "Pattern": "Domain{Name}Repository" }。
+- **检验点**：运行 xcodegen gen --dry-run（假设 CLI 支持），检查模板路径解析。如果映射缺失，抛 ConfigurationException。
+- **最佳实践完善**：配置中新增 "ValidateOnLoad": true，自动校验模板文件存在性。
+
+### 步骤 3：运行生成命令（检验核心流程）
+
+- 终端：xcodegen gen。
+- 输出：Generated/Dtos/UserDto.generated.cs（属性映射）、UserDto.cs（空 partial）；Generated/Repositories/IUserRepository.generated.cs（基础方法）、IUserRepository.cs（骨架）。
+- **检验点**：检查生成文件是否继承 XML 注释、可空性（e.g., string? for nullable）。如果集合类型（List<string>?）未正确处理，优化 TypeUtility.cs 的 IsCollection 判断。
+- **最佳实践完善**：生成后自动格式化代码（集成 dotnet format），确保一致性。
+
+### 步骤 4：修改 Model 并使用 --watch 模式（检验增量与监听）
+
+- 修改 User.cs：添加新属性 public DateTime? CreatedAt { get; set; }。
+- 运行 xcodegen gen --watch。
+- 保存 User.cs，观察自动重新生成 *.generated.cs（不覆盖 *.cs）。
+- **检验点**：验证 IncrementalChecker 的哈希比较（仅更新变更部分）。如果全覆盖，修复哈希逻辑（使用 SHA256 on metadata JSON）。
+- **最佳实践完善**：--watch 模式下添加 debounce（500ms 延迟），防止频繁保存触发。
+
+### 步骤 5：扩展业务逻辑（检验双文件策略）
+
+- 在 Generated/Repositories/IUserRepository.cs 添加自定义方法（如上骨架）。
+- 重新运行 xcodegen gen，确认不覆盖。
+- **检验点**：集成到 TKWF.Domain：使用生成的 Repository 在 DomainServiceBase<TUserInfo> 中注入。
+- **最佳实践完善**：文档中强调 “始终在 *.cs 中编写领域自治逻辑，避免 generated 文件修改”。
+
+### 步骤 6：调试与优化（检验 Debug 输出）
+
+- 启用 Debug.Enabled = true。
+- 检查 _Debug/ 目录：提取的 metadata.json（包含可空性、集合等）、生成日志。
+- **检验点**：如果 XML 注释未继承，优化 Semantic Extraction。
+- **最佳实践完善**：添加 CLI 参数 --debug-level (Minimal/Full)，Full 时输出模板渲染中间结果。
+
+### 步骤 7：集成到构建流程（检验生产可用性）
+
+- 在 .csproj 添加 PreBuildEvent：xcodegen gen。
+- 构建项目，确认生成前置。
+- **检验点**：测量性能（<1s for small Models）。如果慢，优化 RazorLight 缓存（TemplateExecutor.UseCaching = true）。
+- **最佳实践完善**：CI/CD 中使用 --no-watch，确保确定性生成。
+
+# 三、主要文件目录结构
 
 ```
 xCodeGen/
@@ -86,26 +313,9 @@ xCodeGen/
  └─ GeneratorConfig.cs // 生成器配置（模板映射、输出目录等）
 ```
 
-## 三、核心概念
+说明：未列出辅助文件（如 .csproj、README）。Templates/ 实际包含 .cshtml 文件，但作为运行时资源不列在结构中。结构支持扩展（如添加 xCodeGen.Tests/ 测试项目）。
 
-1. **Artifact（产物）**：生成器输出的代码文件（如类、接口等），完全由模板定义，框架不限制类型。 
-2. **ArtifactType（产物类型）**：字符串标识（如“Dto”“Validator”“Query”），用于关联模板（框架不解析具体含义）。 
-3. **元数据（Metadata）**：从目标项目中提取的类、方法、参数信息（名称、类型、特性等），作为模板输入。 
-4. **模板（Template）**：定义代码生成规则的文件（如Razor模板），接收元数据和工具类，输出代码。 
-
-## 四、核心流程
-
-5. **标记目标**：用户在目标类/方法上添加 `[GenerateArtifact(ArtifactType = "Dto")]` 特性，指定需要生成的产物类型。 
-
-6. **提取元数据**：`RoslynExtractor` 解析目标项目，提取标记了特性的类、方法、参数元数据。 
-
-7. **模板匹配**：`GeneratorEngine` 根据 `ArtifactType` 从配置中查找对应的模板路径。 
-
-8. **代码生成**：`TemplateExecutor` 加载模板，传递元数据和工具类，渲染并输出代码到指定目录。 
-
-9. **调试输出**：`DebugLogger` 在 `_Debug` 目录输出提取的元数据和生成过程日志。 
-
-## 五、配置示例（xcodegen.config.json）
+# 四、详细配置（xcodegen.config.json）
 
 ```json
 {
@@ -129,388 +339,3 @@ xCodeGen/
   ]
 }
 ```
-
-## 六、核心代码文件实现
-
-### 1. 抽象定义（xCodeGen.Abstractions）
-
-##### 1) `GenerateArtifactAttribute.cs`（标记需要生成产物的元素）
-
-```csharp
-using System;
-
-namespace xCodeGen.Abstractions.Attributes;
-
-/// <summary>
-/// 标记需要生成代码产物的类或方法
-/// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false)]
-public class GenerateArtifactAttribute : Attribute
-{
-    /// <summary>
-    /// 产物类型（用于匹配模板）
-    /// </summary>
-    public string ArtifactType { get; set; }
-
-    /// <summary>
-    /// 模板名称（从配置中查找对应模板）
-    /// </summary>
-    public string TemplateName { get; set; } = "Default";
-
-    /// <summary>
-    /// 是否覆盖已有文件
-    /// </summary>
-    public bool Overwrite { get; set; } = false;
-}
-```
-
-##### 2) `ParameterMetadata.cs`（参数元数据模型）
-
-```csharp
-using System.Collections.Generic;
-using xCodeGen.Abstractions.Attributes;
-
-namespace xCodeGen.Abstractions.Metadata;
-
-/// <summary>
-/// 方法参数的元数据
-/// </summary>
-public class ParameterMetadata
-{
-    /// <summary>
-    /// 参数名称（原名称）
-    /// </summary>
-    public string Name { get; set; }
-
-    /// <summary>
-    /// 参数类型名称（短名称，如 int、string）
-    /// </summary>
-    public string TypeName { get; set; }
-
-    /// <summary>
-    /// 参数类型全限定名（如 System.Int32）
-    /// </summary>
-    public string TypeFullName { get; set; }
-
-    /// <summary>
-    /// 是否为可空类型（如 int?、string?）
-    /// </summary>
-    public bool IsNullable { get; set; }
-
-    /// <summary>
-    /// 是否为集合类型（如 IEnumerable<T>、List<T>）
-    /// </summary>
-    public bool IsCollection { get; set; }
-
-    /// <summary>
-    /// 集合元素类型（如 List<User> → User）
-    /// </summary>
-    public string CollectionItemType { get; set; }
-
-    /// <summary>
-    /// 参数上的特性元数据
-    /// </summary>
-    public List<AttributeMetadata> Attributes { get; set; } = new();
-}
-
-/// <summary>
-/// 特性的元数据（提取特性名称和参数）
-/// </summary>
-public class AttributeMetadata
-{
-    public string TypeFullName { get; set; } // 特性类型全限定名
-    public Dictionary<string, object> Properties { get; set; } = new(); // 特性参数
-}
-```
-
-### 2. 核心引擎（xCodeGen.Core）
-
-##### 1) `GeneratorEngine.cs`（核心引擎入口）
-
-```csharp
-using System;
-using System.Linq;
-using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Configuration;
-using xCodeGen.Core.Debugging;
-using xCodeGen.Core.Extraction;
-using xCodeGen.Core.Templates;
-
-namespace xCodeGen.Core.Engine;
-
-public class GeneratorEngine
-{
-    private readonly GeneratorConfig _config;
-    private readonly IMetadataExtractor _extractor;
-    private readonly TemplateExecutor _templateExecutor;
-    private readonly DebugLogger _debugLogger;
-
-    public GeneratorEngine(GeneratorConfig config)
-    {
-        _config = config;
-        _extractor = new RoslynExtractor(config.TargetProject); // 基于Roslyn的元数据提取器
-        _templateExecutor = new TemplateExecutor(config); // 模板执行器
-        _debugLogger = new DebugLogger(config.Debug); // 调试日志
-    }
-
-    /// <summary>
-    /// 启动代码生成流程
-    /// </summary>
-    public void Generate()
-    {
-        try
-        {
-            // 1. 输出启动调试信息
-            _debugLogger.LogStartupInfo(_config);
-
-            // 2. 提取元数据（所有标记了[GenerateArtifact]的类和方法）
-            var metadata = _extractor.Extract();
-            _debugLogger.LogExtractedMetadata(metadata); // 输出元数据调试信息
-
-            // 3. 遍历元数据，生成对应产物
-            foreach (var classMeta in metadata.Classes)
-            {
-                foreach (var methodMeta in classMeta.Methods)
-                {
-                    // 跳过未标记[GenerateArtifact]的方法
-                    var artifactAttr = methodMeta.GenerateArtifactAttribute;
-                    if (artifactAttr == null) continue;
-
-                    // 生成产物
-                    GenerateArtifact(classMeta, methodMeta, artifactAttr);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _debugLogger.LogError("生成过程失败", ex);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 生成单个产物
-    /// </summary>
-    private void GenerateArtifact(ClassMetadata classMeta, MethodMetadata methodMeta, 
-        GenerateArtifactAttribute artifactAttr)
-    {
-        // 查找模板路径
-        var templatePath = _config.TemplateMappings[artifactAttr.ArtifactType][artifactAttr.TemplateName];
-
-        // 准备模板输入数据（元数据 + 工具类）
-        var templateData = new TemplateInput
-        {
-            Class = classMeta,
-            Method = methodMeta,
-            ArtifactType = artifactAttr.ArtifactType,
-            Utilities = _config.GetEnabledUtilities() // 加载配置中启用的工具类
-        };
-
-        // 执行模板并生成文件
-        var outputPath = _templateExecutor.Execute(templatePath, templateData);
-
-        // 输出生成日志
-        _debugLogger.LogGeneratedFile(artifactAttr.ArtifactType, outputPath);
-    }
-}
-```
-
-##### 2) `RoslynExtractor.cs`（基于Roslyn的元数据提取器）
-
-```csharp
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using xCodeGen.Abstractions.Attributes;
-using xCodeGen.Abstractions.Metadata;
-
-namespace xCodeGen.Core.Extraction;
-
-public interface IMetadataExtractor
-{
-    ExtractedMetadata Extract();
-}
-
-public class RoslynExtractor : IMetadataExtractor
-{
-    private readonly string _targetProjectPath;
-
-    public RoslynExtractor(string targetProjectPath)
-    {
-        _targetProjectPath = targetProjectPath;
-    }
-
-    /// <summary>
-    /// 提取元数据（简化版：仅展示核心逻辑）
-    /// </summary>
-    public ExtractedMetadata Extract()
-    {
-        // 1. 加载目标项目的语法树（实际实现需处理项目编译）
-        var syntaxTrees = LoadSyntaxTrees();
-
-        // 2. 解析所有类
-        var classes = new List<ClassMetadata>();
-        foreach (var tree in syntaxTrees)
-        {
-            var root = tree.GetRoot();
-            var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
-
-            foreach (var classDecl in classDeclarations)
-            {
-                // 提取类元数据（简化逻辑）
-                var classMeta = ExtractClassMetadata(classDecl);
-                if (classMeta != null)
-                {
-                    classes.Add(classMeta);
-                }
-            }
-        }
-
-        return new ExtractedMetadata { Classes = classes };
-    }
-
-    /// <summary>
-    /// 提取类元数据（仅处理标记了[GenerateArtifact]的类）
-    /// </summary>
-    private ClassMetadata? ExtractClassMetadata(ClassDeclarationSyntax classDecl)
-    {
-        // 检查类是否标记了[GenerateArtifact]
-        var hasClassAttribute = classDecl.AttributeLists
-            .Any(a => a.Attributes.Any(attr => 
-                attr.Name.ToString() == nameof(GenerateArtifactAttribute)));
-        if (!hasClassAttribute) return null;
-
-        // 提取类基础信息
-        var classMeta = new ClassMetadata
-        {
-            Namespace = classDecl.Parent is NamespaceDeclarationSyntax ns 
-                ? ns.Name.ToString() 
-                : string.Empty,
-            Name = classDecl.Identifier.Text,
-            Methods = new List<MethodMetadata>()
-        };
-
-        // 提取方法元数据
-        var methodDeclarations = classDecl.DescendantNodes().OfType<MethodDeclarationSyntax>();
-        foreach (var methodDecl in methodDeclarations)
-        {
-            var methodMeta = ExtractMethodMetadata(methodDecl);
-            if (methodMeta != null)
-            {
-                classMeta.Methods.Add(methodMeta);
-            }
-        }
-
-        return classMeta;
-    }
-
-    /// <summary>
-    /// 提取方法元数据（仅处理标记了[GenerateArtifact]的方法）
-    /// </summary>
-    private MethodMetadata? ExtractMethodMetadata(MethodDeclarationSyntax methodDecl)
-    {
-        // 检查方法是否标记了[GenerateArtifact]
-        var artifactAttr = ExtractGenerateArtifactAttribute(methodDecl);
-        if (artifactAttr == null) return null;
-
-        // 提取方法基础信息
-        return new MethodMetadata
-        {
-            Name = methodDecl.Identifier.Text,
-            ReturnType = methodDecl.ReturnType.ToString(),
-            Parameters = methodDecl.ParameterList.Parameters
-                .Select(ExtractParameterMetadata)
-                .ToList(),
-            GenerateArtifactAttribute = artifactAttr
-        };
-    }
-
-    /// <summary>
-    /// 提取参数元数据
-    /// </summary>
-    private ParameterMetadata ExtractParameterMetadata(ParameterSyntax paramSyntax)
-    {
-        // 简化实现：提取参数名称、类型、可空性等
-        return new ParameterMetadata
-        {
-            Name = paramSyntax.Identifier.Text,
-            TypeName = paramSyntax.Type?.ToString() ?? "unknown",
-            IsNullable = paramSyntax.Type?.ToString().EndsWith("?") ?? false,
-            // 省略：TypeFullName、IsCollection等复杂属性的提取（需基于语义分析）
-            Attributes = ExtractParameterAttributes(paramSyntax)
-        };
-    }
-
-    // 省略：ExtractGenerateArtifactAttribute、ExtractParameterAttributes等辅助方法
-}
-```
-
-### 3. 工具类（xCodeGen.Utilities）
-
-##### 1) `NamingUtility.cs`（命名转换工具）
-
-```csharp
-namespace xCodeGen.Utilities.Naming;
-
-/// <summary>
-/// 命名转换工具（供模板调用）
-/// </summary>
-public class NamingUtility
-{
-    /// <summary>
-    /// 转换为帕斯卡命名法（首字母大写）
-    /// </summary>
-    public string ToPascalCase(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return name;
-        return char.ToUpperInvariant(name[0]) + name[1..];
-    }
-
-    /// <summary>
-    /// 转换为骆驼命名法（首字母小写）
-    /// </summary>
-    public string ToCamelCase(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return name;
-        return char.ToLowerInvariant(name[0]) + name[1..];
-    }
-
-    /// <summary>
-    /// 生成产物名称（如：UserService_GetUser → UserServiceGetUserDto）
-    /// </summary>
-    public string GenerateArtifactName(string className, string methodName, string artifactType)
-    {
-        return $"{className}{methodName}{artifactType}";
-    }
-}
-```
-
-### 4. 模板示例（Dto.cshtml）
-
-```cshtml
-@model xCodeGen.Core.Templates.TemplateInput
-@using xCodeGen.Utilities.Naming
-
-<!-- 自动生成的产物（类型：@Model.ArtifactType） -->
-namespace @Model.Class.Namespace.Generated.@Model.ArtifactType;
-
-public partial class @Model.Utilities.Naming.GenerateArtifactName(Model.Class.Name, Model.Method.Name, Model.ArtifactType)
-{
-    @foreach (var param in Model.Method.Parameters)
-    {
-        // 生成属性（使用工具类转换命名）
-        public @param.TypeName @Model.Utilities.Naming.ToPascalCase(param.Name) { get; set; }
-    }
-}
-```
-
-## 总结
-
-`xCodeGen` 通过中性化设计实现了“元数据提取→模板映射→代码生成”的通用流程，核心优势： 
-
-1. **业务无关**：通过 `ArtifactType` 和模板映射剥离业务概念，支持任意类型代码生成。 
-2. **灵活扩展**：新增产物类型只需添加模板和配置，无需修改核心引擎。 
-3. **工具解耦**：工具类按需启用，模板自主调用，支持扩展验证、数据结构解析等工具。 
-   后续可扩展模板引擎支持（如Scriban）、增量生成优化、跨语言模板等功能。
