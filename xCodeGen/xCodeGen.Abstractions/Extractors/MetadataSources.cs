@@ -5,19 +5,20 @@ namespace xCodeGen.Abstractions.Extractors
     /// </summary>
     public enum MetadataSource
     {
+        Error = -1,
         /// <summary>
         /// 代码文件（C#类/接口）
         /// </summary>
-        Code,
+        Code = 0,
     
         /// <summary>
         /// 数据库表结构
         /// </summary>
-        Database,
+        Database = 1,
     
         /// <summary>
         /// JSON/XML Schema
         /// </summary>
-        Schema
+        Schema = 2,
     }
 }

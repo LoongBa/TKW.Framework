@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using xCodeGen.Abstractions.Extractors;
 
 namespace xCodeGen.Abstractions.Metadata
 {
@@ -13,6 +14,7 @@ namespace xCodeGen.Abstractions.Metadata
         public string Namespace { get; set; }
         public string ClassName { get; set; }
         public string FullName { get; set; }
+        public string Summary { get; set; } = string.Empty;
 
         // 结构信息
         public ICollection<MethodMetadata> Methods { get; set; }
@@ -23,7 +25,7 @@ namespace xCodeGen.Abstractions.Metadata
 
         // 生成配置信息
         public string Mode { get; set; }
-        public string SourceType { get; set; }
+        public MetadataSource SourceType { get; set; }
         public string TemplateName { get; set; }
         public Dictionary<string, object> GenerateCodeSettings { get; set; }
         public ICollection<AttributeMetadata> Attributes { get; set; }
@@ -56,7 +58,7 @@ namespace xCodeGen.Abstractions.Metadata
             FullName = string.Empty;
             BaseType = string.Empty;
             Mode = string.Empty;
-            SourceType = string.Empty;
+            SourceType = MetadataSource.Code;
             TemplateName = string.Empty;
             SourceHash = string.Empty;
             PreviousHash = string.Empty;

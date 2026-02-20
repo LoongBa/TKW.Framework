@@ -17,7 +17,7 @@ namespace xCodeGen.Abstractions.Metadata
         /// 返回类型
         /// </summary>
         public string ReturnType { get; set; }
-
+        public string Summary { get; set; } = string.Empty;
         /// <summary>
         /// 是否为异步方法
         /// </summary>

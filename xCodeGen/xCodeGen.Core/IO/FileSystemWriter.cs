@@ -39,14 +39,13 @@ public class FileSystemWriter : IFileWriter
 
     public void Write(string content, string filePath, bool overwrite)
     {
-        if (string.IsNullOrEmpty(filePath))
-            throw new ArgumentNullException(nameof(filePath));
+        if (string.IsNullOrEmpty(filePath)) throw new ArgumentNullException(nameof(filePath));
+        if (!overwrite && Exists(filePath)) return;
 
-        // 不覆盖且文件已存在时直接返回
-        if (!overwrite && Exists(filePath))
-            return;
+        // 自动确保目录存在
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        // 写入文件内容
         File.WriteAllText(filePath, content);
     }
 

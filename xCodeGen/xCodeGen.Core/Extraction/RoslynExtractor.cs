@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.MSBuild;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
 
@@ -53,7 +54,7 @@ public class RoslynExtractor : IMetaDataExtractor
 
                 rawMetadataList.Add(new RawMetadata
                 {
-                    SourceType = this.SourceType.ToString(),
+                    SourceType = SourceType,
                     SourceId = symbol.ToDisplayString(),
                     Data = ExtractClassData(symbol, classDecl, semanticModel)
                 });
@@ -93,6 +94,19 @@ public class RoslynExtractor : IMetaDataExtractor
             }).ToList()
         };
     }
+    private Dictionary<string, object> ExtractParameterData(IParameterSymbol parameterSymbol, MethodDeclarationSyntax methodSyntax)
+    {
+        return new Dictionary<string, object>
+        {
+            ["ParameterName"] = parameterSymbol.Name,
+            ["Type"] = parameterSymbol.Type.ToDisplayString(),
+            ["IsNullable"] = parameterSymbol.NullableAnnotation == NullableAnnotation.Annotated ||
+                             parameterSymbol.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T,
+            ["IsCollection"] = parameterSymbol.Type.AllInterfaces.Any(i => i.Name == "IEnumerable") ||
+                               parameterSymbol.Type.TypeKind == TypeKind.Array,
+            ["Summary"] = GetParamSummary(methodSyntax, parameterSymbol.Name) // 提取注释
+        };
+    }
 
     #region XML 注释辅助方法
 
@@ -126,10 +140,23 @@ public class RoslynExtractor : IMetaDataExtractor
 
     #endregion
 
+    /// <summary>
+    /// 使用 MSBuildWorkspace 加载项目并创建编译对象
+    /// </summary>
     private async Task<Compilation> CreateCompilationAsync(string projectPath, CancellationToken ct)
     {
-        // 此处应集成 MSBuildWorkspace 逻辑，暂用模拟实现
-        await Task.Delay(10, ct);
-        return CSharpCompilation.Create("TemporaryCompilation");
+        // 1. 创建 MSBuild 工作区
+        using var workspace = MSBuildWorkspace.Create();
+
+        // 2. 尝试打开项目文件 (.csproj)
+        var project = await workspace.OpenProjectAsync(projectPath, null, ct);
+
+        // 3. 获取编译信息
+        var compilation = await project.GetCompilationAsync(ct);
+
+        if (compilation == null)
+            throw new System.Exception($"无法为项目 {projectPath} 创建编译对象。");
+
+        return compilation;
     }
 }

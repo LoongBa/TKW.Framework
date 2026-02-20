@@ -26,7 +26,7 @@ namespace xCodeGen.Abstractions.Metadata
         /// 参数类型全限定名
         /// </summary>
         public string TypeFullName { get; set; }
-
+        public string Summary { get; set; } = string.Empty;
         /// <summary>
         /// 是否为可空类型
         /// </summary>

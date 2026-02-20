@@ -146,7 +146,7 @@ namespace xCodeGen.SourceGenerator
                     results.Add(new RawMetadata
                     {
                         SourceId = syntaxTree.FilePath,
-                        SourceType = "Error",
+                        SourceType = MetadataSource.Error,
                         ExtractionLogs = { $"提取失败: {ex.Message}" }
                     });
                 }
@@ -169,7 +169,7 @@ namespace xCodeGen.SourceGenerator
                 return new RawMetadata
                 {
                     SourceId = classDecl.Identifier.Text,
-                    SourceType = "Error",
+                    SourceType = MetadataSource.Error,
                     ExtractionLogs = { "无法获取类的语义符号信息" }
                 };
             }
@@ -192,7 +192,7 @@ namespace xCodeGen.SourceGenerator
             return new RawMetadata
             {
                 SourceId = classSymbol.Name,
-                SourceType = "Class",
+                SourceType = MetadataSource.Code,
                 Data = new Dictionary<string, object>
                 {
                     { "Namespace", classSymbol.ContainingNamespace.ToString() },

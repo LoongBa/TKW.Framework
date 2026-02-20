@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Core.Services;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace xCodeGen.Core.Metadata;
 
@@ -17,6 +18,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         var @namespace = GetValue(rawMetadata.Data, "Namespace", string.Empty);
         var sourceClassName = GetValue(rawMetadata.Data, "ClassName", string.Empty);
         var mode = GetValue(rawMetadata.Data, "GenerateMode", "Full");
+        var summary = GetValue(rawMetadata.Data, "Summary", string.Empty);
 
         // 2. 解析方法元数据
         var methods = new List<MethodMetadata>();
@@ -37,18 +39,18 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
             ClassName = sourceClassName,
             SourceType = rawMetadata.SourceType,
             Mode = mode,
+            Summary = summary,
             Methods = methods
         };
     }
 
-    private MethodMetadata ConvertToMethodMetadata(Dictionary<string, object> dict)
+    private static MethodMetadata ConvertToMethodMetadata(Dictionary<string, object> dict)
     {
-        // 修正：从 methodDict 中提取正确的 MethodName 键
         var methodName = GetValue(dict, "MethodName", "UnknownMethod");
         var returnType = GetValue(dict, "ReturnType", "void");
+        var methodSummary = GetValue(dict, "Summary", string.Empty); // 方法自身的注释
         var isAsync = dict.TryGetValue("IsAsync", out var ia) && bool.Parse(ia.ToString());
 
-        // 3. 解析参数元数据
         var parameters = new List<ParameterMetadata>();
         if (dict.TryGetValue("Parameters", out var pObj) && pObj is List<object> pList)
         {
@@ -58,9 +60,9 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 {
                     parameters.Add(new ParameterMetadata
                     {
-                        // 修正：从参数字典中提取正确的参数名
                         Name = GetValue(pDict, "ParameterName", "unnamed"),
                         TypeName = GetValue(pDict, "Type", "object"),
+                        Summary = GetValue(pDict, "Summary", string.Empty), // 修正：从 pDict 获取参数注释
                         IsNullable = pDict.TryGetValue("IsNullable", out var n) && bool.Parse(n.ToString())
                     });
                 }
@@ -71,6 +73,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         {
             Name = methodName,
             ReturnType = returnType,
+            Summary = methodSummary, // 正确映射方法注释
             IsAsync = isAsync,
             Parameters = parameters
         };

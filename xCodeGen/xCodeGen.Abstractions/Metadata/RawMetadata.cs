@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using xCodeGen.Abstractions.Extractors;
 
 namespace xCodeGen.Abstractions.Metadata
 {
@@ -15,7 +16,7 @@ namespace xCodeGen.Abstractions.Metadata
         /// <summary>
         /// 来源类型（Class/Table等）
         /// </summary>
-        public string SourceType { get; set; } = string.Empty;
+        public MetadataSource SourceType { get; set; } = MetadataSource.Code;
     
         /// <summary>
         /// 结构化元数据内容
