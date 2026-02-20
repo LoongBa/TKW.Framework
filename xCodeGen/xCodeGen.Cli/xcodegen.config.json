@@ -1,26 +1,35 @@
 {
   "TargetProject": "src/MyProject/MyProject.csproj",
   "OutputRoot": "src/MyProject/Generated",
+  "TemplatesPath": "Templates",
   "Debug": {
     "Enabled": true,
     "Directory": "_Debug"
   },
-  "TemplateMappings": {
-    "Dto": {
-      "Default": "Templates/Artifact/Dto.cshtml"
+  "NamingRules": [
+    {
+      "ArtifactType": "Dto",
+      "Pattern": "{Name}Dto"
     },
-    "Validator": {
-      "Default": "Templates/Artifact/Validator.cshtml"
+    {
+      "ArtifactType": "Validator",
+      "Pattern": "{Name}Validator"
+    },
+    {
+      "ArtifactType": "ViewModel",
+      "Pattern": "{Name}ViewModel"
     }
+  ],
+  "TemplateMappings": {
+    "Dto": "Templates/Artifact/Dto.cshtml",
+    "Validator": "Templates/Artifact/Validator.cshtml"
   },
   "OutputDirectories": {
     "Dto": "Dtos",
     "Validator": "Validators"
   },
   "EnabledUtilities": [
-    "Utilities.NamingUtility",
-    "Utilities.TypeUtility",
-    "Utilities.ValidationUtility"
+    "xCodeGen.Utilities.NamingUtility",
+    "xCodeGen.Utilities.TypeUtility"
   ]
 }
-    

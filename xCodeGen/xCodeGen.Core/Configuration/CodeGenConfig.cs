@@ -3,67 +3,28 @@ using System.Text.Json;
 
 namespace xCodeGen.Core.Configuration
 {
-    /// <summary>
-    /// 代码生成器配置
-    /// </summary>
     public class CodeGenConfig
     {
-        private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            WriteIndented = true
-        };
+        // 核心路径配置
+        public string TargetProject { get; set; } = string.Empty; // 目标项目路径
+        public string OutputRoot { get; set; } = "Generated";    // 输出根目录
+        public string TemplatesPath { get; set; } = "Templates"; // 模板所在目录
 
-        /// <summary>
-        /// 输出基础路径
-        /// </summary>
-        public string OutputBasePath { get; set; } = "Generated";
-        
-        /// <summary>
-        /// 模板路径
-        /// </summary>
-        public string TemplatesPath { get; set; } = "Templates";
-        
-        /// <summary>
-        /// 命名规则集合
-        /// </summary>
+        // 调试配置
+        public DebugConfig Debug { get; set; } = new();
+
+        // 命名与映射规则
         public List<NamingRule> NamingRules { get; set; } = [];
-        
-        /// <summary>
-        /// 是否启用调试模式
-        /// </summary>
-        public bool? DebugMode { get; set; } = true;
-        
-        /// <summary>
-        /// 从JSON字符串创建配置实例
-        /// </summary>
-        public static CodeGenConfig FromJson(string json)
-        {
-            return JsonSerializer.Deserialize<CodeGenConfig>(json, _jsonSerializerOptions) ?? new CodeGenConfig();
-        }
-        
-        /// <summary>
-        /// 转换为JSON字符串
-        /// </summary>
-        public string ToJson()
-        {
-            return JsonSerializer.Serialize(this, _jsonSerializerOptions);
-        }
+        public Dictionary<string, string> TemplateMappings { get; set; } = new(); // ArtifactType -> TemplatePath
+        public Dictionary<string, string> OutputDirectories { get; set; } = new(); // ArtifactType -> SubDir
+
+        public static CodeGenConfig FromJson(string json) =>
+            JsonSerializer.Deserialize<CodeGenConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
     }
-    
-    /// <summary>
-    /// 命名规则
-    /// </summary>
-    public class NamingRule
+
+    public class DebugConfig
     {
-        /// <summary>
-        /// 产物类型
-        /// </summary>
-        public string ArtifactType { get; set; }
-        
-        /// <summary>
-        /// 命名模式，可用占位符: {ClassName} - 原始名称, {ArtifactType} - 产物类型
-        /// </summary>
-        public string Pattern { get; set; } = "{ClassName}{ArtifactType}";
+        public bool Enabled { get; set; } = true;
+        public string Directory { get; set; } = "_Debug";
     }
 }

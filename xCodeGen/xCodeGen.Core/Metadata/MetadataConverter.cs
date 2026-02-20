@@ -1,72 +1,81 @@
 ﻿using System.Collections.Generic;
 using xCodeGen.Abstractions.Metadata;
+using xCodeGen.Core.Services;
 
 namespace xCodeGen.Core.Metadata;
 
 /// <summary>
-/// 元数据转换器实现
+/// 元数据转换器：将原始提取数据映射为抽象模型
 /// </summary>
-public class MetadataConverter : IMetadataConverter
+public class MetadataConverter(NamingService namingService) : IMetadataConverter
 {
+    private readonly NamingService _NamingService = namingService;
+
     public ClassMetadata Convert(RawMetadata rawMetadata)
     {
-        // 解析基础属性
-        var @namespace = rawMetadata.Data.TryGetValue("Namespace", out var ns) ? ns.ToString() : string.Empty;
-        var className = rawMetadata.Data.TryGetValue("ClassName", out var cn) ? cn.ToString() : string.Empty;
-        var generateMode = rawMetadata.Data.TryGetValue("GenerateMode", out var gm) ? gm.ToString() : "Full";
+        // 1. 解析类级基础属性
+        var @namespace = GetValue(rawMetadata.Data, "Namespace", string.Empty);
+        var sourceClassName = GetValue(rawMetadata.Data, "ClassName", string.Empty);
+        var mode = GetValue(rawMetadata.Data, "GenerateMode", "Full");
 
-        // 解析方法元数据
+        // 2. 解析方法元数据
         var methods = new List<MethodMetadata>();
         if (rawMetadata.Data.TryGetValue("Methods", out var methodsObj) && methodsObj is List<object> methodsList)
         {
-            foreach (var methodObj in methodsList)
+            foreach (var m in methodsList)
             {
-                if (methodObj is Dictionary<string, object> methodDict)
+                if (m is Dictionary<string, object> methodDict)
                 {
                     methods.Add(ConvertToMethodMetadata(methodDict));
                 }
             }
         }
 
-        return new ClassMetadata()
+        return new ClassMetadata
         {
             Namespace = @namespace,
-            ClassName = className,
+            ClassName = sourceClassName,
             SourceType = rawMetadata.SourceType,
-            Mode = generateMode,
-            Methods = methods,
+            Mode = mode,
+            Methods = methods
         };
     }
 
-    /// <summary>
-    /// 转换方法元数据
-    /// </summary>
-    private static MethodMetadata ConvertToMethodMetadata(Dictionary<string, object> methodDict)
+    private MethodMetadata ConvertToMethodMetadata(Dictionary<string, object> dict)
     {
-        var name = methodDict.TryGetValue("ClassName", out var n) ? n.ToString() : string.Empty;
-        var returnType = methodDict.TryGetValue("ReturnType", out var rt) ? rt.ToString() : "void";
-        var isAsync = methodDict.TryGetValue("IsAsync", out var ia) && bool.TryParse(ia.ToString(), out var asyncFlag) && asyncFlag;
+        // 修正：从 methodDict 中提取正确的 MethodName 键
+        var methodName = GetValue(dict, "MethodName", "UnknownMethod");
+        var returnType = GetValue(dict, "ReturnType", "void");
+        var isAsync = dict.TryGetValue("IsAsync", out var ia) && bool.Parse(ia.ToString());
 
-        // 转换参数元数据
+        // 3. 解析参数元数据
         var parameters = new List<ParameterMetadata>();
-        if (methodDict.TryGetValue("Parameters", out var paramsObj) && paramsObj is List<object> paramsList)
+        if (dict.TryGetValue("Parameters", out var pObj) && pObj is List<object> pList)
         {
-            foreach (var paramObj in paramsList)
-                if (paramObj is Dictionary<string, object> paramDict)
+            foreach (var p in pList)
+            {
+                if (p is Dictionary<string, object> pDict)
+                {
                     parameters.Add(new ParameterMetadata
                     {
-                        Name = paramDict.TryGetValue("ClassName", out var pName) ? pName.ToString() : string.Empty,
-                        TypeName = paramDict.TryGetValue("Type", out var pt) ? pt.ToString() : "void",
-                        IsNullable = paramDict.TryGetValue("IsNullable", out var pn) && bool.TryParse(pn.ToString(), out var nullableFlag) && nullableFlag
+                        // 修正：从参数字典中提取正确的参数名
+                        Name = GetValue(pDict, "ParameterName", "unnamed"),
+                        TypeName = GetValue(pDict, "Type", "object"),
+                        IsNullable = pDict.TryGetValue("IsNullable", out var n) && bool.Parse(n.ToString())
                     });
+                }
+            }
         }
 
-        return new MethodMetadata()
+        return new MethodMetadata
         {
-            Name = name,
+            Name = methodName,
             ReturnType = returnType,
             IsAsync = isAsync,
-            Parameters = parameters,
+            Parameters = parameters
         };
     }
+
+    private static string GetValue(Dictionary<string, object> dict, string key, string @default)
+        => dict.TryGetValue(key, out var val) ? val.ToString() : @default;
 }

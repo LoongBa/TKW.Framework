@@ -32,7 +32,7 @@ namespace xCodeGen.Core.Utilities
             // 处理可空类型
             if (fullTypeName.StartsWith("System.Nullable`1["))
             {
-                string underlyingType = fullTypeName.Substring("System.Nullable`1[".Length);
+                var underlyingType = fullTypeName.Substring("System.Nullable`1[".Length);
                 underlyingType = underlyingType.TrimEnd(']');
                 return $"{SimplifyTypeName(underlyingType)}?";
             }
@@ -40,12 +40,12 @@ namespace xCodeGen.Core.Utilities
             // 处理泛型类型
             if (fullTypeName.Contains('`'))
             {
-                int backtickIndex = fullTypeName.IndexOf('`');
-                string typeName = fullTypeName.Substring(0, backtickIndex);
-                string genericPart = fullTypeName.Substring(backtickIndex + 2).TrimEnd(']');
+                var backtickIndex = fullTypeName.IndexOf('`');
+                var typeName = fullTypeName.Substring(0, backtickIndex);
+                var genericPart = fullTypeName.Substring(backtickIndex + 2).TrimEnd(']');
 
-                string simplifiedTypeName = SimplifyTypeName(typeName);
-                IEnumerable<string> genericArgs = genericPart.Split(',')
+                var simplifiedTypeName = SimplifyTypeName(typeName);
+                var genericArgs = genericPart.Split(',')
                     .Select(t => SimplifyTypeName(t.Trim()));
 
                 return $"{simplifiedTypeName}<{string.Join(", ", genericArgs)}>";
@@ -54,16 +54,16 @@ namespace xCodeGen.Core.Utilities
             // 处理数组
             if (fullTypeName.EndsWith("[]"))
             {
-                string elementType = fullTypeName.Substring(0, fullTypeName.Length - 2);
+                var elementType = fullTypeName.Substring(0, fullTypeName.Length - 2);
                 return $"{SimplifyTypeName(elementType)}[]";
             }
 
             // 查找类型别名
-            if (_typeAliases.TryGetValue(fullTypeName, out string alias))
+            if (_typeAliases.TryGetValue(fullTypeName, out var alias))
                 return alias;
 
             // 提取类型名称（去掉命名空间）
-            int lastDotIndex = fullTypeName.LastIndexOf('.');
+            var lastDotIndex = fullTypeName.LastIndexOf('.');
             if (lastDotIndex > 0 && lastDotIndex < fullTypeName.Length - 1)
                 return fullTypeName.Substring(lastDotIndex + 1);
 
@@ -81,7 +81,7 @@ namespace xCodeGen.Core.Utilities
             // 处理可空数值类型
             if (typeFullName.StartsWith("System.Nullable`1["))
             {
-                string underlyingType = typeFullName.Substring("System.Nullable`1[".Length).TrimEnd(']');
+                var underlyingType = typeFullName.Substring("System.Nullable`1[".Length).TrimEnd(']');
                 return IsNumericType(underlyingType);
             }
 

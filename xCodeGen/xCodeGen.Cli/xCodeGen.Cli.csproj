@@ -10,4 +10,9 @@
     <EnableIncrementalBuild>true</EnableIncrementalBuild>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Common\TKWF.Common.csproj" />
+    <ProjectReference Include="..\xCodeGen.Core\xCodeGen.Core.csproj" />
+  </ItemGroup>
+
 </Project>

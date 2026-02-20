@@ -39,7 +39,7 @@ namespace xCodeGen.Core.Utilities
             // 处理下划线分隔的命名
             if (name.Contains("_"))
             {
-                string pascal = ToPascalCase(name);
+                var pascal = ToPascalCase(name);
                 return char.ToLowerInvariant(pascal[0]) + pascal.Substring(1);
             }
 

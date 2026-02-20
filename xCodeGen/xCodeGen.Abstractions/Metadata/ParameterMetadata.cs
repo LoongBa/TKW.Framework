@@ -18,6 +18,11 @@ namespace xCodeGen.Abstractions.Metadata
         public string TypeName { get; set; }
 
         /// <summary>
+        /// 参数类型抽象名称
+        /// </summary>
+        public string AbstractType { get; set; }
+
+        /// <summary>
         /// 参数类型全限定名
         /// </summary>
         public string TypeFullName { get; set; }

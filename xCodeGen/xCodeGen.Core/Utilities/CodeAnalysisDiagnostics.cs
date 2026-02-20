@@ -21,8 +21,8 @@ namespace xCodeGen.Core.Utilities
         /// 用于快速判断一个类型是否为集合类型。
         /// 包含常见的集合接口和实现类名称。
         /// </remarks>
-        private static readonly string[] CollectionTypeNames = new string[]
-        {
+        private static readonly string[] _collectionTypeNames =
+        [
             "IEnumerable",
             "ICollection",
             "IList",
@@ -32,7 +32,7 @@ namespace xCodeGen.Core.Utilities
             "Dictionary",
             "Queue",
             "Stack"
-        };
+        ];
 
         /// <summary>
         /// 检查类型是否具有指定特性
@@ -231,7 +231,7 @@ namespace xCodeGen.Core.Utilities
             if (type is INamedTypeSymbol namedType)
             {
                 return namedType.AllInterfaces.Any(i => i.ToDisplayString().Contains("IEnumerable")) ||
-                       CollectionTypeNames.Any(name => namedType.ToDisplayString().Contains(name));
+                       _collectionTypeNames.Any(name => namedType.ToDisplayString().Contains(name));
             }
 
             return false;

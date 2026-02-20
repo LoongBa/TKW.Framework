@@ -12,15 +12,15 @@ namespace xCodeGen.Core.Templates;
 /// </summary>
 public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
 {
-    private readonly RazorLightEngine _engine;
-    private bool _disposed;
+    private readonly RazorLightEngine _Engine;
+    private bool _Disposed;
 
     public RazorLightTemplateEngine(string templateRootPath)
     {
         if (!Directory.Exists(templateRootPath))
             throw new DirectoryNotFoundException($"模板目录不存在：{templateRootPath}");
 
-        _engine = new RazorLightEngineBuilder()
+        _Engine = new RazorLightEngineBuilder()
             .UseFileSystemProject(templateRootPath)
             .UseMemoryCachingProvider()
             .Build();
@@ -39,7 +39,7 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
             throw new ArgumentNullException(nameof(templateName));
 
         // 渲染模板（模板文件需放在模板根目录，如"ClassTemplate.cshtml"）
-        return await _engine.CompileRenderAsync(templateName, metadata);
+        return await _Engine.CompileRenderAsync(templateName, metadata);
     }
 
     public void Dispose()
@@ -50,11 +50,11 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (_disposed) return;
+        if (_Disposed) return;
         if (disposing)
         {
             // 释放托管资源
         }
-        _disposed = true;
+        _Disposed = true;
     }
 }

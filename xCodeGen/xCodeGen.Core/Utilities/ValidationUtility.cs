@@ -34,7 +34,7 @@ namespace xCodeGen.Core.Utilities
             // 处理字符串长度特性
             var maxLengthAttr = param.Attributes.Find(a => 
                 a.TypeFullName == "System.ComponentModel.DataAnnotations.MaxLengthAttribute");
-            if (maxLengthAttr != null && maxLengthAttr.Properties.TryGetValue("Length", out object lengthObj) &&
+            if (maxLengthAttr != null && maxLengthAttr.Properties.TryGetValue("Length", out var lengthObj) &&
                 lengthObj is int maxLength)
             {
                 rules.AppendLine($"RuleFor(dto => dto.{propertyName}).MaximumLength({maxLength});");
@@ -44,8 +44,8 @@ namespace xCodeGen.Core.Utilities
             var rangeAttr = param.Attributes.Find(a => 
                 a.TypeFullName == "System.ComponentModel.DataAnnotations.RangeAttribute");
             if (rangeAttr != null && 
-                rangeAttr.Properties.TryGetValue("Minimum", out object minObj) &&
-                rangeAttr.Properties.TryGetValue("Maximum", out object maxObj))
+                rangeAttr.Properties.TryGetValue("Minimum", out var minObj) &&
+                rangeAttr.Properties.TryGetValue("Maximum", out var maxObj))
             {
                 rules.AppendLine($"RuleFor(dto => dto.{propertyName}).InclusiveBetween({minObj}, {maxObj});");
             }

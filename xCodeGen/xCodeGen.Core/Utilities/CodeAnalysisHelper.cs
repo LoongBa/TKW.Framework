@@ -16,7 +16,8 @@ namespace xCodeGen.Core.Utilities
     {
         private static readonly object _propertyDictionaryLock = new object();
         private static Dictionary<string, string> _propertyDictionary;
-        private static readonly string[] CollectionTypeNames = { "IEnumerable", "ICollection", "IList", "List", "Array" };
+        private static readonly string[] _collectionTypeNames = ["IEnumerable", "ICollection", "IList", "List", "Array"
+        ];
 
         /// <summary>
         /// 读取 MSBuild 属性
@@ -105,7 +106,7 @@ namespace xCodeGen.Core.Utilities
             if (type is INamedTypeSymbol namedType)
             {
                 return namedType.AllInterfaces.Any(i => i.ToDisplayString().Contains("IEnumerable")) ||
-                       CollectionTypeNames.Any(name => namedType.ToDisplayString().Contains(name));
+                       _collectionTypeNames.Any(name => namedType.ToDisplayString().Contains(name));
             }
 
             return false;
@@ -158,11 +159,11 @@ namespace xCodeGen.Core.Utilities
                 if (!string.IsNullOrWhiteSpace(firstSourcePath))
                 {
                     var pathSeparator = Path.DirectorySeparatorChar;
-                    var dirSegments = firstSourcePath.Split(new[] { pathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                    var dirSegments = firstSourcePath.Split([pathSeparator], StringSplitOptions.RemoveEmptyEntries);
 
                     // 过滤关键优化：识别并排除编译输出目录（obj/bin）
                     var outputDirIndices = new List<int>();
-                    for (int i = 0; i < dirSegments.Length; i++)
+                    for (var i = 0; i < dirSegments.Length; i++)
                     {
                         if (string.Equals(dirSegments[i], "obj", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(dirSegments[i], "bin", StringComparison.OrdinalIgnoreCase))
@@ -183,7 +184,7 @@ namespace xCodeGen.Core.Utilities
                     }
 
                     // 原有策略：寻找 src 目录
-                    for (int i = 0; i < dirSegments.Length; i++)
+                    for (var i = 0; i < dirSegments.Length; i++)
                     {
                         if (string.Equals(dirSegments[i], "src", StringComparison.OrdinalIgnoreCase))
                         {

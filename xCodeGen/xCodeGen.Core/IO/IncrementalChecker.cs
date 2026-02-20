@@ -13,18 +13,23 @@ namespace xCodeGen.Core.IO;
 public class IncrementalChecker(IFileWriter fileWriter)
 {
     /// <summary>
-    /// 检查元数据是否变更（需要重新生成）
+    /// 检查特定产物是否需要重新生成
     /// </summary>
-    public bool NeedRegenerate(ClassMetadata metadata, string outputPath)
+    /// <param name="metadata">类元数据</param>
+    /// <param name="outputDirectory">输出子目录（如 Generated/Dtos）</param>
+    /// <param name="targetName">计算后的产物名称（如 UserDto）</param>
+    public bool NeedRegenerate(ClassMetadata metadata, string outputDirectory, string targetName)
     {
-        // 生成目标文件路径（如 TestService.generated.cs）
-        var targetFilePath = fileWriter.ResolvePath(outputPath, $"{metadata.ClassName}.generated.cs");
+        // 1. 构建完整的目标物理路径
+        var fileName = $"{targetName}.generated.cs";
+        var targetFilePath = fileWriter.ResolveOutputPath(outputDirectory, targetName, "{ClassName}.generated.cs");
 
-        // 目标文件不存在 → 需要生成
-        if (!fileWriter.Exists(targetFilePath))
+        // 2. 目标文件不存在 → 必须生成
+        if (!File.Exists(targetFilePath))
             return true;
 
-        // 计算元数据哈希与现有文件哈希 → 不一致则需要生成
+        // 3. 比较哈希值
+        // 注意：理想情况下，哈希应包含：元数据内容 + 模板版本
         var metadataHash = ComputeMetadataHash(metadata);
         var existingFileHash = ComputeFileHash(targetFilePath);
 
@@ -32,27 +37,33 @@ public class IncrementalChecker(IFileWriter fileWriter)
     }
 
     /// <summary>
-    /// 计算元数据哈希（基于关键字段）
+    /// 计算元数据哈希（确保只有关键结构变化时才触发重新生成）
     /// </summary>
     public static string ComputeMetadataHash(ClassMetadata metadata)
     {
-        // 拼接元数据关键字段（根据实际需求调整）
-        var hashInput = $"{metadata.Namespace}.{metadata.ClassName};" +
-                        string.Join(";", metadata.Methods.Select(m =>
-                            $"{m.Name}:{m.ReturnType}:{string.Join(",", m.Parameters.Select(p => $"{p.Name}:{p.TypeName}"))}"
-                        ));
+        var sb = new StringBuilder();
+        sb.Append($"{metadata.Namespace}.{metadata.ClassName};");
 
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
+        foreach (var method in metadata.Methods.OrderBy(m => m.Name))
+        {
+            sb.Append($"{method.Name}:{method.ReturnType};");
+            foreach (var param in method.Parameters)
+            {
+                sb.Append($"{param.Name}:{param.TypeName}:{param.IsNullable};");
+            }
+        }
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexString(bytes);
     }
 
-    /// <summary>
-    /// 计算现有文件哈希
-    /// </summary>
     private static string ComputeFileHash(string filePath)
     {
-        using var stream = File.OpenRead(filePath);
-        var bytes = SHA256.HashData(stream);
-        return Convert.ToHexString(bytes);
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            return Convert.ToHexString(SHA256.HashData(stream));
+        }
+        catch { return string.Empty; }
     }
 }
