@@ -89,9 +89,9 @@ namespace xCodeGen.SourceGenerator
             }
 
             // 识别 Record 和具体类别
-            bool isRecord = typeDecl is RecordDeclarationSyntax;
-            bool isRecordStruct = isRecord && typeDecl.Modifiers.Any(m => m.IsKind(SyntaxKind.StructKeyword));
-            string typeKind = isRecordStruct ? "record struct" : (isRecord ? "record" : typeDecl.Keyword.ValueText);
+            var isRecord = typeDecl is RecordDeclarationSyntax;
+            var isRecordStruct = isRecord && typeDecl.Modifiers.Any(m => m.IsKind(SyntaxKind.StructKeyword));
+            var typeKind = isRecordStruct ? "record struct" : (isRecord ? "record" : typeDecl.Keyword.ValueText);
 
             var generateAttribute = symbol.GetGenerateAttribute(GenerateCodeAttribute.TypeFullName);
             var (_, templateName, _) = CodeAnalysisHelper.ExtractGenerateAttributeParams(generateAttribute);
@@ -139,7 +139,7 @@ namespace xCodeGen.SourceGenerator
 
         private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)
         {
-            if (rawMethods == null) return new List<MethodMetadata>();
+            if (rawMethods == null) return [];
             return rawMethods.Select(m => new MethodMetadata
             {
                 Name = m["Name"] as string,
@@ -152,7 +152,7 @@ namespace xCodeGen.SourceGenerator
 
         private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams)
         {
-            if (rawParams == null) return new List<ParameterMetadata>();
+            if (rawParams == null) return [];
             return rawParams.Select(p => new ParameterMetadata
             {
                 Name = p["Name"] as string,
@@ -164,7 +164,7 @@ namespace xCodeGen.SourceGenerator
 
         private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs)
         {
-            if (rawAttrs == null) return new List<AttributeMetadata>();
+            if (rawAttrs == null) return [];
             return rawAttrs.Select(a => new AttributeMetadata
             {
                 TypeFullName = a["TypeFullName"] as string

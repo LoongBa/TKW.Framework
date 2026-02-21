@@ -15,8 +15,8 @@ namespace xCodeGen.SourceGenerator
     //[Generator]
     public class SourceMetaDataExtractor : IIncrementalGenerator
     {
-        private static readonly string GenerateCodeAttributeFullName = GenerateCodeAttribute.TypeFullName;
-        private readonly List<string> _debugLogs = new List<string>();
+        private static readonly string _generateCodeAttributeFullName = GenerateCodeAttribute.TypeFullName;
+        private readonly List<string> _DebugLogs = [];
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
@@ -76,7 +76,7 @@ namespace xCodeGen.SourceGenerator
 
             // 只用字符串判断特性类型
             var generateAttribute = classSymbol?.GetAttributes()
-                .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttributeFullName);
+                .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == _generateCodeAttributeFullName);
             if (generateAttribute == null) return null;
 
             // 只用 AttributeData 提取参数，不依赖类型
@@ -185,7 +185,7 @@ namespace xCodeGen.SourceGenerator
         private void LogDebug(string message)
         {
             var log = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
-            _debugLogs.Add(log);
+            _DebugLogs.Add(log);
             Debug.WriteLine($"[CodeGen] {log}");
         }
 
@@ -226,25 +226,25 @@ namespace xCodeGen.SourceGenerator
             logContent.AppendLine("    /// </summary>");
             logContent.AppendLine("    public partial interface ICodeGenerationLog {");
             logContent.AppendLine("        /// <summary>日志记录总数</summary>");
-            logContent.AppendLine($"        int TotalLogs => {_debugLogs.Count};");
+            logContent.AppendLine($"        int TotalLogs => {_DebugLogs.Count};");
             logContent.AppendLine();
             logContent.AppendLine("        /// <summary>生成开始时间</summary>");
-            logContent.AppendLine($"        DateTime StartTime => DateTime.Parse(\"{(_debugLogs.Count > 0 ? _debugLogs[0].Split(']')[0].TrimStart('[') : "00:00:00.000")}\");");
+            logContent.AppendLine($"        DateTime StartTime => DateTime.Parse(\"{(_DebugLogs.Count > 0 ? _DebugLogs[0].Split(']')[0].TrimStart('[') : "00:00:00.000")}\");");
             logContent.AppendLine();
             logContent.AppendLine("        /// <summary>生成结束时间</summary>");
-            logContent.AppendLine($"        DateTime EndTime => DateTime.Parse(\"{(_debugLogs.Count > 0 ? _debugLogs.Last().Split(']')[0].TrimStart('[') : "00:00:00.000")}\");");
+            logContent.AppendLine($"        DateTime EndTime => DateTime.Parse(\"{(_DebugLogs.Count > 0 ? _DebugLogs.Last().Split(']')[0].TrimStart('[') : "00:00:00.000")}\");");
             logContent.AppendLine();
             logContent.AppendLine("        /// <summary>执行时长（毫秒）</summary>");
             logContent.AppendLine("        long DurationMs => (long)(EndTime - StartTime).TotalMilliseconds;");
             logContent.AppendLine();
             logContent.AppendLine("        /// <summary>是否包含错误</summary>");
-            logContent.AppendLine($"        bool HasErrors => {_debugLogs.Any(l => l.Contains("错误:")).ToString().ToLower()};");
+            logContent.AppendLine($"        bool HasErrors => {_DebugLogs.Any(l => l.Contains("错误:")).ToString().ToLower()};");
             logContent.AppendLine();
             logContent.AppendLine("        /// <summary>详细日志条目</summary>");
             logContent.AppendLine("        IEnumerable<string> LogEntries => new List<string> {");
 
             // 添加详细日志
-            foreach (var log in _debugLogs)
+            foreach (var log in _DebugLogs)
             {
                 logContent.AppendLine($"            \"{log.Replace("\"", "\\\"")}\",");
             }

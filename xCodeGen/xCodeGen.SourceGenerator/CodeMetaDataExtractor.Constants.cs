@@ -27,7 +27,7 @@ namespace xCodeGen.SourceGenerator
         }
 
         // 调试日志相关
-        private readonly List<string> _debugLogs = new List<string>();
+        private readonly List<string> _DebugLogs = [];
 
         /// <summary>
         /// 记录调试日志
@@ -35,7 +35,7 @@ namespace xCodeGen.SourceGenerator
         protected void LogDebug(string message)
         {
             var log = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
-            _debugLogs.Add(log);
+            _DebugLogs.Add(log);
             System.Diagnostics.Debug.WriteLine($"[CodeMeta] {log}");
         }
     }

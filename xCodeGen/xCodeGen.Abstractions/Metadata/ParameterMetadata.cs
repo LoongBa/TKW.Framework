@@ -48,6 +48,6 @@ namespace xCodeGen.Abstractions.Metadata
         /// <summary>
         /// 参数上的特性
         /// </summary>
-        public List<AttributeMetadata> Attributes { get; set; } = new List<AttributeMetadata>();
+        public List<AttributeMetadata> Attributes { get; set; } = [];
     }
 }

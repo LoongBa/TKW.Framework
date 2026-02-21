@@ -8,9 +8,9 @@ namespace xCodeGen.Abstractions.Metadata
     /// </summary>
     public class MetadataChangeLog
     {
-        public List<ClassMetadata> Added { get; } = new List<ClassMetadata>();
-        public List<ClassMetadata> Modified { get; } = new List<ClassMetadata>();
-        public List<string> RemovedClassNames { get; } = new List<string>();
+        public List<ClassMetadata> Added { get; } = [];
+        public List<ClassMetadata> Modified { get; } = [];
+        public List<string> RemovedClassNames { get; } = [];
         public DateTime GenerationTimestamp { get; set; } = DateTime.UtcNow;
     }
 }

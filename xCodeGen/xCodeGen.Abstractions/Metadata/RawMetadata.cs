@@ -26,6 +26,6 @@ namespace xCodeGen.Abstractions.Metadata
         /// <summary>
         /// 提取过程日志
         /// </summary>
-        public List<string> ExtractionLogs { get; set; } = new List<string>();
+        public List<string> ExtractionLogs { get; set; } = [];
     }
 }

@@ -10,6 +10,6 @@ namespace xCodeGen.Abstractions.Metadata
         /// <summary>
         /// 提取到的类元数据集合
         /// </summary>
-        public List<ClassMetadata> Classes { get; set; } = new List<ClassMetadata>();
+        public List<ClassMetadata> Classes { get; set; } = [];
     }
 }
