@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
 
 namespace xCodeGen.Core;

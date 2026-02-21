@@ -12,17 +12,28 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
 {
     private readonly NamingService _NamingService = namingService;
 
+    /// <summary>
+    /// 元数据转换器：将原始提取数据映射为抽象模型
+    /// </summary>
     public ClassMetadata Convert(RawMetadata rawMetadata)
     {
-        // 1. 解析类级基础属性
-        var @namespace = GetValue(rawMetadata.Data, "Namespace", string.Empty);
-        var sourceClassName = GetValue(rawMetadata.Data, "ClassName", string.Empty);
-        var mode = GetValue(rawMetadata.Data, "GenerateMode", "Full");
-        var summary = GetValue(rawMetadata.Data, "Summary", string.Empty);
+        var data = rawMetadata.Data;
+
+        // 1. 解析类级基础属性及新增的类型识别字段
+        var @namespace = GetValue(data, "Namespace", string.Empty);
+        var sourceClassName = GetValue(data, "ClassName", string.Empty);
+        var fullName = GetValue(data, "FullName", string.Empty);
+        var mode = GetValue(data, "GenerateMode", "Full");
+        var summary = GetValue(data, "Summary", string.Empty);
+        var baseType = GetValue(data, "BaseType", string.Empty);
+
+        // 核心新增：解析是否为 Record 及具体类型种类
+        var isRecord = data.TryGetValue("IsRecord", out var ir) && (bool)ir;
+        var typeKind = GetValue(data, "TypeKind", "class");
 
         // 2. 解析方法元数据
         var methods = new List<MethodMetadata>();
-        if (rawMetadata.Data.TryGetValue("Methods", out var methodsObj) && methodsObj is List<object> methodsList)
+        if (data.TryGetValue("Methods", out var methodsObj) && methodsObj is List<object> methodsList)
         {
             foreach (var m in methodsList)
             {
@@ -33,14 +44,20 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
             }
         }
 
+        // 3. 构建并返回 ClassMetadata 实例
         return new ClassMetadata
         {
             Namespace = @namespace,
             ClassName = sourceClassName,
+            FullName = fullName,
             SourceType = rawMetadata.SourceType,
             Mode = mode,
             Summary = summary,
-            Methods = methods
+            BaseType = baseType,
+            Methods = methods,
+            IsRecord = isRecord,
+            TypeKind = typeKind,
+            GenerateCodeSettings = data // 保留原始数据以备不时之需
         };
     }
 
@@ -49,7 +66,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         var methodName = GetValue(dict, "MethodName", "UnknownMethod");
         var returnType = GetValue(dict, "ReturnType", "void");
         var methodSummary = GetValue(dict, "Summary", string.Empty); // 方法自身的注释
-        var isAsync = dict.TryGetValue("IsAsync", out var ia) && bool.Parse(ia.ToString());
+        var isAsync = dict.TryGetValue("IsAsync", out var ia) && bool.Parse(ia.ToString() ?? string.Empty);
 
         var parameters = new List<ParameterMetadata>();
         if (dict.TryGetValue("Parameters", out var pObj) && pObj is List<object> pList)
@@ -63,7 +80,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                         Name = GetValue(pDict, "ParameterName", "unnamed"),
                         TypeName = GetValue(pDict, "Type", "object"),
                         Summary = GetValue(pDict, "Summary", string.Empty), // 修正：从 pDict 获取参数注释
-                        IsNullable = pDict.TryGetValue("IsNullable", out var n) && bool.Parse(n.ToString())
+                        IsNullable = pDict.TryGetValue("IsNullable", out var n) && bool.Parse(n.ToString() ?? string.Empty)
                     });
                 }
             }

@@ -14,6 +14,7 @@ namespace xCodeGen.Core.Extraction;
 
 /// <summary>
 /// 基于 Roslyn 语义分析的元数据提取器实现
+/// 优化：支持 class/record/struct 等多种类型声明
 /// </summary>
 public class RoslynExtractor : IMetaDataExtractor
 {
@@ -21,7 +22,7 @@ public class RoslynExtractor : IMetaDataExtractor
     public MetadataSource SourceType => MetadataSource.Code;
 
     /// <summary>
-    /// 提取元数据，支持 CancellationToken
+    /// 扫描并提取目标项目中的元数据
     /// </summary>
     public async Task<IEnumerable<RawMetadata>> ExtractAsync(
         ExtractorOptions options,
@@ -29,34 +30,32 @@ public class RoslynExtractor : IMetaDataExtractor
     {
         var rawMetadataList = new List<RawMetadata>();
 
-        // 模拟加载编译环境（实际环境应使用 MSBuildWorkspace 加载 .csproj）
+        // 加载项目编译对象 (注意：执行此方法前需初始化 MSBuildLocator)
         var compilation = await CreateCompilationAsync(options.ProjectPath, cancellationToken);
 
         foreach (var tree in compilation.SyntaxTrees)
         {
-            // 支持取消操作
             cancellationToken.ThrowIfCancellationRequested();
 
             var semanticModel = compilation.GetSemanticModel(tree);
             var root = await tree.GetRootAsync(cancellationToken);
 
-            // 查找所有标记了 [GenerateArtifact] 的类
-            var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
+            // 核心修改：查找所有类型声明（涵盖 class, record, struct, interface）
+            var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
 
-            foreach (var classDecl in classDeclarations)
+            foreach (var typeDecl in typeDeclarations)
             {
-                var symbol = semanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol;
-                if (symbol == null) continue;
+                if (semanticModel.GetDeclaredSymbol(typeDecl) is not { } symbol) continue;
 
-                // 只有包含特定特性的类才进行提取
-                if (!symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "GenerateArtifactAttribute"))
+                // 统一检查特性名称：GenerateCodeAttribute
+                if (!symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "GenerateCodeAttribute"))
                     continue;
 
                 rawMetadataList.Add(new RawMetadata
                 {
                     SourceType = SourceType,
                     SourceId = symbol.ToDisplayString(),
-                    Data = ExtractClassData(symbol, classDecl, semanticModel)
+                    Data = ExtractTypeData(symbol, typeDecl, semanticModel)
                 });
             }
         }
@@ -64,20 +63,35 @@ public class RoslynExtractor : IMetaDataExtractor
         return rawMetadataList;
     }
 
-    private Dictionary<string, object> ExtractClassData(INamedTypeSymbol symbol, 
-        ClassDeclarationSyntax syntax, SemanticModel model)
+    /// <summary>
+    /// 提取类型级的详细元数据
+    /// </summary>
+    private Dictionary<string, object> ExtractTypeData(
+        INamedTypeSymbol symbol,
+        TypeDeclarationSyntax syntax,
+        SemanticModel model)
     {
+        var isRecord = IsRecordType(syntax, out var isRecordStruct);
+
         return new Dictionary<string, object>
         {
             ["Namespace"] = symbol.ContainingNamespace.ToDisplayString(),
             ["ClassName"] = symbol.Name,
-            ["Summary"] = GetNodeSummary(syntax), // 提取类注释
+            ["FullName"] = symbol.ToDisplayString(),
+            ["IsRecord"] = isRecord,
+            ["TypeKind"] = isRecordStruct ? "record struct" : (isRecord ? "record" : syntax.Keyword.Text),
+            ["Summary"] = GetNodeSummary(syntax), // 提取类/Record注释
+            ["BaseType"] = symbol.BaseType?.ToDisplayString() ?? string.Empty,
             ["Methods"] = symbol.GetMembers().OfType<IMethodSymbol>()
-                .Select(ExtractMethodData).ToList()
+                .Where(m => !m.IsImplicitlyDeclared && m.MethodKind == MethodKind.Ordinary)
+                .Select(m => ExtractMethodData(m, model)).ToList()
         };
     }
 
-    private Dictionary<string, object> ExtractMethodData(IMethodSymbol methodSymbol)
+    /// <summary>
+    /// 提取方法级的元数据
+    /// </summary>
+    private Dictionary<string, object> ExtractMethodData(IMethodSymbol methodSymbol, SemanticModel model)
     {
         var methodSyntax = methodSymbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
 
@@ -85,15 +99,15 @@ public class RoslynExtractor : IMetaDataExtractor
         {
             ["MethodName"] = methodSymbol.Name,
             ["ReturnType"] = methodSymbol.ReturnType.ToDisplayString(),
-            ["Summary"] = methodSyntax != null ? GetNodeSummary(methodSyntax) : string.Empty, // 提取方法注释
-            ["Parameters"] = methodSymbol.Parameters.Select(p => new Dictionary<string, object>
-            {
-                ["ParameterName"] = p.Name,
-                ["Type"] = p.Type.ToDisplayString(),
-                ["Summary"] = methodSyntax != null ? GetParamSummary(methodSyntax, p.Name) : string.Empty // 提取参数注释
-            }).ToList()
+            ["IsAsync"] = methodSymbol.IsAsync,
+            ["Summary"] = methodSyntax != null ? GetNodeSummary(methodSyntax) : string.Empty,
+            ["Parameters"] = methodSymbol.Parameters.Select(p => ExtractParameterData(p, methodSyntax)).ToList()
         };
     }
+
+    /// <summary>
+    /// 提取参数级的元数据（语义化提取）
+    /// </summary>
     private Dictionary<string, object> ExtractParameterData(IParameterSymbol parameterSymbol, MethodDeclarationSyntax methodSyntax)
     {
         return new Dictionary<string, object>
@@ -104,11 +118,11 @@ public class RoslynExtractor : IMetaDataExtractor
                              parameterSymbol.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T,
             ["IsCollection"] = parameterSymbol.Type.AllInterfaces.Any(i => i.Name == "IEnumerable") ||
                                parameterSymbol.Type.TypeKind == TypeKind.Array,
-            ["Summary"] = GetParamSummary(methodSyntax, parameterSymbol.Name) // 提取注释
+            ["Summary"] = methodSyntax != null ? GetParamSummary(methodSyntax, parameterSymbol.Name) : string.Empty
         };
     }
 
-    #region XML 注释辅助方法
+    #region XML 注释处理工具
 
     private string GetNodeSummary(SyntaxNode node)
     {
@@ -140,23 +154,21 @@ public class RoslynExtractor : IMetaDataExtractor
 
     #endregion
 
-    /// <summary>
-    /// 使用 MSBuildWorkspace 加载项目并创建编译对象
-    /// </summary>
+    private static bool IsRecordType(TypeDeclarationSyntax syntax, out bool isRecordStruct)
+    {
+        isRecordStruct = false;
+        var hasRecordKeyword = syntax.Modifiers.Any(m => m.IsKind(SyntaxKind.RecordKeyword));
+        if (!hasRecordKeyword) return false;
+        isRecordStruct = syntax.Modifiers.Any(m => m.IsKind(SyntaxKind.StructKeyword));
+        return true;
+    }
+
     private async Task<Compilation> CreateCompilationAsync(string projectPath, CancellationToken ct)
     {
-        // 1. 创建 MSBuild 工作区
         using var workspace = MSBuildWorkspace.Create();
-
-        // 2. 尝试打开项目文件 (.csproj)
         var project = await workspace.OpenProjectAsync(projectPath, null, ct);
-
-        // 3. 获取编译信息
         var compilation = await project.GetCompilationAsync(ct);
-
-        if (compilation == null)
-            throw new System.Exception($"无法为项目 {projectPath} 创建编译对象。");
-
+        if (compilation == null) throw new Exception($"无法解析项目编译对象: {projectPath}");
         return compilation;
     }
 }

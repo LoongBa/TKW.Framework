@@ -1,4 +1,4 @@
-namespace xCodeGen.Abstractions.Extractors
+namespace xCodeGen.Abstractions.Metadata
 {
     /// <summary>
     /// 元数据来源类型

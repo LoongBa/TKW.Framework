@@ -46,6 +46,8 @@ namespace xCodeGen.Abstractions.Metadata
         // 生成器标识
         public string GeneratorId { get; set; }
         public string GeneratorDescription { get; set; }
+        public bool IsRecord { get; set; }
+        public string TypeKind { get; set; }
 
         /// <summary>
         /// 初始化 ClassMetadata 实例

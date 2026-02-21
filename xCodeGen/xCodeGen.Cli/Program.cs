@@ -9,6 +9,7 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        Microsoft.Build.Locator.MSBuildLocator.RegisterDefaults();
         PrintHeader();
 
         if (args.Length == 0 || args[0] == "help")

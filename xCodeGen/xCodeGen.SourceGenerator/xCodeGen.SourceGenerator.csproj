@@ -24,7 +24,7 @@
     <Compile Include="..\xCodeGen.Abstractions\Attributes\GenerateCodeAttribute.cs" Link="Attributes\GenerateCodeAttribute.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Extractors\ExtractorOptions.cs" Link="Extractors\ExtractorOptions.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Extractors\IMetaDataExtractor.cs" Link="Extractors\IMetaDataExtractor.cs" />
-    <Compile Include="..\xCodeGen.Abstractions\Extractors\MetadataSources.cs" Link="Extractors\MetadataSources.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Metadata\MetadataSources.cs" Link="Metadata\MetadataSources.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\AttributeMetadata.cs" Link="Metadata\AttributeMetadata.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassGenerationInfo.cs" Link="Metadata\ClassGenerationInfo.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassMetadata.cs" Link="Metadata\ClassMetadata.cs" />

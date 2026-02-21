@@ -103,7 +103,7 @@ where TUserInfo : class, IUserInfo, new()
     /// 注册领域业务服务（必须由具体的领域项目实现）
     /// </summary>
     protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(
-        ContainerBuilder containerBuilder,
+        ContainerBuilder cb,
         IServiceCollection services,
         IConfiguration? configuration);
 
