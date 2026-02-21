@@ -18,7 +18,7 @@ namespace xCodeGen.SourceGenerator
             try
             {
                 // 清理类名中的非法字符（核心修复）
-                var sanitizedClassName = SanitizeFileName(metadata.ClassName);
+                string sanitizedClassName = SanitizeFileName(metadata.ClassName);
                 LogDebug($"开始生成元数据文件: {sanitizedClassName}");
 
                 // 生成安全的文件名
@@ -319,7 +319,7 @@ namespace xCodeGen.SourceGenerator
             logContent.AppendLine("{");
             logContent.AppendLine("    private readonly List<string> _logs = new List<string>");
             logContent.AppendLine("    {");
-            foreach (var log in _DebugLogs)
+            foreach (var log in _debugLogs)
             {
                 logContent.AppendLine($"        \"{EscapeString(log)}\",");
             }
@@ -394,7 +394,7 @@ namespace xCodeGen.SourceGenerator
                 return "Unknown";
 
             // 获取系统不允许的文件名字符
-            var invalidChars = System.IO.Path.GetInvalidFileNameChars();
+            char[] invalidChars = System.IO.Path.GetInvalidFileNameChars();
 
             // 替换非法字符为下划线
             return new string(fileName.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());

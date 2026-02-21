@@ -26,7 +26,7 @@ namespace xCodeGen.Abstractions.Metadata
         /// <summary>
         /// 方法参数元数据
         /// </summary>
-        public List<ParameterMetadata> Parameters { get; set; } = [];
+        public List<ParameterMetadata> Parameters { get; set; } = new List<ParameterMetadata>();
 
         /// <summary>
         /// 方法的唯一签名（用于处理重载）
@@ -35,7 +35,7 @@ namespace xCodeGen.Abstractions.Metadata
         {
             get
             {
-                var paramTypes = string.Join("_", Parameters.Select(p => p.TypeName.Replace("?", "Nullable").Replace("<", "_").Replace(">", "_")));
+                string paramTypes = string.Join("_", Parameters.Select(p => p.TypeName.Replace("?", "Nullable").Replace("<", "_").Replace(">", "_")));
                 return $"{Name}_{paramTypes}";
             }
         }

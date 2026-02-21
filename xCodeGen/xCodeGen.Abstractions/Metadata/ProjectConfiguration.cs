@@ -53,8 +53,8 @@ namespace xCodeGen.Abstractions.Metadata
 
             // 初始化集合属性
             CustomProperties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            FrameworkReferences = [];
-            ProjectReferences = [];
+            FrameworkReferences = new List<string>();
+            ProjectReferences = new List<string>();
         }
 
         #region 核心命名空间信息
