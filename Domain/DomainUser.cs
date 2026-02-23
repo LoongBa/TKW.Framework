@@ -48,7 +48,7 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 
     #region 服务解析
 
-    public TDomainService Use<TDomainService>() where TDomainService : DomainServiceBase<TUserInfo>
+    public TDomainService Use<TDomainService>() where TDomainService : IDomainService
     {
         // 解析时自动将当前 User 注入到 Service 的构造函数中
         return CurrentScope.Resolve<TDomainService>(TypedParameter.From(this));

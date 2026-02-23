@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "xCodeGen.Cli": {
+      "commandName": "Project",
+      "commandLineArgs": "gen"
+    }
+  }
+}

@@ -52,8 +52,9 @@ public class FileSystemWriter : IFileWriter
         // 自动确保目录存在
         var directory = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
-        File.WriteAllText(filePath, content);
+        // 显式指定 UTF8 编码
+        // 使用 Encoding.UTF8 (默认带 BOM) 或 new UTF8Encoding(true)
+        File.WriteAllText(filePath, content, System.Text.Encoding.UTF8);
     }
 
     /// <summary>

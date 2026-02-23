@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
 
@@ -18,6 +19,7 @@ namespace xCodeGen.Core.Configuration
         public Dictionary<string, string> TemplateMappings { get; set; } = new(); // ArtifactType -> TemplatePath
         public Dictionary<string, string> OutputDirectories { get; set; } = new(); // ArtifactType -> SubDir
         public Dictionary<string, string> SkeletonMappings { get; set; } = new(); // ArtifactType -> SkeletonTemplatePath
+        public Dictionary<string, string> CustomSettings { get; set; } = new();
 
         public static CodeGenConfig FromJson(string json) =>
             JsonSerializer.Deserialize<CodeGenConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();

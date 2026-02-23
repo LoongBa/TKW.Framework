@@ -20,7 +20,7 @@ public abstract class DomainServiceBase<TUserInfo> : IDomainService
     /// <typeparam name="TService">目标领域服务类型，必须继承 DomainServiceBase</typeparam>
     /// <typeparam name="TUserInfo"></typeparam>
     /// <returns>解析到的服务实例</returns>
-    protected TService Use<TService>() where TService : DomainServiceBase<TUserInfo>
+    protected TService Use<TService>() where TService : IDomainService
     {
         return User.Use<TService>();
     }

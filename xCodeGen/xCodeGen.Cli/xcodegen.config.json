@@ -1,35 +1,17 @@
 {
-  "TargetProject": "src/MyProject/MyProject.csproj",
-  "OutputRoot": "src/MyProject/Generated",
+  "TargetProject": "D:\\_Dev_\\_Repos_\\Github\\_LoongBa_\\_DotNet_\\_Blazor_\\DMP-Lite\\DMP-Lite_Domain\\DMP-Lite.Domain.csproj",
+  "OutputRoot": "Generated",
   "TemplatesPath": "Templates",
-  "Debug": {
-    "Enabled": true,
-    "Directory": "_Debug"
-  },
-  "NamingRules": [
-    {
-      "ArtifactType": "Dto",
-      "Pattern": "{Name}Dto"
-    },
-    {
-      "ArtifactType": "Validator",
-      "Pattern": "{Name}Validator"
-    },
-    {
-      "ArtifactType": "ViewModel",
-      "Pattern": "{Name}ViewModel"
-    }
-  ],
   "TemplateMappings": {
-    "Dto": "Templates/Artifact/Dto.cshtml",
-    "Validator": "Templates/Artifact/Validator.cshtml"
+    "Dto": "Dto.cshtml",
+    "Service": "Service.cshtml"
   },
   "OutputDirectories": {
     "Dto": "Dtos",
-    "Validator": "Validators"
+    "Service": "Services"
   },
-  "EnabledUtilities": [
-    "xCodeGen.Utilities.NamingUtility",
-    "xCodeGen.Utilities.TypeUtility"
-  ]
+  "CustomSettings": {
+    "BaseUserType": "MyProjectUser",
+    "EnableLogging": "true"
+  }
 }

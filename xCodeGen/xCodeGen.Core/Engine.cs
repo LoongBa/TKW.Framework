@@ -14,7 +14,7 @@ using xCodeGen.Core.Services;
 namespace xCodeGen.Core;
 
 /// <summary>
-/// 优化后的核心引擎：支持多产物并行、双模板驱动与双文件保护
+/// 核心引擎：支持多产物并行与配置注入
 /// </summary>
 public class Engine(
     IEnumerable<IMetaDataExtractor> extractors,
@@ -24,12 +24,6 @@ public class Engine(
     NamingService namingService,
     IncrementalChecker incrementalChecker)
 {
-    /// <summary>
-    /// 执行代码生成流程
-    /// </summary>
-    /// <param name="options">生成选项配置</param>
-    /// <param name="config">代码生成全局配置</param>
-    /// <returns>生成结果对象，包含成功/失败状态和统计信息</returns>
     public async Task<GenerateResult> GenerateAsync(GenerateOptions options, CodeGenConfig config)
     {
         var result = new GenerateResult();
@@ -37,88 +31,94 @@ public class Engine(
 
         try
         {
-            // 1. 获取并验证启用的提取器
-            var (enabledExtractors, invalidSources) = GetEnabledExtractors(options.MetadataSources);
-            if (enabledExtractors.Count == 0) throw new Exception("未找到有效提取器");
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (config == null) throw new ArgumentNullException(nameof(config));
 
-            // 2. 加载所有配置的模板
-            templateEngine.LoadTemplates(config.TemplatesPath);
+            // 1. 获取提取器
+            var (enabledExtractors, _) = GetEnabledExtractors(options.MetadataSources);
+            if (enabledExtractors.Count == 0) throw new Exception("未找到有效的提取器。");
 
-            // 3. 从提取器收集原始元数据
+            // 2. 加载模板
+            if (!string.IsNullOrEmpty(config.TemplatesPath))
+                templateEngine.LoadTemplates(config.TemplatesPath);
+
+            // 3. 收集元数据并更新统计
             var allRawMetadata = new List<RawMetadata>();
             foreach (var extractor in enabledExtractors)
             {
                 var extracted = await extractor.ExtractAsync(new ExtractorOptions { ProjectPath = options.ProjectPath });
-                allRawMetadata.AddRange(extracted);
+                if (extracted != null)
+                {
+                    var metaList = extracted.ToList();
+                    allRawMetadata.AddRange(metaList);
+                    // 修复统计显示 Bug
+                    result.AddExtracted(extractor.SourceType.ToString(), metaList.Count);
+                }
             }
 
-            // 4. 遍历元数据，根据产物类型映射进行多目标生成
+            // 4. 执行生成循环
             foreach (var raw in allRawMetadata)
             {
                 var classMeta = metadataConverter.Convert(raw);
+                if (classMeta == null) continue;
+
+                // 核心注入：将配置参数注入到实体的生成设置中
+                if (config.CustomSettings != null)
+                {
+                    foreach (var setting in config.CustomSettings)
+                    {
+                        classMeta.GenerateCodeSettings[setting.Key] = setting.Value;
+                    }
+                }
 
                 foreach (var mapping in config.TemplateMappings)
                 {
-                    var artifactType = mapping.Key;   // 如 "Dto", "Repository"
-                    var logicTemplatePath = mapping.Value; // 如 "Templates/Repository.cshtml"
+                    var artifactType = mapping.Key;
+                    var templatePath = mapping.Value;
 
                     try
                     {
-                        // A. 计算目标名称与输出路径
-                        string targetName = namingService.GetTargetName(classMeta.ClassName, artifactType);
-                        string subDir = config.OutputDirectories.TryGetValue(artifactType, out var dir) ? dir : artifactType;
-                        string outputBase = Path.Combine(config.OutputRoot, subDir);
+                        var targetName = namingService.GetTargetName(classMeta.ClassName, artifactType);
+                        var subDir = config.OutputDirectories.GetValueOrDefault(artifactType, artifactType);
+                        var outputBase = Path.Combine(config.OutputRoot, subDir);
 
-                        // B. 生成并处理逻辑文件 (.generated.cs)
                         var genPath = fileWriter.ResolveOutputPath(outputBase, targetName, "{ClassName}.generated.cs");
+
                         if (incrementalChecker.NeedRegenerate(classMeta, outputBase, targetName))
                         {
-                            var generatedCode = await templateEngine.RenderAsync(classMeta, logicTemplatePath);
-                            fileWriter.Write(generatedCode, genPath, true);
+                            var code = await templateEngine.RenderAsync(classMeta, templatePath);
+                            fileWriter.Write(code, genPath, true);
                             result.AddGenerated($"{targetName}[Logic]", genPath);
                         }
                         else { result.SkippedCount++; }
 
-                        // C. 生成并处理扩展文件骨架 (.cs) - 模板驱动
-                        var extensionPath = genPath.Replace(".generated.cs", ".cs");
-                        if (!fileWriter.Exists(extensionPath))
+                        // 处理骨架文件 (.cs)
+                        var extPath = genPath.Replace(".generated.cs", ".cs");
+                        if (!fileWriter.Exists(extPath) && config.SkeletonMappings?.TryGetValue(artifactType, out var skel) == true)
                         {
-                            // 检查配置中是否有该产物类型的骨架模板定义
-                            if (config.SkeletonMappings.TryGetValue(artifactType, out var skeletonTemplatePath))
-                            {
-                                var skeletonCode = await templateEngine.RenderAsync(classMeta, skeletonTemplatePath);
-                                fileWriter.Write(skeletonCode, extensionPath, false);
-                                result.AddGenerated($"{targetName}[Skeleton]", extensionPath);
-                            }
+                            var skelCode = await templateEngine.RenderAsync(classMeta, skel);
+                            fileWriter.Write(skelCode, extPath, false);
+                            result.AddGenerated($"{targetName}[Skeleton]", extPath);
                         }
                     }
                     catch (Exception ex)
                     {
-                        result.AddError($"产物 {artifactType} 处理失败: {ex.Message}");
+                        result.AddError($"产物 {artifactType} ({classMeta.ClassName}) 失败: {ex.Message}");
                     }
                 }
             }
-            result.Success = result.Errors.Count == 0;
+            result.Success = !result.Errors.Any();
         }
-        catch (Exception ex)
-        {
-            result.AddError($"引擎崩溃: {ex.Message}");
-        }
+        catch (Exception ex) { result.AddError($"引擎异常: {ex.Message}"); }
         finally { timer.Stop(); result.ElapsedMilliseconds = timer.ElapsedMilliseconds; }
-
         return result;
     }
 
-    /// <summary>
-    /// 获取启用的元数据提取器
-    /// </summary>
-    /// <param name="sources">元数据来源集合</param>
-    /// <returns>元组：第一个元素为有效的提取器列表，第二个元素为无效的来源列表</returns>
     private (List<IMetaDataExtractor> enabled, List<string> invalid) GetEnabledExtractors(IEnumerable<string> sources)
     {
         var enabled = new List<IMetaDataExtractor>();
         var invalid = new List<string>();
-        foreach (var s in sources)
+        foreach (var s in sources ?? Enumerable.Empty<string>())
         {
             if (Enum.TryParse<MetadataSource>(s, true, out var type))
             {

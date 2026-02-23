@@ -1,4 +1,4 @@
-@model xCodeGen.Abstractions.Metadata.ClassMetadata
+﻿@model xCodeGen.Abstractions.Metadata.ClassMetadata
 @{
     var namingService = Model.Utilities.GetService<NamingService>();
     var className = namingService.GetTargetName(Model.ClassName, "Validator");

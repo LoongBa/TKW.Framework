@@ -14,28 +14,25 @@ public class ConfigurationProvider
     /// <summary>
     /// 从指定目录加载配置文件
     /// </summary>
-    public CodeGenConfig Load(string searchDirectory)
+    public CodeGenConfig Load(string searchDirectory = null)
     {
+        searchDirectory ??= AppContext.BaseDirectory;
         var configPath = Path.Combine(searchDirectory, ConfigFileName);
 
         if (!File.Exists(configPath))
-        {
-            // 如果不存在，返回默认配置或抛出异常
-            return new CodeGenConfig();
-        }
+            throw new FileNotFoundException($"找不到配置文件: {configPath}");
 
-        try
-        {
-            var json = File.ReadAllText(configPath);
-            var config = CodeGenConfig.FromJson(json);
+        var json = File.ReadAllText(configPath);
+        var config = CodeGenConfig.FromJson(json);
 
-            // 可以在此处处理路径的相对转绝对逻辑
-            return NormalizePaths(config, searchDirectory);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"加载配置文件失败: {ex.Message}");
-        }
+        // 1. 处理基础目录绝对化
+        if (!Path.IsPathRooted(config.OutputRoot))
+            config.OutputRoot = Path.GetFullPath(Path.Combine(searchDirectory, config.OutputRoot));
+
+        if (!Path.IsPathRooted(config.TemplatesPath))
+            config.TemplatesPath = Path.GetFullPath(Path.Combine(searchDirectory, config.TemplatesPath));
+
+        return config;
     }
 
     private CodeGenConfig NormalizePaths(CodeGenConfig config, string baseDir)

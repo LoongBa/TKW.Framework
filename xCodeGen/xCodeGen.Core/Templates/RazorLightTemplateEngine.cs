@@ -23,6 +23,8 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
         _Engine = new RazorLightEngineBuilder()
             .UseFileSystemProject(templateRootPath)
             .UseMemoryCachingProvider()
+            // 注意：将 HTML 编码器设置为 Null (不转义)
+            .AddDefaultNamespaces("System.Text.Encodings.Web")
             .Build();
     }
 

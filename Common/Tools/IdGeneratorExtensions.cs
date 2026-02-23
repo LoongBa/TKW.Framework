@@ -42,7 +42,7 @@ public static class IdGeneratorExtensions
         public IReadOnlyList<T> ApplyIds(IIdGenerator generator,
             Action<T, string> idSetter,
             int length = 32,
-            string? prefix = null)
+            string prefix = null)
         {
             return [.. source.WithIds(generator, idSetter, length, prefix)];
         }
@@ -82,7 +82,7 @@ public static class IdGeneratorExtensions
         public async ValueTask<IReadOnlyList<T>> ApplyIdsAsync(IIdGenerator generator,
             Action<T, string> idSetter,
             int length = 32,
-            string? prefix = null)
+            string prefix = null)
         {
             var result = new List<T>();
             await foreach (var item in source.WithIdsAsync(generator, idSetter, length, prefix))

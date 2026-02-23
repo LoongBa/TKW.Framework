@@ -1,7 +1,15 @@
-﻿using TKW.Framework.Common.Extensions;
+﻿using System.Reflection;
+using System.Runtime.Loader;
+using System.Xml.Linq;
+using xCodeGen.Abstractions.Extractors;
+using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Core;
 using xCodeGen.Core.Configuration;
+using xCodeGen.Core.Extraction;
+using xCodeGen.Core.IO;
 using xCodeGen.Core.Models;
+using xCodeGen.Core.Services;
+using xCodeGen.Core.Templates;
 
 namespace xCodeGen.Cli;
 
@@ -9,22 +17,34 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
-        Microsoft.Build.Locator.MSBuildLocator.RegisterDefaults();
         PrintHeader();
 
-        if (args.Length == 0 || args[0] == "help")
-        {
-            ShowHelp();
-            return 0;
-        }
-
-        var command = args[0].ToLower();
         try
         {
+            var configProvider = new ConfigurationProvider();
+
+            // 核心改进：优先从命令行执行的当前目录查找配置，实现“配置随项目走”
+            var searchDir = Directory.GetCurrentDirectory();
+            if (!File.Exists(Path.Combine(searchDir, "xCodeGen.config.json")))
+            {
+                // 如果当前目录没有，回退到 exe 所在目录
+                searchDir = AppContext.BaseDirectory;
+            }
+
+            var config = configProvider.Load(searchDir);
+
+            if (config == null)
+            {
+                LogError("无法加载配置文件 xCodeGen.config.json。");
+                return 1;
+            }
+
+            var command = args.Length > 0 ? args[0].ToLower() : "gen";
+
             return command switch
             {
-                "init" => HandleInit(),
-                "gen" => await HandleGenerate(args),
+                "gen" => await HandleGenerate(config),
+                "help" => ShowHelp(),
                 _ => HandleUnknownCommand(command)
             };
         }
@@ -35,82 +55,124 @@ class Program
         }
     }
 
-    /// <summary>
-    /// 初始化默认配置文件
-    /// </summary>
-    static int HandleInit()
+    static async Task<int> HandleGenerate(CodeGenConfig config)
     {
-        var config = new CodeGenConfig
+        if (string.IsNullOrWhiteSpace(config.TargetProject))
+            throw new InvalidOperationException("未配置 TargetProject 路径。");
+
+        // 1. 定位目标 DLL
+        var targetDll = ResolveAssemblyPath(config.TargetProject);
+        if (string.IsNullOrEmpty(targetDll) || !File.Exists(targetDll))
+            throw new FileNotFoundException($"找不到程序集。请确认项目已成功编译: {config.TargetProject}");
+
+        var targetDir = Path.GetDirectoryName(Path.GetFullPath(targetDll))!;
+        Console.WriteLine($"📦 目标程序集: {Path.GetFileName(targetDll)}");
+        Console.WriteLine($"🔍 依赖搜索路径: {targetDir}");
+
+        // 2. 核心修复：设置动态依赖解析钩子，解决 Autofac/FreeSql 等程序集加载失败问题
+        AssemblyLoadContext.Default.Resolving += (context, assemblyName) =>
         {
-            TargetProject = "src/YourProject/YourProject.csproj",
-            OutputRoot = "Generated",
-            NamingRules =
-            [
-                new() { ArtifactType = "Dto", Pattern = "{Name}Dto" },
-                new() { ArtifactType = "Validator", Pattern = "{Name}Validator" }
-            ]
+            var expectedPath = Path.Combine(targetDir, assemblyName.Name + ".dll");
+            if (File.Exists(expectedPath))
+            {
+                return context.LoadFromAssemblyPath(expectedPath);
+            }
+            return null;
         };
 
-        File.WriteAllText("xCodeGen.config.json", config.ToJson());
-        Console.WriteLine("✅ 已在当前目录初始化 xCodeGen.config.json");
-        return 0;
-    }
+        // 3. 安全加载程序集并提取上下文
+        var assembly = Assembly.LoadFrom(targetDll);
 
-    /// <summary>
-    /// 执行生成逻辑，支持 --watch 模式
-    /// </summary>
-    static async Task<int> HandleGenerate(string[] args)
-    {
-        var watch = args.Contains("--watch");
-        var configPath = "xCodeGen.config.json";
+        // 使用防御性加载，避免因部分依赖缺失导致 GetTypes 崩溃
+        var contextType = GetLoadableTypes(assembly).FirstOrDefault(t =>
+            typeof(IProjectMetaContext).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
 
-        // 1. 加载配置
-        var config = CodeGenConfig.FromJson(await File.ReadAllTextAsync(configPath));
+        if (contextType == null)
+            throw new InvalidOperationException("程序集中未发现有效的 IProjectMetaContext 实现。");
 
-        // 2. 初始生成
-        await ExecuteGenerate(config);
+        var instanceProperty = contextType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+        if (instanceProperty == null)
+            throw new InvalidOperationException($"类型 {contextType.Name} 缺少公共静态 Instance 属性。");
 
-        if (watch)
-        {
-            Console.WriteLine("👀 正在监听文件变更 (按 Ctrl+C 退出)...");
-            using var watcher = new FileSystemWatcher(Path.GetDirectoryName(Path.GetFullPath(config.TargetProject))!);
-            watcher.Filter = "*.cs";
-            watcher.IncludeSubdirectories = true;
-            watcher.EnableRaisingEvents = true;
+        var contextInstance = instanceProperty.GetValue(null) as IProjectMetaContext;
+        if (contextInstance == null)
+            throw new InvalidOperationException("无法获取元数据上下文实例。");
 
-            // 监听逻辑：文件改变后防抖触发生成
-            watcher.Changed += async (s, e) => {
-                Console.WriteLine($"\n♻️ 检测到变更: {e.Name}，正在重新生成...");
-                await ExecuteGenerate(config);
-            };
+        // 4. 初始化引擎组件
+        var fileWriter = new FileSystemWriter();
+        if (string.IsNullOrWhiteSpace(config.TemplatesPath))
+            throw new InvalidOperationException("TemplatesPath 未配置。");
 
-            await Task.Delay(-1); // 阻塞进程以持续监听
-        }
+        var templateEngine = new RazorLightTemplateEngine(config.TemplatesPath);
 
-        return 0;
-    }
+        var extractors = new List<IMetaDataExtractor> { new CompiledMetadataExtractor(contextInstance) };
+        var engine = EngineFactory.Create(config, extractors, templateEngine, fileWriter);
 
-    static async Task ExecuteGenerate(CodeGenConfig config)
-    {
-        // 使用工厂装配引擎
-        // 注意：此处 Extractors 和 TemplateEngine 需要通过 DI 或手动初始化传入
-        var engine = EngineFactory.Create(config, /* Extractors */ null, /* TemplateEngine */ null, /* FileWriter */ null);
-
+        // 5. 执行生成
         var options = new GenerateOptions
         {
             ProjectPath = config.TargetProject,
             OutputPath = config.OutputRoot,
-            MetadataSources = ["Code"]
+            MetadataSources = new List<string> { "Code" }
         };
 
         var result = await engine.GenerateAsync(options, config);
+
+        // 6. 输出结果摘要
         Console.WriteLine(result.GetSummary());
+        if (result.Errors.Any())
+        {
+            Console.WriteLine("\n❌ 详细错误列表:");
+            foreach (var error in result.Errors)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[-] {error}");
+                Console.ResetColor();
+            }
+        }
+
+        return result.Success ? 0 : 1;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        if (assembly == null) throw new ArgumentNullException(nameof(assembly));
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException e)
+        {
+            return e.Types.Where(t => t != null)!;
+        }
+    }
+
+    private static string? ResolveAssemblyPath(string projectPath)
+    {
+        if (!File.Exists(projectPath)) return null;
+        try
+        {
+            var doc = XDocument.Load(projectPath);
+            var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectPath));
+            if (projectDir == null) return null;
+
+            var assemblyName = doc.Descendants().FirstOrDefault(x => x.Name.LocalName == "AssemblyName")?.Value
+                               ?? Path.GetFileNameWithoutExtension(projectPath);
+
+            var binPath = Path.Combine(projectDir, "bin");
+            if (!Directory.Exists(binPath)) return null;
+
+            return Directory.GetFiles(binPath, $"{assemblyName}.dll", SearchOption.AllDirectories)
+                .OrderByDescending(File.GetLastWriteTime)
+                .FirstOrDefault();
+        }
+        catch { return null; }
     }
 
     private static void PrintHeader()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具 [Ver 1.0]");
+        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具 [Ver 2.2]");
         Console.WriteLine("-------------------------------------------");
         Console.ResetColor();
     }
@@ -122,17 +184,16 @@ class Program
         Console.ResetColor();
     }
 
-    private static void ShowHelp()
+    private static int ShowHelp()
     {
-        Console.WriteLine("用法:");
-        Console.WriteLine("  xCodeGen init          - 在当前目录初始化配置文件");
-        Console.WriteLine("  xCodeGen gen           - 根据配置执行代码生成");
-        Console.WriteLine("  xCodeGen gen --watch   - 进入监听模式，实时同步变更");
+        Console.WriteLine("用法: xcodegen gen [参数]");
+        Console.WriteLine("说明: 默认读取当前目录下的 xCodeGen.config.json 执行代码生成。");
+        return 0;
     }
 
     private static int HandleUnknownCommand(string cmd)
     {
-        LogError($"未知命令 '{cmd}'");
+        LogError($"未知命令: {cmd}");
         return 1;
     }
 }
