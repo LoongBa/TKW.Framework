@@ -119,21 +119,9 @@ class Program
 
     private static void PrintSummary(CodeGenConfig config, GenerateResult result)
     {
-        Console.WriteLine("\n-------------------------------------------");
         Console.WriteLine($"📄 项目文件: {Path.GetFullPath(config.TargetProject)}");
         Console.WriteLine($"📂 输出目录: {Path.GetFullPath(config.OutputRoot)}");
-        Console.WriteLine("-------------------------------------------");
-
-        Console.Write("提取元数据: ");
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        var totalExtracted = result.ExtractedCounts.Values.Sum();
-        Console.Write($"共 {totalExtracted} 条 ");
-        Console.ResetColor();
-        if (totalExtracted > 0)
-        {
-            Console.WriteLine($"({string.Join(", ", result.ExtractedCounts.Select(x => $"{x.Key}: {x.Value}"))})");
-        }
-        else { Console.WriteLine(); }
+        Console.WriteLine("--------------------------------------------------------------------");
 
         Console.Write("任务状态: ");
         if (result.Success)
@@ -148,7 +136,7 @@ class Program
         }
         Console.ResetColor();
 
-        Console.Write("| 增量策略: ");
+        Console.Write("增量策略: ");
         if (config.EnableSkipUnchanged)
         {
             Console.ForegroundColor = ConsoleColor.Blue;
@@ -161,6 +149,22 @@ class Program
         }
         Console.ResetColor();
 
+        Console.Write($"| 耗时: ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write($"{result.ElapsedMilliseconds}");
+        Console.ResetColor();
+        Console.WriteLine("ms");
+
+        Console.Write("提取元数据：");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        var totalExtracted = result.ExtractedCounts.Values.Sum();
+        Console.Write($"共 {totalExtracted} 项 ");
+        Console.ResetColor();
+        if (totalExtracted > 0)
+            Console.Write($"({string.Join(", ", result.ExtractedCounts.Select(x => $"{x.Key}: {x.Value}"))})");
+        else 
+            Console.WriteLine();
+
         Console.Write($"| 生成/骨架: ");
         Console.ForegroundColor = ConsoleColor.Green;
         Console.Write($"{result.GeneratedFiles.Count}/{result.SkeletonFiles.Count} ");
@@ -168,10 +172,8 @@ class Program
 
         Console.Write($"| 跳过: ");
         Console.ForegroundColor = ConsoleColor.Blue;
-        Console.Write($"{result.SkippedCount} ");
+        Console.WriteLine($"{result.SkippedCount} ");
         Console.ResetColor();
-
-        Console.WriteLine($"| 耗时: {result.ElapsedMilliseconds}ms");
     }
 
     private static void PrintDetails(GenerateResult result, bool verbose)
@@ -256,8 +258,9 @@ class Program
     private static void PrintHeader()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具 [Ver 2.25]");
-        Console.WriteLine("-------------------------------------------");
+        Console.WriteLine("--------------------------------------------------------------------");
+        Console.WriteLine(" xCodeGen Ver2.25 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品");
+        Console.WriteLine("--------------------------------------------------------------------");
         Console.ResetColor();
     }
 

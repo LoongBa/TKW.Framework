@@ -28,9 +28,11 @@ public class Engine(
 
         try
         {
+            // 1. 初始化模板引擎
             if (!string.IsNullOrEmpty(config.TemplatesPath))
                 templateEngine.LoadTemplates(config.TemplatesPath);
 
+            // 2. 收集原始元数据并记录计数
             var (enabledExtractors, _) = GetEnabledExtractors(options.MetadataSources);
             var allRawMetadata = new List<RawMetadata>();
             foreach (var extractor in enabledExtractors)
@@ -40,22 +42,25 @@ public class Engine(
                 {
                     var metaList = extracted.ToList();
                     allRawMetadata.AddRange(metaList);
-                    // 确保元数据计数被正确记录
+                    // 修正：记录元数据来源计数
                     result.AddExtracted(extractor.SourceType.ToString(), metaList.Count);
                 }
             }
 
+            // 3. 执行生成流水线
             foreach (var raw in allRawMetadata)
             {
                 var classMeta = metadataConverter.Convert(raw);
                 if (classMeta == null) continue;
 
+                // 注入全局 CustomSettings
                 if (config.CustomSettings != null)
                 {
                     foreach (var setting in config.CustomSettings)
                         classMeta.GenerateCodeSettings[setting.Key] = setting.Value;
                 }
 
+                // 4. 遍历配置的产物类型
                 foreach (var mapping in config.TemplateMappings)
                 {
                     var artifactType = mapping.Key;
@@ -63,7 +68,7 @@ public class Engine(
 
                     try
                     {
-                        // 1. 处理 .generated.cs 文件
+                        // A. 处理生成的产物 (.generated.cs)
                         var pattern = config.FileNamePatterns.GetValueOrDefault(artifactType, "{ClassName}.generated.cs");
                         var subDir = config.OutputDirectories.GetValueOrDefault(artifactType, artifactType);
                         var outputBase = Path.Combine(config.OutputRoot, subDir);
@@ -78,10 +83,11 @@ public class Engine(
                         else
                         {
                             result.SkippedCount++;
+                            // 记录跳过的详细路径
                             result.SkippedFiles[$"{classMeta.ClassName} [{artifactType}]"] = genPath;
                         }
 
-                        // 2. 处理骨架文件 (.cs 手写部分)
+                        // B. 处理骨架文件 (.cs)
                         var skeletonKey = artifactType + "Empty";
                         if (config.SkeletonMappings?.TryGetValue(skeletonKey, out var skelTemplate) == true)
                         {
@@ -94,11 +100,12 @@ public class Engine(
                             {
                                 var skelCode = await templateEngine.RenderAsync(classMeta, skelTemplate);
                                 fileWriter.Write(skelCode, skelPath, false);
-                                // 使用 artifactType 区分骨架类型，避免 Key 重复
+                                // 修正：唯一化骨架键名，防止 DTO 和 Model 骨架冲突
                                 result.SkeletonFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
                             }
                             else
                             {
+                                // 若已存在，归类为跳过
                                 result.SkippedCount++;
                                 result.SkippedFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
                             }
@@ -113,7 +120,11 @@ public class Engine(
             result.Success = !result.Errors.Any();
         }
         catch (Exception ex) { result.AddError($"引擎异常: {ex.Message}"); }
-        finally { timer.Stop(); result.ElapsedMilliseconds = timer.ElapsedMilliseconds; }
+        finally
+        {
+            timer.Stop();
+            result.ElapsedMilliseconds = timer.ElapsedMilliseconds;
+        }
         return result;
     }
 
