@@ -1,7 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace TKW.Framework.Domain.Interfaces;
+namespace TKW.Framework.Common.Enumerations;
 
 /// <summary>
 /// 场景枚举（支持组合）

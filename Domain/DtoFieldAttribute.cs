@@ -1,7 +1,7 @@
 ﻿using System;
-using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Common.Enumerations;
 
-namespace TKW.Framework.Domain.Interception.Filters;
+namespace TKW.Framework.Domain;
 /*
 // 标注示例（优化后，配置量减少50%）
 [DtoField(CreateRequired = true, DetailsHidden = true)] // 替代复杂的new DtoSceneOverride
@@ -21,6 +21,10 @@ public class DtoFieldAttribute : Attribute
     public bool IsVisible { get; set; } = true;
     public bool IsRequired { get; set; } = false;
     public bool CanModify { get; set; } = true;
+    /// <summary>
+    /// 是否唯一键
+    /// </summary>
+    public bool IsUnique { get; set; } = false;
 
     // 差异化配置：用“场景+规则”的简写参数，无需new对象
     /// <summary>
@@ -35,6 +39,14 @@ public class DtoFieldAttribute : Attribute
     /// 仅详情场景隐藏（简写：DetailsHidden=true 等价于 IsVisible=false）
     /// </summary>
     public bool DetailsHidden { get; set; }
+    /// <summary>
+    /// 是否支持搜索（如除了 GetById 之外的 GetByUId、GetByCode）
+    /// </summary>
+    public bool IsSearchable { get; set; } = true;
+    /// <summary>
+    /// 友好的显示名称
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
 
     // 扩展：支持多场景组合（如Create/Update都必填）
     public EnumSceneFlags RequiredScenes { get; set; } = EnumSceneFlags.None;

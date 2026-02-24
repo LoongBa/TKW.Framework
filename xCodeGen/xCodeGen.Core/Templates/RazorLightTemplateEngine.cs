@@ -1,15 +1,16 @@
-﻿using System;
+﻿using RazorLight;
+using RazorLight.Extensions; // 确保引入扩展
+using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
-using RazorLight;
+using Microsoft.CodeAnalysis; // 需要引用此命名空间
 using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Abstractions.Templates;
 
 namespace xCodeGen.Core.Templates;
 
-/// <summary>
-/// 基于RazorLight的模板引擎实现
-/// </summary>
 public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
 {
     private readonly RazorLightEngine _Engine;
@@ -20,17 +21,25 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
         if (!Directory.Exists(templateRootPath))
             throw new DirectoryNotFoundException($"模板目录不存在：{templateRootPath}");
 
+        // 核心修复逻辑：手动获取所有已加载程序集的引用路径，过滤掉无法定位的虚拟包
+        var refs = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrWhiteSpace(a.Location))
+            .Select(a => MetadataReference.CreateFromFile(a.Location))
+            .Cast<MetadataReference>()
+            .ToList();
+
         _Engine = new RazorLightEngineBuilder()
             .UseFileSystemProject(templateRootPath)
             .UseMemoryCachingProvider()
-            // 注意：将 HTML 编码器设置为 Null (不转义)
-            .AddDefaultNamespaces("System.Text.Encodings.Web")
+            // 1. 明确指定入口程序集
+            .SetOperatingAssembly(Assembly.GetEntryAssembly())
+            // 2. 注入手动提取的物理引用，跳过 DependencyContext 的自动扫描
+            .AddMetadataReferences(refs.ToArray())
             .Build();
     }
 
     public void LoadTemplates(string templatePath)
     {
-        // RazorLight会动态加载模板，此处仅验证路径
         if (!Directory.Exists(templatePath))
             throw new DirectoryNotFoundException($"模板路径不存在：{templatePath}");
     }
@@ -40,7 +49,7 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
         if (string.IsNullOrEmpty(templateName))
             throw new ArgumentNullException(nameof(templateName));
 
-        // 渲染模板（模板文件需放在模板根目录，如"ClassTemplate.cshtml"）
+        // 渲染模板
         return await _Engine.CompileRenderAsync(templateName, metadata);
     }
 
@@ -53,10 +62,6 @@ public class RazorLightTemplateEngine : ITemplateEngine, IDisposable
     protected virtual void Dispose(bool disposing)
     {
         if (_Disposed) return;
-        if (disposing)
-        {
-            // 释放托管资源
-        }
         _Disposed = true;
     }
 }

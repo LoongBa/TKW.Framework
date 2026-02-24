@@ -12,6 +12,9 @@ namespace xCodeGen.Abstractions.Metadata
         public string TypeFullName { get; set; } = string.Empty;
         public bool IsNullable { get; set; }
         public string Summary { get; set; } = string.Empty;
+        public string DisplayName { get; set; } // 来自 DtoFieldAttribute
+        public bool IsSearchable { get; set; }  // 来自 DtoFieldAttribute
+        public bool IsUnique { get; set; }  // 来自 DtoFieldAttribute
         public List<AttributeMetadata> Attributes { get; set; } = new List<AttributeMetadata>();
     }
 }

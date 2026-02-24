@@ -24,6 +24,14 @@ public class GenerateResult
     /// 成功生成的文件信息（类名 -> 输出路径）
     /// </summary>
     public Dictionary<string, string> GeneratedFiles { get; } = new();
+    /// <summary>
+    /// 跳过生成的文件信息
+    /// </summary>
+    public Dictionary<string, string> SkippedFiles { get; set; } = new();
+    /// <summary>
+    /// 骨架文件信息（类名 -> 输出路径），仅在增量生成且启用骨架文件时使用
+    /// </summary>
+    public Dictionary<string, string> SkeletonFiles { get; set; } = new();
 
     /// <summary>
     /// 提取的元数据统计（来源 -> 数量）

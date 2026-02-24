@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
+using System.Text;
 using System.Xml.Linq;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
@@ -17,35 +18,38 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        // 核心修复：强制 UTF8 编码以支持 Emojis 和 Nerd Font 符号
+        Console.OutputEncoding = Encoding.UTF8;
+
         PrintHeader();
 
         try
         {
             var configProvider = new ConfigurationProvider();
-
-            // 核心改进：优先从命令行执行的当前目录查找配置，实现“配置随项目走”
             var searchDir = Directory.GetCurrentDirectory();
             if (!File.Exists(Path.Combine(searchDir, "xCodeGen.config.json")))
             {
-                // 如果当前目录没有，回退到 exe 所在目录
                 searchDir = AppContext.BaseDirectory;
             }
 
             var config = configProvider.Load(searchDir);
-
             if (config == null)
             {
                 LogError("无法加载配置文件 xCodeGen.config.json。");
                 return 1;
             }
 
-            var command = args.Length > 0 ? args[0].ToLower() : "gen";
+            // 解析详细日志开关 (-v 或 --verbose)
+            var verbose = args.Any(a => a.Equals("-v", StringComparison.OrdinalIgnoreCase) || a.Equals("--verbose", StringComparison.OrdinalIgnoreCase));
+
+            // 提取非选项参数作为命令，默认为 gen
+            var command = args.FirstOrDefault(a => !a.StartsWith("-"))?.ToLower() ?? "gen";
 
             return command switch
             {
-                "gen" => await HandleGenerate(config),
                 "help" => ShowHelp(),
-                _ => HandleUnknownCommand(command)
+                "init" => HandleInit(config),
+                _ => await HandleGenerate(config, verbose)
             };
         }
         catch (Exception ex)
@@ -55,60 +59,43 @@ class Program
         }
     }
 
-    static async Task<int> HandleGenerate(CodeGenConfig config)
+    static async Task<int> HandleGenerate(CodeGenConfig config, bool verbose)
     {
         if (string.IsNullOrWhiteSpace(config.TargetProject))
             throw new InvalidOperationException("未配置 TargetProject 路径。");
 
-        // 1. 定位目标 DLL
         var targetDll = ResolveAssemblyPath(config.TargetProject);
         if (string.IsNullOrEmpty(targetDll) || !File.Exists(targetDll))
-            throw new FileNotFoundException($"找不到程序集。请确认项目已成功编译: {config.TargetProject}");
+            throw new FileNotFoundException($"找不到程序集。请确认项目文件已成功编译。");
 
         var targetDir = Path.GetDirectoryName(Path.GetFullPath(targetDll))!;
-        Console.WriteLine($"📦 目标程序集: {Path.GetFileName(targetDll)}");
-        Console.WriteLine($"🔍 依赖搜索路径: {targetDir}");
 
-        // 2. 核心修复：设置动态依赖解析钩子，解决 Autofac/FreeSql 等程序集加载失败问题
+        // 注册依赖解析钩子以解决加载问题
         AssemblyLoadContext.Default.Resolving += (context, assemblyName) =>
         {
             var expectedPath = Path.Combine(targetDir, assemblyName.Name + ".dll");
-            if (File.Exists(expectedPath))
-            {
-                return context.LoadFromAssemblyPath(expectedPath);
-            }
-            return null;
+            return File.Exists(expectedPath) ? context.LoadFromAssemblyPath(expectedPath) : null;
         };
 
-        // 3. 安全加载程序集并提取上下文
         var assembly = Assembly.LoadFrom(targetDll);
-
-        // 使用防御性加载，避免因部分依赖缺失导致 GetTypes 崩溃
         var contextType = GetLoadableTypes(assembly).FirstOrDefault(t =>
-            typeof(IProjectMetaContext).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+            typeof(IProjectMetaContext).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
 
         if (contextType == null)
             throw new InvalidOperationException("程序集中未发现有效的 IProjectMetaContext 实现。");
 
         var instanceProperty = contextType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-        if (instanceProperty == null)
-            throw new InvalidOperationException($"类型 {contextType.Name} 缺少公共静态 Instance 属性。");
+        var contextInstance = instanceProperty?.GetValue(null) as IProjectMetaContext;
 
-        var contextInstance = instanceProperty.GetValue(null) as IProjectMetaContext;
         if (contextInstance == null)
             throw new InvalidOperationException("无法获取元数据上下文实例。");
 
-        // 4. 初始化引擎组件
+        // 初始化核心组件
         var fileWriter = new FileSystemWriter();
-        if (string.IsNullOrWhiteSpace(config.TemplatesPath))
-            throw new InvalidOperationException("TemplatesPath 未配置。");
-
         var templateEngine = new RazorLightTemplateEngine(config.TemplatesPath);
-
         var extractors = new List<IMetaDataExtractor> { new CompiledMetadataExtractor(contextInstance) };
         var engine = EngineFactory.Create(config, extractors, templateEngine, fileWriter);
 
-        // 5. 执行生成
         var options = new GenerateOptions
         {
             ProjectPath = config.TargetProject,
@@ -118,53 +105,150 @@ class Program
 
         var result = await engine.GenerateAsync(options, config);
 
-        // 6. 输出结果摘要
-        Console.WriteLine(result.GetSummary());
-        if (result.Errors.Any())
+        // --- 输出统计摘要 ---
+        PrintSummary(config, result);
+
+        // --- 输出详细清单 (Verbose 模式或有错误时) ---
+        if (verbose || result.Errors.Any())
         {
-            Console.WriteLine("\n❌ 详细错误列表:");
-            foreach (var error in result.Errors)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[-] {error}");
-                Console.ResetColor();
-            }
+            PrintDetails(result, verbose);
         }
 
         return result.Success ? 0 : 1;
     }
 
+    private static void PrintSummary(CodeGenConfig config, GenerateResult result)
+    {
+        Console.WriteLine("\n-------------------------------------------");
+        Console.WriteLine($"📄 项目文件: {Path.GetFullPath(config.TargetProject)}");
+        Console.WriteLine($"📂 输出目录: {Path.GetFullPath(config.OutputRoot)}");
+        Console.WriteLine("-------------------------------------------");
+
+        Console.Write("提取元数据: ");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        var totalExtracted = result.ExtractedCounts.Values.Sum();
+        Console.Write($"共 {totalExtracted} 条 ");
+        Console.ResetColor();
+        if (totalExtracted > 0)
+        {
+            Console.WriteLine($"({string.Join(", ", result.ExtractedCounts.Select(x => $"{x.Key}: {x.Value}"))})");
+        }
+        else { Console.WriteLine(); }
+
+        Console.Write("任务状态: ");
+        if (result.Success)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("成功 ✨ ");
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write("失败 ❌ ");
+        }
+        Console.ResetColor();
+
+        Console.Write("| 增量策略: ");
+        if (config.EnableSkipUnchanged)
+        {
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.Write("开启 (防抖) ");
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("关闭 (全量) ");
+        }
+        Console.ResetColor();
+
+        Console.Write($"| 生成/骨架: ");
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write($"{result.GeneratedFiles.Count}/{result.SkeletonFiles.Count} ");
+        Console.ResetColor();
+
+        Console.Write($"| 跳过: ");
+        Console.ForegroundColor = ConsoleColor.Blue;
+        Console.Write($"{result.SkippedCount} ");
+        Console.ResetColor();
+
+        Console.WriteLine($"| 耗时: {result.ElapsedMilliseconds}ms");
+    }
+
+    private static void PrintDetails(GenerateResult result, bool verbose)
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+
+        if (result.Errors.Any())
+        {
+            Console.WriteLine("\n❌ 错误详情列表:");
+            Console.ForegroundColor = ConsoleColor.Red;
+            foreach (var error in result.Errors)
+            {
+                Console.WriteLine($"  [X] {error}");
+            }
+            Console.ResetColor();
+        }
+
+        if (verbose)
+        {
+            // A. 生成产物明细
+            if (result.GeneratedFiles.Any())
+            {
+                Console.WriteLine("\n🚀 生成清单 (Artifacts):");
+                Console.ForegroundColor = ConsoleColor.Green;
+                foreach (var file in result.GeneratedFiles)
+                {
+                    var relPath = Path.GetRelativePath(currentDir, file.Value);
+                    Console.WriteLine($"  [+] {file.Key,-30} -> {relPath}");
+                }
+                Console.ResetColor();
+            }
+
+            // B. 骨架明细
+            if (result.SkeletonFiles.Any())
+            {
+                Console.WriteLine("\n🏗️  初始化清单 (Skeletons):");
+                Console.ForegroundColor = ConsoleColor.White;
+                foreach (var file in result.SkeletonFiles)
+                {
+                    var relPath = Path.GetRelativePath(currentDir, file.Value);
+                    Console.WriteLine($"  [#] {file.Key,-30} -> {relPath}");
+                }
+                Console.ResetColor();
+            }
+
+            // C. 跳过明细
+            if (result.SkippedFiles.Any())
+            {
+                Console.WriteLine("\n⏭️  跳过清单 (Unchanged):");
+                Console.ForegroundColor = ConsoleColor.Blue;
+                foreach (var file in result.SkippedFiles)
+                {
+                    var relPath = Path.GetRelativePath(currentDir, file.Value);
+                    Console.WriteLine($"  [-] {file.Key,-30} -> {relPath} (未变更)");
+                }
+                Console.ResetColor();
+            }
+        }
+    }
+
     private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
     {
-        if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException e)
-        {
-            return e.Types.Where(t => t != null)!;
-        }
+        try { return assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null)!; }
     }
 
     private static string? ResolveAssemblyPath(string projectPath)
     {
-        if (!File.Exists(projectPath)) return null;
         try
         {
             var doc = XDocument.Load(projectPath);
-            var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectPath));
-            if (projectDir == null) return null;
-
+            var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectPath))!;
             var assemblyName = doc.Descendants().FirstOrDefault(x => x.Name.LocalName == "AssemblyName")?.Value
                                ?? Path.GetFileNameWithoutExtension(projectPath);
-
             var binPath = Path.Combine(projectDir, "bin");
-            if (!Directory.Exists(binPath)) return null;
-
             return Directory.GetFiles(binPath, $"{assemblyName}.dll", SearchOption.AllDirectories)
-                .OrderByDescending(File.GetLastWriteTime)
-                .FirstOrDefault();
+                            .OrderByDescending(File.GetLastWriteTime).FirstOrDefault();
         }
         catch { return null; }
     }
@@ -172,28 +256,25 @@ class Program
     private static void PrintHeader()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具 [Ver 2.2]");
+        Console.WriteLine("xCodeGen - 元数据驱动的代码生成工具 [Ver 2.25]");
         Console.WriteLine("-------------------------------------------");
         Console.ResetColor();
     }
 
-    private static void LogError(string msg)
-    {
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine($"❌ 错误: {msg}");
-        Console.ResetColor();
-    }
+    private static void LogError(string msg) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine($"❌ 错误: {msg}"); Console.ResetColor(); }
 
     private static int ShowHelp()
     {
-        Console.WriteLine("用法: xcodegen gen [参数]");
-        Console.WriteLine("说明: 默认读取当前目录下的 xCodeGen.config.json 执行代码生成。");
+        Console.WriteLine("用法: xCodeGen [command] [options]");
+        Console.WriteLine("命令: gen (默认) | init | help");
+        Console.WriteLine("选项: -v, --verbose - 输出详细清单");
         return 0;
     }
 
-    private static int HandleUnknownCommand(string cmd)
+    private static int HandleInit(CodeGenConfig config)
     {
-        LogError($"未知命令: {cmd}");
-        return 1;
+        Console.WriteLine("✅ 配置文件加载成功。");
+        Console.WriteLine($"目标项目: {Path.GetFullPath(config.TargetProject)}");
+        return 0;
     }
 }

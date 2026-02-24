@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using xCodeGen.Abstractions.Extractors;
 
 namespace xCodeGen.Abstractions.Metadata
 {
@@ -15,6 +14,7 @@ namespace xCodeGen.Abstractions.Metadata
         public string ClassName { get; set; }
         public string FullName { get; set; }
         public string Summary { get; set; } = string.Empty;
+        public bool IsView { get; set; } = false;
 
         // 结构信息
         public ICollection<MethodMetadata> Methods { get; set; }

@@ -13,9 +13,6 @@ using xCodeGen.Core.Services;
 
 namespace xCodeGen.Core;
 
-/// <summary>
-/// 核心引擎：支持多产物并行与配置注入
-/// </summary>
 public class Engine(
     IEnumerable<IMetaDataExtractor> extractors,
     IMetadataConverter metadataConverter,
@@ -31,18 +28,10 @@ public class Engine(
 
         try
         {
-            if (options == null) throw new ArgumentNullException(nameof(options));
-            if (config == null) throw new ArgumentNullException(nameof(config));
-
-            // 1. 获取提取器
-            var (enabledExtractors, _) = GetEnabledExtractors(options.MetadataSources);
-            if (enabledExtractors.Count == 0) throw new Exception("未找到有效的提取器。");
-
-            // 2. 加载模板
             if (!string.IsNullOrEmpty(config.TemplatesPath))
                 templateEngine.LoadTemplates(config.TemplatesPath);
 
-            // 3. 收集元数据并更新统计
+            var (enabledExtractors, _) = GetEnabledExtractors(options.MetadataSources);
             var allRawMetadata = new List<RawMetadata>();
             foreach (var extractor in enabledExtractors)
             {
@@ -51,24 +40,20 @@ public class Engine(
                 {
                     var metaList = extracted.ToList();
                     allRawMetadata.AddRange(metaList);
-                    // 修复统计显示 Bug
+                    // 确保元数据计数被正确记录
                     result.AddExtracted(extractor.SourceType.ToString(), metaList.Count);
                 }
             }
 
-            // 4. 执行生成循环
             foreach (var raw in allRawMetadata)
             {
                 var classMeta = metadataConverter.Convert(raw);
                 if (classMeta == null) continue;
 
-                // 核心注入：将配置参数注入到实体的生成设置中
                 if (config.CustomSettings != null)
                 {
                     foreach (var setting in config.CustomSettings)
-                    {
                         classMeta.GenerateCodeSettings[setting.Key] = setting.Value;
-                    }
                 }
 
                 foreach (var mapping in config.TemplateMappings)
@@ -78,27 +63,45 @@ public class Engine(
 
                     try
                     {
-                        var targetName = namingService.GetTargetName(classMeta.ClassName, artifactType);
+                        // 1. 处理 .generated.cs 文件
+                        var pattern = config.FileNamePatterns.GetValueOrDefault(artifactType, "{ClassName}.generated.cs");
                         var subDir = config.OutputDirectories.GetValueOrDefault(artifactType, artifactType);
                         var outputBase = Path.Combine(config.OutputRoot, subDir);
+                        var genPath = fileWriter.ResolveOutputPath(outputBase, classMeta.ClassName, pattern);
 
-                        var genPath = fileWriter.ResolveOutputPath(outputBase, targetName, "{ClassName}.generated.cs");
-
-                        if (incrementalChecker.NeedRegenerate(classMeta, outputBase, targetName))
+                        if (!config.EnableSkipUnchanged || incrementalChecker.NeedRegenerate(classMeta, outputBase, classMeta.ClassName, pattern))
                         {
                             var code = await templateEngine.RenderAsync(classMeta, templatePath);
                             fileWriter.Write(code, genPath, true);
-                            result.AddGenerated($"{targetName}[Logic]", genPath);
+                            result.AddGenerated($"{classMeta.ClassName} [{artifactType}]", genPath);
                         }
-                        else { result.SkippedCount++; }
-
-                        // 处理骨架文件 (.cs)
-                        var extPath = genPath.Replace(".generated.cs", ".cs");
-                        if (!fileWriter.Exists(extPath) && config.SkeletonMappings?.TryGetValue(artifactType, out var skel) == true)
+                        else
                         {
-                            var skelCode = await templateEngine.RenderAsync(classMeta, skel);
-                            fileWriter.Write(skelCode, extPath, false);
-                            result.AddGenerated($"{targetName}[Skeleton]", extPath);
+                            result.SkippedCount++;
+                            result.SkippedFiles[$"{classMeta.ClassName} [{artifactType}]"] = genPath;
+                        }
+
+                        // 2. 处理骨架文件 (.cs 手写部分)
+                        var skeletonKey = artifactType + "Empty";
+                        if (config.SkeletonMappings?.TryGetValue(skeletonKey, out var skelTemplate) == true)
+                        {
+                            var skelPattern = config.FileNamePatterns.GetValueOrDefault(skeletonKey, "{ClassName}.cs");
+                            var skelSubDir = config.OutputDirectories.GetValueOrDefault(skeletonKey, subDir);
+                            var skelOutputBase = Path.Combine(config.OutputRoot, skelSubDir);
+                            var skelPath = fileWriter.ResolveOutputPath(skelOutputBase, classMeta.ClassName, skelPattern);
+
+                            if (!fileWriter.Exists(skelPath))
+                            {
+                                var skelCode = await templateEngine.RenderAsync(classMeta, skelTemplate);
+                                fileWriter.Write(skelCode, skelPath, false);
+                                // 使用 artifactType 区分骨架类型，避免 Key 重复
+                                result.SkeletonFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
+                            }
+                            else
+                            {
+                                result.SkippedCount++;
+                                result.SkippedFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
+                            }
                         }
                     }
                     catch (Exception ex)

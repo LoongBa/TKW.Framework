@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using xCodeGen.Abstractions.Extractors;
 
 namespace xCodeGen.Abstractions.Metadata
 {

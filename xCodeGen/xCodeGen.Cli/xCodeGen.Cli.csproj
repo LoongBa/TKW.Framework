@@ -11,6 +11,9 @@
     <EnableIncrementalBuild>true</EnableIncrementalBuild>
     <PreserveCompilationContext>true</PreserveCompilationContext>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <IncludeMainProjectInDeps>true</IncludeMainProjectInDeps>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Authors>loongba.cn</Authors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,9 +22,6 @@
 
   <ItemGroup>
     <None Update="Templates\Dto.cshtml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Templates\Service.cshtml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Templates\Validator.cshtml">
