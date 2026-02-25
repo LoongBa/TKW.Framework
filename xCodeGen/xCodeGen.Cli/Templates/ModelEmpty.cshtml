@@ -1,0 +1,32 @@
+﻿@using xCodeGen.Abstractions.Metadata
+@model xCodeGen.Abstractions.Metadata.ClassMetadata
+@{
+    var className = Model.ClassName;
+}
+using System;
+using TKW.Framework.Domain.Interception.Filters;
+
+namespace @Model.Namespace;
+
+/// <summary>
+/// @(Model.Summary ?? className + " 业务逻辑实现")
+/// </summary>
+public partial class @className
+{
+    /// <summary>
+    /// 手写业务校验逻辑
+    /// </summary>
+    public void Validate()
+    {
+        // 调用生成的结构化验证
+        ValidateCore();
+
+        // 此处添加自定义业务逻辑验证
+        OnBusinessValidate();
+    }
+
+    void OnBusinessValidate()
+    {
+        // 领域驱动设计的业务规则实现点
+    }
+}

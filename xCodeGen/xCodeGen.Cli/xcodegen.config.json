@@ -1,17 +1,33 @@
 {
-  "TargetProject": "D:\\_Dev_\\_Repos_\\Github\\_LoongBa_\\_DotNet_\\_Blazor_\\DMP-Lite\\DMP-Lite_Domain\\DMP-Lite.Domain.csproj",
+  "TargetProject": "..\\DMP-Lite.Domain.csproj",
+  "EnableSkipUnchanged": true,
   "OutputRoot": "Generated",
   "TemplatesPath": "Templates",
   "TemplateMappings": {
-    "Dto": "Dto.cshtml",
-    "Service": "Service.cshtml"
+    "Service": "Service.cshtml",
+    "Model": "Model.cshtml",
+    "Dto": "Dto.cshtml"
+  },
+  "SkeletonMappings": {
+    "ModelEmpty": "ModelEmpty.cshtml",
+    "DtoEmpty": "DtoEmpty.cshtml"
+  },
+  "FileNamePatterns": {
+    "Service": "{ClassName}Service.generated.cs",
+    "ModelEmpty": "{ClassName}.cs",
+    "Model": "{ClassName}.generated.cs",
+    "DtoEmpty": "{ClassName}Dto.cs",
+    "Dto": "{ClassName}Dto.generated.cs"
   },
   "OutputDirectories": {
-    "Dto": "Dtos",
-    "Service": "Services"
+    "Service": "..\\..\\Services",
+    "ModelEmpty": "..\\..\\Models",
+    "Model": "..\\..\\Models",
+    "DtoEmpty": "..\\..\\Models\\DTOs",
+    "Dto": "..\\..\\Models\\DTOs"
   },
   "CustomSettings": {
-    "BaseUserType": "MyProjectUser",
+    "BaseUserType": "DmpUserInfo",
     "EnableLogging": "true"
   }
 }

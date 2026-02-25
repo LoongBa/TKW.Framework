@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net; // 核心：在此层执行转码
 using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Core.Services;
 
@@ -17,31 +18,64 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
     {
         if (rawMetadata == null) throw new ArgumentNullException(nameof(rawMetadata));
 
-        // 核心优化：如果是从固化 DLL 加载的现成对象，直接透传返回
+        ClassMetadata metadata;
+
+        // 处理透传对象或字典解析
         if (rawMetadata.Data.TryGetValue("Object", out var obj) && obj is ClassMetadata compiledMeta)
         {
-            return compiledMeta;
+            metadata = compiledMeta;
+        }
+        else
+        {
+            var data = rawMetadata.Data;
+            metadata = new ClassMetadata
+            {
+                Namespace = GetValue(data, "Namespace", string.Empty),
+                ClassName = GetValue(data, "ClassName", string.Empty),
+                FullName = GetValue(data, "FullName", string.Empty),
+                Summary = GetValue(data, "Summary", null),
+                Mode = GetValue(data, "GenerateMode", "Full"),
+                SourceType = rawMetadata.SourceType,
+                TemplateName = GetValue(data, "TemplateName", "Default"),
+                BaseType = GetValue(data, "BaseType", "object"),
+                IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is bool b && b,
+                TypeKind = GetValue(data, "TypeKind", "class"),
+                ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ?? new List<string>(),
+                Methods = ConvertToMethodMetadataList(data.GetValueOrDefault("Methods") as List<Dictionary<string, object>>),
+                Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>)
+            };
         }
 
-        // 否则：执行常规的原始字典解析逻辑（用于兼容其他提取器）
-        var data = rawMetadata.Data;
+        // 关键修复：执行清洗与 HTML 解码
+        SanitizeMetadata(metadata);
+        return metadata;
+    }
 
-        return new ClassMetadata
+    private void SanitizeMetadata(ClassMetadata meta)
+    {
+        /*
+        meta.Summary = CleanAndDecode(meta.Summary);
+        foreach (var p in meta.Properties)
         {
-            Namespace = GetValue(data, "Namespace", string.Empty),
-            ClassName = GetValue(data, "ClassName", string.Empty),
-            FullName = GetValue(data, "FullName", string.Empty),
-            Summary = GetValue(data, "Summary", string.Empty),
-            Mode = GetValue(data, "GenerateMode", "Full"),
-            SourceType = rawMetadata.SourceType,
-            TemplateName = GetValue(data, "TemplateName", "Default"),
-            BaseType = GetValue(data, "BaseType", "object"),
-            IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is bool b && b,
-            TypeKind = GetValue(data, "TypeKind", "class"),
-            ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ?? new List<string>(),
-            Methods = ConvertToMethodMetadataList(data.GetValueOrDefault("Methods") as List<Dictionary<string, object>>),
-            Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>)
-        };
+            p.Summary = CleanAndDecode(p.Summary);
+        }
+        foreach (var m in meta.Methods)
+        {
+            m.Summary = CleanAndDecode(m.Summary);
+        }
+    */
+    }
+
+    /// <summary>
+    /// 解码 XML 实体并清除空白
+    /// </summary>
+    private static string? CleanAndDecode(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+
+        // 核心修复点：将 &#x...; 还原为中文
+        var decoded = WebUtility.HtmlDecode(input);
+        return decoded.Trim();
     }
 
     private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)

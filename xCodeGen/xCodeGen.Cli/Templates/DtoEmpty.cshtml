@@ -1,0 +1,32 @@
+﻿@using xCodeGen.Abstractions.Metadata
+@model xCodeGen.Abstractions.Metadata.ClassMetadata
+@{
+    var dtoName = Model.ClassName + "Dto";
+}
+using System;
+using TKW.Framework.Common.Enumerations;
+
+namespace @(Model.Namespace).DTOs;
+
+/// <summary>
+/// @(Model.Summary ?? Model.ClassName) 的手写 DTO 扩展
+/// </summary>
+public partial record @dtoName
+{
+    /// <summary>
+    /// 执行 DTO 数据的业务预校验
+    /// </summary>
+    public void ValidateData(EnumSceneFlags scene)
+    {
+        // 1. 执行自动生成的结构校验
+        ValidateCore(scene);
+
+        // 2. 执行自定义业务数据校验
+        OnCustomValidate(scene);
+    }
+
+    void OnCustomValidate(EnumSceneFlags scene)
+    {
+        // 这里可以实现非数据库依赖的字段交叉验证
+    }
+}

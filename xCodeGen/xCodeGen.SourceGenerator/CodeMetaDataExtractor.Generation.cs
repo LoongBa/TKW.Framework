@@ -19,10 +19,7 @@ namespace xCodeGen.SourceGenerator
                 var codeContent = BuildMetaCode(metadata);
                 context.AddSource(fileName, SourceText.From(codeContent, Encoding.UTF8));
             }
-            catch (Exception ex)
-            {
-                ReportError(context, $"生成元数据时出错: {ex.Message}");
-            }
+            catch (Exception ex) { ReportError(context, $"生成元数据时出错: {ex.Message}"); }
         }
 
         private string BuildMetaCode(ClassMetadata metadata)
@@ -35,79 +32,83 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine("using System.Collections.ObjectModel;");
             codeBuilder.AppendLine("using xCodeGen.Abstractions.Metadata;");
             codeBuilder.AppendLine();
-            codeBuilder.AppendLine($"namespace {metadata.Namespace}.Generated;");
-            codeBuilder.AppendLine();
-            codeBuilder.AppendLine($"public class {metadata.ClassName}Meta");
+            codeBuilder.AppendLine($"namespace {metadata.Namespace}.Generated");
             codeBuilder.AppendLine("{");
-            codeBuilder.AppendLine("    public static ClassMetadata Metadata { get; } = new ClassMetadata");
+            codeBuilder.AppendLine($"    public class {metadata.ClassName}Meta");
             codeBuilder.AppendLine("    {");
-            codeBuilder.AppendLine($"        Namespace = \"{EscapeString(metadata.Namespace)}\",");
-            codeBuilder.AppendLine($"        ClassName = \"{EscapeString(metadata.ClassName)}\",");
-            codeBuilder.AppendLine($"        FullName = \"{EscapeString(metadata.FullName)}\",");
-            codeBuilder.AppendLine($"        Mode = \"{EscapeString(metadata.Mode)}\",");
-            codeBuilder.AppendLine($"        SourceType = MetadataSource.{metadata.SourceType},");
-            codeBuilder.AppendLine($"        Summary = {FormatStringValue(metadata.Summary)},");
-            codeBuilder.AppendLine($"        IsRecord = {metadata.IsRecord.ToString().ToLower()},");
-            codeBuilder.AppendLine($"        TypeKind = \"{metadata.TypeKind}\",");
-            codeBuilder.AppendLine($"        TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
-            codeBuilder.AppendLine($"        BaseType = \"{EscapeString(metadata.BaseType)}\",");
 
-            // 填充属性集合
-            codeBuilder.AppendLine("        Properties = new Collection<PropertyMetadata>");
+            // 记录类 Summary 来源
+            if (metadata.GenerateCodeSettings.TryGetValue("ClassSummarySource", out var source))
+                codeBuilder.AppendLine($"        // [Summary Source: {source}]");
+
+            codeBuilder.AppendLine("        public static ClassMetadata Metadata { get; } = new ClassMetadata");
             codeBuilder.AppendLine("        {");
+            codeBuilder.AppendLine($"            Namespace = \"{EscapeString(metadata.Namespace)}\",");
+            codeBuilder.AppendLine($"            ClassName = \"{EscapeString(metadata.ClassName)}\",");
+            codeBuilder.AppendLine($"            FullName = \"{EscapeString(metadata.FullName)}\",");
+            codeBuilder.AppendLine($"            Mode = \"{EscapeString(metadata.Mode)}\",");
+            codeBuilder.AppendLine($"            SourceType = MetadataSource.{metadata.SourceType},");
+            codeBuilder.AppendLine($"            Summary = {FormatStringValue(metadata.Summary)},");
+            codeBuilder.AppendLine($"            IsRecord = {metadata.IsRecord.ToString().ToLower()},");
+            codeBuilder.AppendLine($"            TypeKind = \"{metadata.TypeKind}\",");
+            codeBuilder.AppendLine($"            TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
+            codeBuilder.AppendLine($"            BaseType = \"{EscapeString(metadata.BaseType)}\",");
+
+            codeBuilder.AppendLine("            Properties = new Collection<PropertyMetadata>");
+            codeBuilder.AppendLine("            {");
             foreach (var prop in metadata.Properties)
             {
-                codeBuilder.AppendLine("            new PropertyMetadata");
-                codeBuilder.AppendLine("            {");
-                codeBuilder.AppendLine($"                Name = \"{EscapeString(prop.Name)}\",");
-                codeBuilder.AppendLine($"                TypeName = \"{EscapeString(prop.TypeName)}\",");
-                codeBuilder.AppendLine($"                TypeFullName = \"{EscapeString(prop.TypeFullName)}\",");
-                codeBuilder.AppendLine($"                IsNullable = {prop.IsNullable.ToString().ToLower()},");
-                codeBuilder.AppendLine($"                Summary = {FormatStringValue(prop.Summary)},");
-                codeBuilder.AppendLine("                Attributes = new List<AttributeMetadata>");
+                codeBuilder.AppendLine("                new PropertyMetadata");
                 codeBuilder.AppendLine("                {");
+                codeBuilder.AppendLine($"                    Name = \"{EscapeString(prop.Name)}\",");
+                codeBuilder.AppendLine($"                    TypeName = \"{EscapeString(prop.TypeName)}\",");
+                codeBuilder.AppendLine($"                    TypeFullName = \"{EscapeString(prop.TypeFullName)}\",");
+                codeBuilder.AppendLine($"                    IsNullable = {prop.IsNullable.ToString().ToLower()},");
+                codeBuilder.AppendLine($"                    Summary = {FormatStringValue(prop.Summary)},");
+                codeBuilder.AppendLine("                    Attributes = new List<AttributeMetadata>");
+                codeBuilder.AppendLine("                    {");
                 foreach (var attr in prop.Attributes)
                 {
-                    codeBuilder.AppendLine("                    new AttributeMetadata");
-                    codeBuilder.AppendLine("                    {");
-                    codeBuilder.AppendLine($"                        TypeFullName = \"{EscapeString(attr.TypeFullName)}\",");
-                    codeBuilder.AppendLine("                        Properties = new Dictionary<string, object>");
+                    codeBuilder.AppendLine("                        new AttributeMetadata");
                     codeBuilder.AppendLine("                        {");
+                    codeBuilder.AppendLine($"                            TypeFullName = \"{EscapeString(attr.TypeFullName)}\",");
+                    codeBuilder.AppendLine("                            Properties = new Dictionary<string, object>");
+                    codeBuilder.AppendLine("                            {");
                     foreach (var attrProp in attr.Properties)
                     {
-                        codeBuilder.AppendLine($"                            {{ \"{EscapeString(attrProp.Key)}\", {GetLiteralValue(attrProp.Value)} }},");
+                        codeBuilder.AppendLine($"                                {{ \"{EscapeString(attrProp.Key)}\", {GetLiteralValue(attrProp.Value)} }},");
                     }
-                    codeBuilder.AppendLine("                        }");
-                    codeBuilder.AppendLine("                    },");
+                    codeBuilder.AppendLine("                            }");
+                    codeBuilder.AppendLine("                        },");
                 }
-                codeBuilder.AppendLine("                }");
-                codeBuilder.AppendLine("            },");
+                codeBuilder.AppendLine("                    }");
+                codeBuilder.AppendLine("                },");
             }
-            codeBuilder.AppendLine("        },");
+            codeBuilder.AppendLine("            },");
 
-            // 填充方法集合
-            codeBuilder.AppendLine("        Methods = new Collection<MethodMetadata>");
-            codeBuilder.AppendLine("        {");
+            codeBuilder.AppendLine("            Methods = new Collection<MethodMetadata>");
+            codeBuilder.AppendLine("            {");
             foreach (var method in metadata.Methods)
             {
-                codeBuilder.AppendLine("            new MethodMetadata");
-                codeBuilder.AppendLine("            {");
-                codeBuilder.AppendLine($"                Name = \"{EscapeString(method.Name)}\",");
-                codeBuilder.AppendLine($"                ReturnType = \"{EscapeString(method.ReturnType)}\",");
-                codeBuilder.AppendLine($"                IsAsync = {method.IsAsync.ToString().ToLower()},");
-                codeBuilder.AppendLine($"                Summary = {FormatStringValue(method.Summary)},");
-                codeBuilder.AppendLine($"                AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
-                codeBuilder.AppendLine("                Parameters = new List<ParameterMetadata>");
+                codeBuilder.AppendLine("                new MethodMetadata");
                 codeBuilder.AppendLine("                {");
+                codeBuilder.AppendLine($"                    Name = \"{EscapeString(method.Name)}\",");
+                codeBuilder.AppendLine($"                    ReturnType = \"{EscapeString(method.ReturnType)}\",");
+                codeBuilder.AppendLine($"                    IsAsync = {method.IsAsync.ToString().ToLower()},");
+                codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
+                codeBuilder.AppendLine($"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
+                codeBuilder.AppendLine("                    Parameters = new List<ParameterMetadata>");
+                codeBuilder.AppendLine("                    {");
                 foreach (var param in method.Parameters)
                 {
-                    codeBuilder.AppendLine($"                    new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
+                    codeBuilder.AppendLine($"                        new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
                 }
-                codeBuilder.AppendLine("                }");
-                codeBuilder.AppendLine("            },");
+                codeBuilder.AppendLine("                    }");
+                codeBuilder.AppendLine("                },");
             }
-            codeBuilder.AppendLine("        }");
-            codeBuilder.AppendLine("    };");
+            codeBuilder.AppendLine("            }");
+            codeBuilder.AppendLine("        };");
+            codeBuilder.AppendLine("    }");
             codeBuilder.AppendLine("}");
 
             return codeBuilder.ToString();
@@ -119,110 +120,24 @@ namespace xCodeGen.SourceGenerator
             try
             {
                 var codeBuilder = new StringBuilder();
-                codeBuilder.AppendLine("// <auto-generated/>");
-                codeBuilder.AppendLine("#nullable disable");
-                codeBuilder.AppendLine("using System;");
-                codeBuilder.AppendLine("using System.Collections.Generic;");
-                codeBuilder.AppendLine("using System.Linq;");
-                codeBuilder.AppendLine("using xCodeGen.Abstractions.Metadata;");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine($"namespace {projectInfo.GeneratedNamespace};");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("public class ProjectMetaContext : IProjectMetaContext");
-                codeBuilder.AppendLine("{");
-                codeBuilder.AppendLine("    public static ProjectMetaContext Instance { get; } = new ProjectMetaContext();");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("    private readonly List<ClassMetadata> _allMetadatas = new List<ClassMetadata>();");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("    private ProjectMetaContext()");
-                codeBuilder.AppendLine("    {");
+                codeBuilder.AppendLine("// <auto-generated/>\r\n#nullable disable\r\nusing System;\r\nusing System.Collections.Generic;\r\nusing System.Linq;\r\nusing xCodeGen.Abstractions.Metadata;\r\n\r\nnamespace " + projectInfo.GeneratedNamespace + "\r\n{");
+                codeBuilder.AppendLine("    public class ProjectMetaContext : IProjectMetaContext\r\n    {");
+                codeBuilder.AppendLine("        public static ProjectMetaContext Instance { get; } = new ProjectMetaContext();\r\n        private readonly List<ClassMetadata> _allMetadatas = new List<ClassMetadata>();\r\n        private ProjectMetaContext()\r\n        {");
                 foreach (var metadata in classMetadatas.OrderBy(m => m.ClassName))
-                {
-                    codeBuilder.AppendLine($"        _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
-                }
-                codeBuilder.AppendLine("    }");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("    public IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();");
-                codeBuilder.AppendLine();
-
-                // 完整实现 Configuration 属性
-                codeBuilder.AppendLine("    public ProjectConfiguration Configuration { get; } = new ProjectConfiguration(");
-                codeBuilder.AppendLine($"        projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\",");
-                codeBuilder.AppendLine($"        outputPath: \"{EscapeString(projectInfo.OutputPath)}\",");
-                codeBuilder.AppendLine($"        rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\",");
-                codeBuilder.AppendLine($"        assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\",");
-                codeBuilder.AppendLine($"        targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\",");
-                codeBuilder.AppendLine($"        buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\",");
-                codeBuilder.AppendLine($"        langVersion: \"{EscapeString(projectInfo.LangVersion)}\",");
-                codeBuilder.AppendLine($"        nullable: \"{EscapeString(projectInfo.Nullable)}\",");
-                codeBuilder.AppendLine($"        generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\",");
-                codeBuilder.AppendLine($"        generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\",");
-                codeBuilder.AppendLine($"        generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\"");
-                codeBuilder.AppendLine("    );");
-                codeBuilder.AppendLine();
-
-                // 完整实现其他属性与方法
-                codeBuilder.AppendLine("    public MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
-                codeBuilder.AppendLine("    public string MetadataSchemaVersion => \"2.0\";");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("    public ClassMetadata FindByClassName(string className) => _allMetadatas.FirstOrDefault(m => m.ClassName == className);");
-                codeBuilder.AppendLine();
-                codeBuilder.AppendLine("    public IEnumerable<ClassMetadata> FindByNamespace(string @namespace) => _allMetadatas.Where(m => m.Namespace == @namespace);");
-
-                codeBuilder.AppendLine("}");
-
+                    codeBuilder.AppendLine($"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
+                codeBuilder.AppendLine("        }\r\n        public IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();");
+                codeBuilder.AppendLine("        public ProjectConfiguration Configuration { get; } = new ProjectConfiguration(projectDirectory: \"" + EscapeString(projectInfo.ProjectDirectory) + "\", outputPath: \"" + EscapeString(projectInfo.OutputPath) + "\", rootNamespace: \"" + EscapeString(projectInfo.RootNamespace) + "\", assemblyName: \"" + EscapeString(projectInfo.AssemblyName) + "\", targetFramework: \"" + EscapeString(projectInfo.TargetFramework) + "\", buildConfiguration: \"" + EscapeString(projectInfo.BuildConfiguration) + "\", langVersion: \"" + EscapeString(projectInfo.LangVersion) + "\", nullable: \"" + EscapeString(projectInfo.Nullable) + "\", generatedNamespace: \"" + EscapeString(projectInfo.GeneratedNamespace) + "\", generatedFilesDirectory: \"" + EscapeString(projectInfo.GeneratedFilesDirectory) + "\", generatorVersion: \"" + EscapeString(projectInfo.GeneratorVersion) + "\");");
+                codeBuilder.AppendLine("        public MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();\r\n        public string MetadataSchemaVersion => \"2.0\";\r\n        public ClassMetadata FindByClassName(string className) => _allMetadatas.FirstOrDefault(m => m.ClassName == className);\r\n        public IEnumerable<ClassMetadata> FindByNamespace(string @namespace) => _allMetadatas.Where(m => m.Namespace == @namespace);\r\n    }\r\n}");
                 context.AddSource("ProjectMetaContext.g.cs", SourceText.From(codeBuilder.ToString(), Encoding.UTF8));
             }
-            catch (Exception ex)
-            {
-                ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}");
-            }
+            catch (Exception ex) { ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}"); }
         }
 
-        private void GenerateDebugLogFile(SourceProductionContext context)
-        {
-            var logContent = new StringBuilder();
-            logContent.AppendLine($"namespace {DebugLogNamespace};");
-            logContent.AppendLine("public class CodeMetaDataExtractorLog { public static List<string> Logs = new List<string>(); }");
-            context.AddSource("Logs/CodeMetaData_DebugLog.g.cs", SourceText.From(logContent.ToString(), Encoding.UTF8));
-        }
-
-        private void ReportError(SourceProductionContext context, string message)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("CMD001", "元数据生成错误", message, "CodeMeta", DiagnosticSeverity.Error, true), Location.None));
-        }
-
-        private void LogDebug(SourceProductionContext context, string message)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("CMD000", "元数据生成调试", message, "CodeMeta", DiagnosticSeverity.Info, true), Location.None));
-        }
-
-        private string EscapeString(string value)
-        {
-            if (value == null) return string.Empty;
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n"); // 修复多行转义 Bug
-        }
-
-        private string FormatStringValue(string value) => value == null ? "null" : $"\"{EscapeString(value)}\"";
-
-        private string GetLiteralValue(object value)
-        {
-            if (value == null) return "null";
-            if (value is string s) return $"\"{EscapeString(s)}\"";
-            if (value is bool b) return b.ToString().ToLower();
-
-            // 修复：处理特性中的 typeof() 类型常量
-            if (value is ITypeSymbol symbol)
-                return $"typeof({symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)})";
-
-            if (value is Enum e) return $"{e.GetType().Name}.{e}";
-            return value.ToString();
-        }
-
+        private void GenerateDebugLogFile(SourceProductionContext context) { var logContent = new StringBuilder(); logContent.AppendLine("namespace " + DebugLogNamespace + " { public class CodeMetaData_DebugLog { public static List<string> Logs = new List<string>(); } }"); context.AddSource("Logs/CodeMetaData_DebugLog.g.cs", SourceText.From(logContent.ToString(), Encoding.UTF8)); }
+        private void ReportError(SourceProductionContext context, string message) { context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("CMD001", "元数据生成错误", message, "CodeMeta", DiagnosticSeverity.Error, true), Location.None)); }
+        private string EscapeString(string value) { if (value == null) return string.Empty; return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n"); }
+        private string FormatStringValue(string value) { if (string.IsNullOrEmpty(value)) return "\"\""; return "@\"" + value.Replace("\"", "\"\"") + "\""; }
+        private string GetLiteralValue(object value) { if (value == null) return "null"; if (value is string s) return $"\"{EscapeString(s)}\""; if (value is bool b) return b.ToString().ToLower(); if (value is ITypeSymbol symbol) return $"typeof({symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)})"; if (value is Enum e) return $"{e.GetType().Name}.{e}"; return value.ToString(); }
         private string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName) ? "Unknown" : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
     }
 }

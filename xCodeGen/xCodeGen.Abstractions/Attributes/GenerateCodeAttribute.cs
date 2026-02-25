@@ -26,9 +26,9 @@ namespace xCodeGen.Abstractions.Attributes
         public string TargetLanguage { get; set; } = "C#";
 
         /// <summary>
-        /// 生成类型（以便模板区分不同类型，如 Dto、Entity、Controller 等）
+        /// 源码类型（以便模板区分不同类型，如 Dto、Entity、Controller 等）
         /// </summary>
-        public string Type { get; set; } = "Dto";
+        public string Type { get; set; } = "Model";
 
         /// <summary>
         /// 用于覆盖类元数据的命名空间

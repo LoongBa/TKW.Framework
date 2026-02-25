@@ -28,11 +28,9 @@ public class Engine(
 
         try
         {
-            // 1. 初始化模板引擎
             if (!string.IsNullOrEmpty(config.TemplatesPath))
                 templateEngine.LoadTemplates(config.TemplatesPath);
 
-            // 2. 收集原始元数据并记录计数
             var (enabledExtractors, _) = GetEnabledExtractors(options.MetadataSources);
             var allRawMetadata = new List<RawMetadata>();
             foreach (var extractor in enabledExtractors)
@@ -42,25 +40,22 @@ public class Engine(
                 {
                     var metaList = extracted.ToList();
                     allRawMetadata.AddRange(metaList);
-                    // 修正：记录元数据来源计数
                     result.AddExtracted(extractor.SourceType.ToString(), metaList.Count);
                 }
             }
 
-            // 3. 执行生成流水线
             foreach (var raw in allRawMetadata)
             {
+                // 1. 转换元数据，此时 MetadataConverter.Convert 内部会调用 SanitizeMetadata 进行清洗
                 var classMeta = metadataConverter.Convert(raw);
                 if (classMeta == null) continue;
 
-                // 注入全局 CustomSettings
                 if (config.CustomSettings != null)
                 {
                     foreach (var setting in config.CustomSettings)
                         classMeta.GenerateCodeSettings[setting.Key] = setting.Value;
                 }
 
-                // 4. 遍历配置的产物类型
                 foreach (var mapping in config.TemplateMappings)
                 {
                     var artifactType = mapping.Key;
@@ -68,14 +63,27 @@ public class Engine(
 
                     try
                     {
-                        // A. 处理生成的产物 (.generated.cs)
                         var pattern = config.FileNamePatterns.GetValueOrDefault(artifactType, "{ClassName}.generated.cs");
                         var subDir = config.OutputDirectories.GetValueOrDefault(artifactType, artifactType);
                         var outputBase = Path.Combine(config.OutputRoot, subDir);
                         var genPath = fileWriter.ResolveOutputPath(outputBase, classMeta.ClassName, pattern);
 
-                        if (!config.EnableSkipUnchanged || incrementalChecker.NeedRegenerate(classMeta, outputBase, classMeta.ClassName, pattern))
+                        // 2. 读取模板原文内容 (用于感知模板变更)
+                        var fullTemplatePath = Path.Combine(config.TemplatesPath, templatePath);
+                        var templateContent = File.Exists(fullTemplatePath) ? await File.ReadAllTextAsync(fullTemplatePath) : string.Empty;
+
+                        // 3. 修复 CS0165：显式计算哈希，确保变量在所有分支路径下都被赋值
+                        var currentHash = IncrementalChecker.ComputeLogicHash(classMeta, templateContent);
+
+                        // 4. 执行增量检查
+                        var shouldGenerate = !config.EnableSkipUnchanged ||
+                                             incrementalChecker.NeedRegenerate(classMeta, outputBase, classMeta.ClassName, pattern, templateContent, out currentHash);
+
+                        if (shouldGenerate)
                         {
+                            // 5. 注入稳定的逻辑指纹到元数据设置中
+                            classMeta.GenerateCodeSettings["MetadataHash"] = currentHash;
+
                             var code = await templateEngine.RenderAsync(classMeta, templatePath);
                             fileWriter.Write(code, genPath, true);
                             result.AddGenerated($"{classMeta.ClassName} [{artifactType}]", genPath);
@@ -83,11 +91,10 @@ public class Engine(
                         else
                         {
                             result.SkippedCount++;
-                            // 记录跳过的详细路径
                             result.SkippedFiles[$"{classMeta.ClassName} [{artifactType}]"] = genPath;
                         }
 
-                        // B. 处理骨架文件 (.cs)
+                        // 骨架处理 (Skeleton)
                         var skeletonKey = artifactType + "Empty";
                         if (config.SkeletonMappings?.TryGetValue(skeletonKey, out var skelTemplate) == true)
                         {
@@ -100,12 +107,10 @@ public class Engine(
                             {
                                 var skelCode = await templateEngine.RenderAsync(classMeta, skelTemplate);
                                 fileWriter.Write(skelCode, skelPath, false);
-                                // 修正：唯一化骨架键名，防止 DTO 和 Model 骨架冲突
                                 result.SkeletonFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
                             }
                             else
                             {
-                                // 若已存在，归类为跳过
                                 result.SkippedCount++;
                                 result.SkippedFiles[$"{classMeta.ClassName} [{artifactType} Skel]"] = skelPath;
                             }
@@ -120,11 +125,7 @@ public class Engine(
             result.Success = !result.Errors.Any();
         }
         catch (Exception ex) { result.AddError($"引擎异常: {ex.Message}"); }
-        finally
-        {
-            timer.Stop();
-            result.ElapsedMilliseconds = timer.ElapsedMilliseconds;
-        }
+        finally { timer.Stop(); result.ElapsedMilliseconds = timer.ElapsedMilliseconds; }
         return result;
     }
 
@@ -132,7 +133,7 @@ public class Engine(
     {
         var enabled = new List<IMetaDataExtractor>();
         var invalid = new List<string>();
-        foreach (var s in sources ?? Enumerable.Empty<string>())
+        foreach (var s in sources ?? [])
         {
             if (Enum.TryParse<MetadataSource>(s, true, out var type))
             {

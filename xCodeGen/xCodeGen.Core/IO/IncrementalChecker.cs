@@ -8,71 +8,67 @@ using xCodeGen.Abstractions.Metadata;
 namespace xCodeGen.Core.IO;
 
 /// <summary>
-/// 增量生成校验器，基于元数据内容哈希判断是否需要重新生成（防抖动）
+/// 增量生成校验器，基于逻辑指纹判断是否需要重新生成
 /// </summary>
 public class IncrementalChecker(IFileWriter fileWriter)
 {
-    /// <summary>
-    /// 检查特定产物是否需要重新生成
-    /// </summary>
-    /// <param name="metadata">类元数据</param>
-    /// <param name="outputDirectory">输出子目录</param>
-    /// <param name="className">类名（用于路径解析）</param>
-    /// <param name="pattern">文件名模式（如 {ClassName}.Dto.generated.cs）</param>
-    public bool NeedRegenerate(ClassMetadata metadata, string outputDirectory, string className, string pattern)
+    public bool NeedRegenerate(ClassMetadata metadata, string outputDirectory, string className, string pattern, string templateContent, out string currentHash)
     {
-        // 1. 构建完整的目标物理路径
+        // 计算“逻辑指纹”
+        currentHash = ComputeLogicHash(metadata, templateContent);
+
         var targetFilePath = fileWriter.ResolveOutputPath(outputDirectory, className, pattern);
+        if (!File.Exists(targetFilePath)) return true;
 
-        // 2. 目标文件不存在 → 必须生成
-        if (!File.Exists(targetFilePath))
-            return true;
-
-        // 3. 比较哈希值
-        // 理想逻辑：只有元数据关键结构（属性、特性）变化时才触发重新生成
-        var metadataHash = ComputeMetadataHash(metadata);
-        var existingFileHash = ComputeFileHash(targetFilePath);
-
-        return metadataHash != existingFileHash;
-    }
-
-    /// <summary>
-    /// 计算元数据哈希（包含属性、特性，确保 Model 变更能被感知）
-    /// </summary>
-    public static string ComputeMetadataHash(ClassMetadata metadata)
-    {
-        var sb = new StringBuilder();
-        sb.Append($"{metadata.Namespace}.{metadata.ClassName};");
-
-        // 属性变更（名称、类型、特性值）
-        foreach (var prop in metadata.Properties.OrderBy(p => p.Name))
-        {
-            sb.Append($"{prop.Name}:{prop.TypeName};");
-            foreach (var attr in prop.Attributes)
-            {
-                sb.Append($"[{attr.TypeFullName}({string.Join(",", attr.Properties.Keys)})];");
-            }
-        }
-
-        // 方法变更
-        foreach (var method in metadata.Methods.OrderBy(m => m.Name))
-        {
-            sb.Append($"{method.Name}:{method.ReturnType};");
-        }
-
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
-        return Convert.ToHexString(bytes);
-    }
-
-    private static string ComputeFileHash(string filePath)
-    {
         try
         {
-            // 注意：这里计算的是文件内容的整体哈希
-            // 若模板中包含时间戳，建议在生成的代码中固定 Hash 标记，仅读取标记行进行比对
-            using var stream = File.OpenRead(filePath);
-            return Convert.ToHexString(SHA256.HashData(stream));
+            using var reader = new StreamReader(targetFilePath);
+            // 扫描前 10 行寻找指纹标记
+            for (int i = 0; i < 10; i++)
+            {
+                var line = reader.ReadLine();
+                if (line == null) break;
+
+                // 核心对比：文件标记中是否包含当前逻辑指纹
+                if (line.Contains("[xCodeGen.Hash:") && line.Contains(currentHash))
+                    return false; // 指纹完全匹配，跳过生成
+            }
         }
-        catch { return string.Empty; }
+        catch { return true; }
+        return true;
+    }
+
+    /// <summary>
+    /// 计算逻辑指纹（元数据结构 + 模板持久化哈希）
+    /// </summary>
+    public static string ComputeLogicHash(ClassMetadata metadata, string templateContent)
+    {
+        var sb = new StringBuilder();
+        // 1. 元数据维度
+        sb.Append($"{metadata.Namespace}.{metadata.ClassName}:{metadata.Summary};");
+        foreach (var p in metadata.Properties.OrderBy(p => p.Name))
+        {
+            sb.Append($"{p.Name}:{p.TypeName}:{p.Summary};");
+            foreach (var a in p.Attributes.OrderBy(at => at.TypeFullName))
+                sb.Append($"[{a.TypeFullName}];");
+        }
+
+        // 2. 模板维度：使用稳定哈希替代随机化的 GetHashCode()
+        sb.Append($"|T:{GetStableHash(templateContent)}");
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        return Convert.ToHexString(bytes).Substring(0, 16);
+    }
+
+    /// <summary>
+    /// 获取稳定的字符串哈希（不受 .NET 运行时随机种子影响）
+    /// </summary>
+    private static string GetStableHash(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "0";
+        // 规范化换行符，防止因模板文件换行符不同导致哈希失效
+        var normalized = input.Replace("\r\n", "\n").Replace("\r", "\n");
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(bytes).Substring(0, 8);
     }
 }

@@ -259,7 +259,7 @@ class Program
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("--------------------------------------------------------------------");
-        Console.WriteLine(" xCodeGen Ver2.25 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品");
+        Console.WriteLine(" xCodeGen Ver2.26 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品");
         Console.WriteLine("--------------------------------------------------------------------");
         Console.ResetColor();
     }
