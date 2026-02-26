@@ -4,29 +4,22 @@
     var dtoName = Model.ClassName + "Dto";
 }
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using TKW.Framework.Common.Enumerations;
 
 namespace @(Model.Namespace).DTOs;
 
 /// <summary>
-/// @(Model.Summary ?? Model.ClassName) 的手写 DTO 扩展
+/// @Raw(Model.Summary ?? Model.ClassName) 的手写 DTO 扩展
 /// </summary>
 public partial record @dtoName
 {
-    /// <summary>
-    /// 执行 DTO 数据的业务预校验
-    /// </summary>
-    public void ValidateData(EnumSceneFlags scene)
+    /// <summary>根据需要添加自定义验证逻辑</summary>
+    partial void OnCustomValidate(EnumSceneFlags scene, List<ValidationResult> results)
     {
-        // 1. 执行自动生成的结构校验
-        ValidateCore(scene);
-
-        // 2. 执行自定义业务数据校验
-        OnCustomValidate(scene);
-    }
-
-    void OnCustomValidate(EnumSceneFlags scene)
-    {
-        // 这里可以实现非数据库依赖的字段交叉验证
+        // 示例：非数据库依赖的字段交叉验证
+        // if (this.StartTime > this.EndTime) 
+        //    results.Add(new ValidationResult("开始时间不能晚于结束时间", new[] { nameof(StartTime) }));
     }
 }

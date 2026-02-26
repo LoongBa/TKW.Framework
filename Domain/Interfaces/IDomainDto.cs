@@ -1,20 +1,16 @@
-﻿using TKW.Framework.Common.Enumerations;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using TKW.Framework.Common.Enumerations;
 
 namespace TKW.Framework.Domain.Interfaces;
 
 public interface IDomainDto<TEntity> where TEntity : IDomainEntity
 {
-    /// <summary>
-    /// 应用 DTO 的数据到指定的实体对象上，并返回更新后的实体对象。
-    /// </summary>
-    /// <param name="entity">实体</param>
-    /// <param name="scene">区分场景</param>
+    /// <summary> 应用 DTO 数据到实体 </summary>
     TEntity ApplyToEntity(TEntity entity, EnumSceneFlags scene = EnumSceneFlags.Update);
 
-    /// <summary>
-    /// 执行 DTO 数据的业务预校验
-    /// </summary>
-    void ValidateData(EnumSceneFlags scene);
+    /// <summary> 执行业务预校验，返回所有校验结果 </summary>
+    IEnumerable<ValidationResult> ValidateData(EnumSceneFlags scene);
 
     /// <summary>
     /// 是否来自持久化来源（如数据库查询）。

@@ -1,32 +1,23 @@
 ﻿@using xCodeGen.Abstractions.Metadata
 @model xCodeGen.Abstractions.Metadata.ClassMetadata
-@{
-    var className = Model.ClassName;
-}
-using System;
-using TKW.Framework.Domain.Interception.Filters;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using TKW.Framework.Common.Enumerations;
 
 namespace @Model.Namespace;
 
 /// <summary>
-/// @(Model.Summary ?? className + " 业务逻辑实现")
+/// @Raw(Model.Summary ?? Model.ClassName + " 业务逻辑实现")
 /// </summary>
-public partial class @className
+public partial class @Model.ClassName
 {
     /// <summary>
-    /// 手写业务校验逻辑
+    /// 根据需要添加业务验证逻辑 (例如跨表验证、状态机检查) 
     /// </summary>
-    public void Validate()
+    partial void OnBusinessValidate(EnumSceneFlags scene, List<ValidationResult> results)
     {
-        // 调用生成的结构化验证
-        ValidateCore();
-
-        // 此处添加自定义业务逻辑验证
-        OnBusinessValidate();
-    }
-
-    void OnBusinessValidate()
-    {
-        // 领域驱动设计的业务规则实现点
+        // 示例：领域驱动设计的业务验证规则 
+        // if (this.Status == Status.Disabled && this.Stock > 0)
+        //     results.Add(new ValidationResult("禁用状态下不能有库存", new[] { nameof(Status) }));
     }
 }
