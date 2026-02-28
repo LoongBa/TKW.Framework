@@ -40,7 +40,8 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 BaseType = GetValue(data, "BaseType", "object"),
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is bool b && b,
                 TypeKind = GetValue(data, "TypeKind", "class"),
-                ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ?? new List<string>(),
+                ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ??
+                                        [],
                 Methods = ConvertToMethodMetadataList(data.GetValueOrDefault("Methods") as List<Dictionary<string, object>>),
                 Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>)
             };
@@ -69,7 +70,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
     /// <summary>
     /// 解码 XML 实体并清除空白
     /// </summary>
-    private static string? CleanAndDecode(string? input)
+    private static string CleanAndDecode(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return null;
 
@@ -80,7 +81,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
 
     private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)
     {
-        if (rawMethods == null) return new List<MethodMetadata>();
+        if (rawMethods == null) return [];
         return rawMethods.Select(m => new MethodMetadata
         {
             Name = GetValue(m, "Name", "Unknown"),
@@ -94,7 +95,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
 
     private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>> rawProps)
     {
-        if (rawProps == null) return new List<PropertyMetadata>();
+        if (rawProps == null) return [];
         return rawProps.Select(p => new PropertyMetadata
         {
             Name = GetValue(p, "Name", "Unknown"),
@@ -108,7 +109,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
 
     private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams)
     {
-        if (rawParams == null) return new List<ParameterMetadata>();
+        if (rawParams == null) return [];
         return rawParams.Select(p => new ParameterMetadata
         {
             Name = GetValue(p, "Name", "unnamed"),
@@ -120,7 +121,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
 
     private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs)
     {
-        if (rawAttrs == null) return new List<AttributeMetadata>();
+        if (rawAttrs == null) return [];
         return rawAttrs.Select(a => new AttributeMetadata
         {
             TypeFullName = GetValue(a, "TypeFullName", string.Empty),

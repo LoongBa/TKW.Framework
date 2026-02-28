@@ -5,8 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
@@ -52,7 +50,6 @@ namespace xCodeGen.SourceGenerator
         {
             var typeDecl = (TypeDeclarationSyntax)context.Node;
             if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
-
             if (!symbol.HasGenerateCodeAttribute()) return null;
 
             var rawMetadata = ConvertToRawMetadata(typeDecl, context.SemanticModel);
@@ -70,9 +67,7 @@ namespace xCodeGen.SourceGenerator
         private RawMetadata ConvertToRawMetadata(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel)
         {
             if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
-            {
                 return new RawMetadata { SourceType = MetadataSource.Error };
-            }
 
             var (summary, source) = GetNodeSummary(symbol, typeDecl);
 
@@ -93,7 +88,8 @@ namespace xCodeGen.SourceGenerator
                     { "BaseType", symbol.BaseType?.ToDisplayString() ?? "object" },
                     { "ImplementedInterfaces", symbol.AllInterfaces.Select(i => i.ToDisplayString()).ToList() },
                     { "Methods", ExtractMethodMetadataList(symbol) },
-                    { "Properties", ExtractPropertyMetadataList(symbol) }
+                    { "Properties", ExtractPropertyMetadataList(symbol) },
+                    { "Attributes", ExtractAttributeMetadataList(symbol.GetAttributes()) }
                 }
             };
         }
@@ -197,7 +193,12 @@ namespace xCodeGen.SourceGenerator
         }
 
         private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs) =>
-            rawAttrs?.Select(a => new AttributeMetadata { TypeFullName = a["TypeFullName"] as string, Properties = a.TryGetValue("Properties", out var p) ? (Dictionary<string, object>)p : new Dictionary<string, object>() }).ToList() ?? new List<AttributeMetadata>();
+            rawAttrs?.Select(a => new AttributeMetadata
+            {
+                TypeFullName = a["TypeFullName"] as string,
+                Properties = a.TryGetValue("Properties", out var p) ? (Dictionary<string, object>)p : new Dictionary<string, object>(),
+                ConstructorArguments = a.TryGetValue("ConstructorArguments", out var c) ? (List<object>)c : new List<object>()
+            }).ToList() ?? new List<AttributeMetadata>();
 
         private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>> rawProps) =>
             rawProps?.Select(p => new PropertyMetadata { Name = p["Name"] as string, TypeName = p["Type"] as string, TypeFullName = p["TypeFullName"] as string, IsNullable = (bool)p["IsNullable"], Summary = p.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty, Attributes = ConvertToAttributeMetadataList(p["Attributes"] as List<Dictionary<string, object>>) }).ToList() ?? new List<PropertyMetadata>();
@@ -214,12 +215,33 @@ namespace xCodeGen.SourceGenerator
         /// <summary>
         /// 提取特性元数据列表
         /// </summary>
+        /// <summary>
+        /// 增强版特性元数据提取：确保类型安全的值获取
+        /// </summary>
         private List<Dictionary<string, object>> ExtractAttributeMetadataList(ImmutableArray<AttributeData> attributes)
         {
-            return attributes.Select(attr => new Dictionary<string, object>
+            return attributes.Select(attr =>
             {
-                { "TypeFullName", attr.AttributeClass?.ToDisplayString() },
-                { "Properties", attr.NamedArguments.ToDictionary(a => a.Key, a => a.Value.Value ?? string.Empty) }
+                var props = new Dictionary<string, object>();
+
+                // 提取命名参数 (NamedArguments)
+                foreach (var arg in attr.NamedArguments)
+                {
+                    // 关键：保留原始值类型 (bool, int, string) 以便下游 Policy 准确判断
+                    props[arg.Key] = arg.Value.Value ?? string.Empty;
+                }
+
+                // 提取构造函数参数 (可选，用于 IndexAttribute 等)
+                var constructorArgs = attr.ConstructorArguments
+                    .Select(a => a.Value ?? string.Empty)
+                    .ToList();
+
+                return new Dictionary<string, object>
+                {
+                    { "TypeFullName", attr.AttributeClass?.ToDisplayString() },
+                    { "Properties", props },
+                    { "ConstructorArguments", constructorArgs }
+                };
             }).ToList();
         }
 

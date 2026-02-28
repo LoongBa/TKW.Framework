@@ -1,64 +1,33 @@
 ﻿@using System.Linq
+@using xCodeGen.Abstractions
 @using xCodeGen.Abstractions.Metadata
 @model ClassMetadata
 @{
-    var props = Model.Properties;
+    // 判定类型：1 为 DTO 校验，2 为 Model 校验
+    int checkType = !Model.ClassName.EndsWith("Dto") ? 2 : 1;
 }
+        // 运行时通过 ProjectMetaContext 构建字典
+        var _propMap = ProjectMetaContext.Instance.FindByClassName("@Model.ClassName").Properties.ToDictionary(x => x.Name);
 
-@foreach (var p in props)
+@foreach (var p in Model.Properties)
 {
-    var summary = string.IsNullOrWhiteSpace(p.Summary) ? p.Name : p.Summary;
-    var fieldSummary = Raw(summary);
+    if (CodeGenPolicy.IsAutoManaged(p)) continue; 
 
-    // --- 1. 物理约束与标准 DataAnnotations (Model & DTO 共用) ---
-
-    // [物理长度] 提取 ColumnAttribute 或 StringLengthAttribute [cite: 38-41]
-    var colAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("ColumnAttribute"));
-    var strLenAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("StringLengthAttribute") || a.TypeFullName.Contains("MaxLengthAttribute"));
-
-    int? maxLength = null;
-    if (colAttr != null && colAttr.Properties.TryGetValue("StringLength", out var clen)) maxLength = (int)clen;
-    else if (strLenAttr != null && strLenAttr.Properties.TryGetValue("Length", out var slen)) maxLength = (int)slen;
-
-    if (maxLength.HasValue && maxLength > 0)
-    {
-@:        if (this.@(p.Name)?.Length > @maxLength)
-@:            yield return new ValidationResult("@fieldSummary 长度超限 (最大 @maxLength)", new[] { "@p.Name" });
-    }
-
-    // [标准必填] 兼容 [Required] [cite: 42, 43]
-    if (p.Attributes.Any(a => a.TypeFullName.Contains("RequiredAttribute")))
-    {
-@:        if (string.IsNullOrWhiteSpace(this.@p.Name))
-@:            yield return new ValidationResult("@fieldSummary 不能为空", new[] { "@p.Name" });
-    }
-
-    // [数值范围] 兼容 [Range(min, max)] [cite: 44-47]
-    var rangeAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("RangeAttribute"));
-    if (rangeAttr != null)
-    {
-        var min = rangeAttr.Properties.ContainsKey("Minimum") ? rangeAttr.Properties["Minimum"] : 0;
-        var max = rangeAttr.Properties.ContainsKey("Maximum") ? rangeAttr.Properties["Maximum"] : int.MaxValue;
-@:        if (this.@(p.Name) < @min || this.@(p.Name) > @max)
-@:            yield return new ValidationResult("@fieldSummary 数值超出范围 [@min - @max]", new[] { "@p.Name" });
-    }
-
-    // --- 2. DTO 场景约束 (位运算逻辑) [cite: 48-50] ---
     var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DtoFieldAttribute"));
-    if (dtoAttr != null)
-    {
-        // 场景 A: CreateRequired
-        if (dtoAttr.Properties.TryGetValue("CreateRequired", out var cr) && (bool)cr)
+    var fieldLabel = Raw(CodeGenPolicy.GetStringProp(dtoAttr, "DisplayName") ?? (string.IsNullOrWhiteSpace(p.Summary) ? p.Name : p.Summary));
+
+@:    if (CodeGenPolicy.CanProcess(_propMap, "@p.Name", scene, this.IsFromPersistentSource, @checkType))
+@:    {
+        var colAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("ColumnAttribute"));
+        int slen = CodeGenPolicy.GetIntProp(colAttr, "StringLength", 0); 
+        if (slen > 0)
         {
-    @:        if (scene == EnumSceneFlags.Create && string.IsNullOrWhiteSpace(this.@p.Name))
-    @:            yield return new ValidationResult("@fieldSummary 不能为空", new[] { "@p.Name" });
+@:        if (this.@(p.Name)?.Length > @slen) yield return new ValidationResult("@(fieldLabel) 长度超限 (@slen)", new[] { "@p.Name" });
         }
 
-        // 场景 B: RequiredScenes (位运算判断)
-        if (dtoAttr.Properties.TryGetValue("RequiredScenes", out var rs) && (int)rs > 0)
+        if (p.Attributes.Any(a => a.TypeFullName.Contains("RequiredAttribute")) || CodeGenPolicy.GetBoolProp(dtoAttr, "IsRequired", false))
         {
-    @:        if (((int)scene & @rs) != 0 && string.IsNullOrWhiteSpace(this.@p.Name))
-    @:            yield return new ValidationResult("@fieldSummary 在当前场景下必填", new[] { "@p.Name" });
+@:        if (string.IsNullOrWhiteSpace(this.@p.Name)) yield return new ValidationResult("@(fieldLabel) 不能为空", new[] { "@p.Name" });
         }
-    }
+@:    }
 }

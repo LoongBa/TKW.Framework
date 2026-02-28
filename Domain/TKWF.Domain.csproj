@@ -41,6 +41,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Common\TKWF.Common.csproj" />
     <ProjectReference Include="..\Cryptography\TKWF.Cryptography.csproj" />
+    <ProjectReference Include="..\xCodeGen\xCodeGen.Abstractions\xCodeGen.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

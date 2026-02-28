@@ -1,7 +1,9 @@
 ﻿@using System.Linq
 @using xCodeGen.Abstractions.Metadata
+@using xCodeGen.Abstractions
 @model xCodeGen.Abstractions.Metadata.ClassMetadata
 @{
+    var generatedNs = Model.GenerateCodeSettings["GeneratedNamespace"]?.ToString();
     string metaHash = Model.GenerateCodeSettings?.ContainsKey("MetadataHash") == true 
         ? Model.GenerateCodeSettings["MetadataHash"]?.ToString() : "N/A";
     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -17,45 +19,29 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Domain.Interfaces;
-using TKW.Framework.Domain.Interception.Filters;
+using TKW.Framework.Common.Exceptions;
+using xCodeGen.Abstractions;
+using @generatedNs;
 
 namespace @Model.Namespace;
 
 public partial class @Model.ClassName : IDomainEntity
 {
-    /// <summary>
-    /// 执行统一验证 (包含自动生成的数据验证和自定义业务数据验证) [cite: 45]
-    /// </summary>
-    public void Validate(EnumSceneFlags scene = EnumSceneFlags.All)
+    public void Validate(EnumSceneFlags scene = EnumSceneFlags.ForceValidate)
     {
-        // 来源感应：数据库数据跳过校验 
-        if (IsFromPersistentSource) return;
-
-        // 1. 执行自动生成的数据验证 
+        if (IsFromPersistentSource && (scene & EnumSceneFlags.ForceValidate) == 0) return;
         var results = ValidateDataCore(scene).ToList();
-
-        // 2. 执行自定义业务数据验证 (通过 partial 方法注入) [cite: 47]
         OnBusinessValidate(scene, results);
-
-        // 3. 抛出包含所有结果的自定义异常 
-        if (results.Any())
-            throw new ValidationResultsException(results);
+        if (results.Any()) throw new ValidationResultsException(results);
     }
 
-    /// <summary>
-    /// 自动生成的领域一致性验证（数据库约束） [cite: 50]
-    /// </summary>
     protected IEnumerable<ValidationResult> ValidateDataCore(EnumSceneFlags scene = EnumSceneFlags.None)
     {
         @{ await IncludeAsync("_InternalValidation.cshtml", Model); }
         yield break;
     }
 
-    /// <summary> 是否来自持久化来源 (通常由仓库层设置) </summary>
     public bool IsFromPersistentSource { get; set; } = false;
-
-    /// <summary> 根据需要添加自定义验证逻辑 </summary>
     partial void OnBusinessValidate(EnumSceneFlags scene, List<ValidationResult> results);
 }

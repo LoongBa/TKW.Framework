@@ -49,7 +49,10 @@ public class Engine(
                 // 1. 转换元数据，此时 MetadataConverter.Convert 内部会调用 SanitizeMetadata 进行清洗
                 var classMeta = metadataConverter.Convert(raw);
                 if (classMeta == null) continue;
-
+                if (raw.Data.TryGetValue("GeneratedNamespace", out var genNs))
+                {
+                    classMeta.GenerateCodeSettings["GeneratedNamespace"] = genNs;
+                }
                 if (config.CustomSettings != null)
                 {
                     foreach (var setting in config.CustomSettings)

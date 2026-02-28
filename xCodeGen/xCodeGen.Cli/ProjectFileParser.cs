@@ -4,7 +4,7 @@ namespace xCodeGen.Cli;
 
 public static class ProjectFileParser
 {
-    public static string GetAssemblyPath(string projectPath)
+    public static string? GetAssemblyPath(string projectPath)
     {
         var doc = XDocument.Load(projectPath);
         var rootDir = Path.GetDirectoryName(projectPath);

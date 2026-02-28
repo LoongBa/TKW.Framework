@@ -54,6 +54,15 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"            TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
             codeBuilder.AppendLine($"            BaseType = \"{EscapeString(metadata.BaseType)}\",");
 
+            // --- 序列化 Class 级别的 Attributes ---
+            codeBuilder.AppendLine("            Attributes = new Collection<AttributeMetadata>");
+            codeBuilder.AppendLine("            {");
+            foreach (var attr in metadata.Attributes)
+            {
+                BuildAttributeInitialization(codeBuilder, attr, "                ");
+            }
+            codeBuilder.AppendLine("            },");
+
             codeBuilder.AppendLine("            Properties = new Collection<PropertyMetadata>");
             codeBuilder.AppendLine("            {");
             foreach (var prop in metadata.Properties)
@@ -69,17 +78,7 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine("                    {");
                 foreach (var attr in prop.Attributes)
                 {
-                    codeBuilder.AppendLine("                        new AttributeMetadata");
-                    codeBuilder.AppendLine("                        {");
-                    codeBuilder.AppendLine($"                            TypeFullName = \"{EscapeString(attr.TypeFullName)}\",");
-                    codeBuilder.AppendLine("                            Properties = new Dictionary<string, object>");
-                    codeBuilder.AppendLine("                            {");
-                    foreach (var attrProp in attr.Properties)
-                    {
-                        codeBuilder.AppendLine($"                                {{ \"{EscapeString(attrProp.Key)}\", {GetLiteralValue(attrProp.Value)} }},");
-                    }
-                    codeBuilder.AppendLine("                            }");
-                    codeBuilder.AppendLine("                        },");
+                    BuildAttributeInitialization(codeBuilder, attr, "                        ");
                 }
                 codeBuilder.AppendLine("                    }");
                 codeBuilder.AppendLine("                },");
@@ -114,6 +113,45 @@ namespace xCodeGen.SourceGenerator
             return codeBuilder.ToString();
         }
 
+        /// <summary>
+        /// 内部辅助：构建 AttributeMetadata 的 C# 初始化代码
+        /// </summary>
+        private void BuildAttributeInitialization(StringBuilder codeBuilder, AttributeMetadata attr, string indent)
+        {
+            codeBuilder.AppendLine($"{indent}new AttributeMetadata");
+            codeBuilder.AppendLine($"{indent}{{");
+            codeBuilder.AppendLine($"{indent}    Name = \"{EscapeString(attr.Name)}\",");
+            codeBuilder.AppendLine($"{indent}    TypeFullName = \"{EscapeString(attr.TypeFullName)}\",");
+
+            // 序列化构造函数参数
+            codeBuilder.AppendLine($"{indent}    ConstructorArguments = new Collection<object>");
+            codeBuilder.AppendLine($"{indent}    {{");
+            foreach (var arg in attr.ConstructorArguments)
+            {
+                codeBuilder.AppendLine($"{indent}        {GetLiteralValue(arg)},");
+            }
+            codeBuilder.AppendLine($"{indent}    }},");
+
+            // 序列化命名参数字典 (Properties & NamedArguments)
+            codeBuilder.AppendLine($"{indent}    Properties = new Dictionary<string, object>");
+            codeBuilder.AppendLine($"{indent}    {{");
+            foreach (var prop in attr.Properties)
+            {
+                codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
+            }
+            codeBuilder.AppendLine($"{indent}    }},");
+
+            codeBuilder.AppendLine($"{indent}    NamedArguments = new Dictionary<string, object>");
+            codeBuilder.AppendLine($"{indent}    {{");
+            foreach (var prop in attr.Properties)
+            {
+                codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
+            }
+            codeBuilder.AppendLine($"{indent}    }}");
+
+            codeBuilder.AppendLine($"{indent}}},");
+        }
+
         public void GenerateProjectMetaContext(SourceProductionContext context, IEnumerable<ClassMetadata> allMetadatas, ProjectInfo projectInfo, MetadataChangeLog changeLog)
         {
             var classMetadatas = allMetadatas.ToList();
@@ -137,7 +175,26 @@ namespace xCodeGen.SourceGenerator
         private void ReportError(SourceProductionContext context, string message) { context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("CMD001", "元数据生成错误", message, "CodeMeta", DiagnosticSeverity.Error, true), Location.None)); }
         private string EscapeString(string value) { if (value == null) return string.Empty; return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n"); }
         private string FormatStringValue(string value) { if (string.IsNullOrEmpty(value)) return "\"\""; return "@\"" + value.Replace("\"", "\"\"") + "\""; }
-        private string GetLiteralValue(object value) { if (value == null) return "null"; if (value is string s) return $"\"{EscapeString(s)}\""; if (value is bool b) return b.ToString().ToLower(); if (value is ITypeSymbol symbol) return $"typeof({symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)})"; if (value is Enum e) return $"{e.GetType().Name}.{e}"; return value.ToString(); }
+
+        /// <summary>
+        /// 获取值的字面量表示，确保类型安全
+        /// </summary>
+        private string GetLiteralValue(object value)
+        {
+            if (value == null) return "null";
+            if (value is string s) return $"\"{EscapeString(s)}\"";
+            if (value is bool b) return b.ToString().ToLower();
+            if (value is int i) return i.ToString();
+            if (value is long l) return l.ToString() + "L";
+            if (value is Enum e) return $"{e.GetType().Name}.{e}";
+
+            // 处理 typeof() 情况
+            var strVal = value.ToString();
+            if (strVal.Contains("typeof(")) return strVal;
+
+            return $"\"{EscapeString(strVal)}\""; // 默认作为字符串回退，防止生成非法代码
+        }
+
         private string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName) ? "Unknown" : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
     }
 }

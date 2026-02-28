@@ -27,7 +27,9 @@ public class CompiledMetadataExtractor(IProjectMetaContext context) : IMetaDataE
             SourceId = meta.FullName,
             Data = new Dictionary<string, object>
             {
-                { "Object", meta } // MetadataConverter 将从此解析出 ClassMetadata
+                { "Object", meta },
+                // 关键点：将项目级命名空间配置注入 RawMetadata
+                { "GeneratedNamespace", context.Configuration.GeneratedNamespace }
             }
         });
 
