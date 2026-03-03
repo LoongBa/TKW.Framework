@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 
-namespace xCodeGen.Core;
+namespace TKW.Framework.Domain.xCodeGen;
 
 public static class MaskHelper
 {
@@ -11,17 +11,17 @@ public static class MaskHelper
     /// #：掩盖该位置字符
     /// 其它：保留模式中的字面量（如 @, .）
     /// </summary>
-    public static string GetMaskedValue(string value, string pattern)
+    public static string GetMaskedValue(string? value, string pattern)
     {
         if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(pattern)) return value;
 
         var sb = new StringBuilder();
-        int vIdx = 0;
+        var vIdx = 0;
 
-        for (int pIdx = 0; pIdx < pattern.Length; pIdx++)
+        for (var pIdx = 0; pIdx < pattern.Length; pIdx++)
         {
             if (vIdx >= value.Length) break;
-            char pChar = pattern[pIdx];
+            var pChar = pattern[pIdx];
 
             // 处理转义
             if (pChar == '\\' && pIdx + 1 < pattern.Length)
@@ -30,35 +30,37 @@ public static class MaskHelper
             }
 
             // 检查贪婪位
-            bool isGreedy = (pIdx + 1 < pattern.Length && pattern[pIdx + 1] == '*');
+            var isGreedy = (pIdx + 1 < pattern.Length && pattern[pIdx + 1] == '*');
 
-            if (pChar == '?')
+            switch (pChar)
             {
-                if (!isGreedy) sb.Append(value[vIdx++]);
-                else
+                case '?' when !isGreedy:
+                    sb.Append(value[vIdx++]);
+                    break;
+                case '?':
                 {
                     // 贪婪保留：保留剩余长度减去模式后缀长度的所有字符
-                    int suffixLen = CountPatternSuffix(pattern, pIdx + 2);
-                    int count = Math.Max(0, value.Length - vIdx - suffixLen);
+                    var suffixLen = CountPatternSuffix(pattern, pIdx + 2);
+                    var count = Math.Max(0, value.Length - vIdx - suffixLen);
                     while (count-- > 0) sb.Append(value[vIdx++]);
                     pIdx++; // 跳过 *
+                    break;
                 }
-            }
-            else if (pChar == '#')
-            {
-                if (!isGreedy) { sb.Append('*'); vIdx++; }
-                else
+                case '#' when !isGreedy:
+                    sb.Append('*'); vIdx++;
+                    break;
+                case '#':
                 {
-                    int suffixLen = CountPatternSuffix(pattern, pIdx + 2);
-                    int count = Math.Max(0, value.Length - vIdx - suffixLen);
+                    var suffixLen = CountPatternSuffix(pattern, pIdx + 2);
+                    var count = Math.Max(0, value.Length - vIdx - suffixLen);
                     while (count-- > 0) { sb.Append('*'); vIdx++; }
                     pIdx++; // 跳过 *
+                    break;
                 }
-            }
-            else
-            {
-                sb.Append(pChar);
-                vIdx++;
+                default:
+                    sb.Append(pChar);
+                    vIdx++;
+                    break;
             }
         }
         return sb.ToString();

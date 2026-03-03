@@ -34,7 +34,6 @@ public static class EngineFactory
             converter,
             templateEngine,
             fileWriter,
-            namingService,
             incrementalChecker
         );
     }

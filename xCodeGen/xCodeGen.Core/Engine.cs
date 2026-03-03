@@ -9,7 +9,6 @@ using xCodeGen.Abstractions.Templates;
 using xCodeGen.Core.Configuration;
 using xCodeGen.Core.IO;
 using xCodeGen.Core.Models;
-using xCodeGen.Core.Services;
 
 namespace xCodeGen.Core;
 
@@ -18,7 +17,6 @@ public class Engine(
     IMetadataConverter metadataConverter,
     ITemplateEngine templateEngine,
     IFileWriter fileWriter,
-    NamingService namingService,
     IncrementalChecker incrementalChecker)
 {
     public async Task<GenerateResult> GenerateAsync(GenerateOptions options, CodeGenConfig config)

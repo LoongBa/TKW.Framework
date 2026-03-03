@@ -49,19 +49,22 @@ namespace xCodeGen.Abstractions
         /// <summary>
         /// 统一判定函数：合并字典查找与策略判定
         /// </summary>
+        /// <param name="isFromPersistent"></param>
         /// <param name="checkType">0-回填(Map), 1-DTO校验, 2-Model校验</param>
         /// <param name="map"></param>
-        public static bool CanProcess(IReadOnlyDictionary<string, PropertyMetadata> map, string propertyName, EnumSceneFlags scene, bool isFromPersistent, int checkType)
+        /// <param name="propertyName"></param>
+        /// <param name="scene"></param>
+        public static bool CanProcess(IReadOnlyDictionary<string, PropertyMetadata> map, string propertyName, EnumSceneFlags scene, bool isFromPersistent, ValidationModeEnum checkType)
         {
             if (!map.TryGetValue(propertyName, out var pMeta)) return false;
             switch (checkType)
             {
-                case 0:
-                    return ShouldMapToEntity(pMeta, scene);
-                case 1:
+                case ValidationModeEnum.Dto:
                     return ShouldValidateDto(pMeta, scene, isFromPersistent);
-                case 2:
+                case ValidationModeEnum.Model:
                     return ShouldValidateModel(pMeta, scene, isFromPersistent);
+                case ValidationModeEnum.None:
+                    return ShouldMapToEntity(pMeta, scene);
                 default:
                     return false;
             }

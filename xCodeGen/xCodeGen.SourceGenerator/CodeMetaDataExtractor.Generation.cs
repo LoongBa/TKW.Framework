@@ -141,13 +141,13 @@ namespace xCodeGen.SourceGenerator
             }
             codeBuilder.AppendLine($"{indent}    }},");
 
-            codeBuilder.AppendLine($"{indent}    NamedArguments = new Dictionary<string, object>");
+            /*codeBuilder.AppendLine($"{indent}    NamedArguments = new Dictionary<string, object>");
             codeBuilder.AppendLine($"{indent}    {{");
             foreach (var prop in attr.Properties)
             {
                 codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
             }
-            codeBuilder.AppendLine($"{indent}    }}");
+            codeBuilder.AppendLine($"{indent}    }}");*/
 
             codeBuilder.AppendLine($"{indent}}},");
         }
