@@ -11,22 +11,22 @@ using xCodeGen.Abstractions.Metadata;
 namespace TKW.Framework.Domain.xCodeGen;
 
 /// <summary>
-/// 统一的流式验证器，支持 DTO (checkType=1) 和 Model (checkType=2) 场景
+/// 统一的流式验证器，支持 DTO 和 Model 场景，集成了策略引擎与元数据驱动逻辑
 /// </summary>
-/// <typeparam name="T">验证目标类型（Model 或 DTO）</typeparam>
+/// <typeparam name="T">目标对象类型</typeparam>
 public class FluentValidator<T>(
     T target,
     EnumSceneFlags scene,
     IReadOnlyDictionary<string, PropertyMetadata> meta,
     ValidationModeEnum checkType)
-where T : IIsFromPersistentSource
+where T : ISupportPersistenceState
 {
     private readonly List<ValidationResult> _results = [];
 
-    #region 核心验证逻辑
+    #region 基础校验入口
 
     /// <summary>
-    /// 基础校验逻辑（高性能版本：建议由模板生成代码使用，避免运行时编译 Lambda）
+    /// 核心校验判定（高性能版本：由模板代码调用，避免运行时 Lambda 编译）
     /// </summary>
     public FluentValidator<T> Check<TValue>(
         string propName,
@@ -34,8 +34,10 @@ where T : IIsFromPersistentSource
         Func<TValue, bool> predicate,
         string errorMessage)
     {
-        // 判定是否需要执行校验：1 为 DTO 验证，2 为 Model 验证
-        if (!CodeGenPolicy.CanProcess(meta, propName, scene, target.IsFromPersistentSource, checkType))
+        meta.TryGetValue(propName, out var pMeta);
+
+        // 调用决策引擎判定当前字段在当前模式下是否应被验证
+        if (!CodeGenPolicy.CanProcess(pMeta, scene, target.IsFromPersistentSource, checkType))
             return this;
 
         if (!predicate(getter(target)))
@@ -46,7 +48,7 @@ where T : IIsFromPersistentSource
     }
 
     /// <summary>
-    /// 基础校验逻辑（表达式版本：建议由开发者在 .Logic.cs 手写扩展时使用，自动提取属性名）
+    /// 核心校验判定（易用性版本：支持开发者在 Logic 文件中通过表达式调用）
     /// </summary>
     public FluentValidator<T> Check<TValue>(
         Expression<Func<T, TValue>> expression,
@@ -60,9 +62,8 @@ where T : IIsFromPersistentSource
 
     #endregion
 
-    #region 常用校验扩展 (支持高性能与表达式双重载)
+    #region 常用规则重载
 
-    /// <summary> 必填校验 (由模板使用) </summary>
     public FluentValidator<T> Required<TValue>(string propName, Func<T, TValue> getter)
     {
         return Check(propName, getter, val =>
@@ -73,42 +74,22 @@ where T : IIsFromPersistentSource
         }, $"{GetDisplayName(propName)} 不能为空");
     }
 
-    /// <summary> 必填校验 (由开发者手写使用) </summary>
     public FluentValidator<T> Required<TValue>(Expression<Func<T, TValue>> expression)
-    {
-        return Required(GetPropertyName(expression), expression.Compile());
-    }
+        => Required(GetPropertyName(expression), expression.Compile());
 
-    /// <summary> 最大长度校验 (由模板使用) </summary>
     public FluentValidator<T> MaxLength(string propName, int max, Func<T, string> getter)
     {
         return Check(propName, getter, s => (s?.Length ?? 0) <= max,
             $"{GetDisplayName(propName)} 长度不能超过 {max}");
     }
 
-    /// <summary> 最大长度校验 (由开发者手写使用) </summary>
     public FluentValidator<T> MaxLength(Expression<Func<T, string>> expression, int max)
-    {
-        return MaxLength(GetPropertyName(expression), max, expression.Compile());
-    }
+        => MaxLength(GetPropertyName(expression), max, expression.Compile());
 
     #endregion
 
-    #region 辅助方法
+    #region 辅助与结果处理
 
-    /// <summary>
-    /// 从表达式中解析属性名称，避免手动传入 nameof()
-    /// </summary>
-    private static string GetPropertyName<TValue>(Expression<Func<T, TValue>> expression)
-    {
-        if (expression.Body is MemberExpression member) return member.Member.Name;
-        if (expression.Body is UnaryExpression { Operand: MemberExpression m }) return m.Member.Name;
-        throw new ArgumentException("无法从表达式中提取属性名", nameof(expression));
-    }
-
-    /// <summary>
-    /// 获取友好的显示名称：优先取 DtoFieldAttribute.DisplayName，其次取元数据的 Summary
-    /// </summary>
     private string GetDisplayName(string propName)
     {
         if (meta.TryGetValue(propName, out var p))
@@ -121,12 +102,15 @@ where T : IIsFromPersistentSource
         return propName;
     }
 
-    /// <summary> 获取所有验证结果 </summary>
+    private static string GetPropertyName<TValue>(Expression<Func<T, TValue>> expression)
+    {
+        if (expression.Body is MemberExpression member) return member.Member.Name;
+        if (expression.Body is UnaryExpression { Operand: MemberExpression m }) return m.Member.Name;
+        throw new ArgumentException("无法解析属性表达式", nameof(expression));
+    }
+
     public List<ValidationResult> GetResults() => _results;
 
-    /// <summary>
-    /// 若存在验证错误，则抛出统一的 ValidationResultsException
-    /// </summary>
     public void ThrowIfInvalid()
     {
         if (_results.Any()) throw new ValidationResultsException(_results);

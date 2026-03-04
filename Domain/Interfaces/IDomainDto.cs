@@ -2,7 +2,7 @@
 
 namespace TKW.Framework.Domain.Interfaces;
 
-public interface IIsFromPersistentSource
+public interface ISupportPersistenceState
 {
     /// <summary>
     /// 是否来自持久化来源（如数据库查询）。
@@ -13,7 +13,7 @@ public interface IIsFromPersistentSource
     bool IsFromPersistentSource { get; }
 }
 
-public interface IDomainDto<TEntity> : IIsFromPersistentSource where TEntity : IDomainEntity
+public interface IDomainDto<TEntity> : ISupportPersistenceState where TEntity : IDomainEntity
 {
     /// <summary> 应用 DTO 数据到实体 </summary>
     TEntity ApplyToEntity(TEntity entity, EnumSceneFlags scene = EnumSceneFlags.Update);
