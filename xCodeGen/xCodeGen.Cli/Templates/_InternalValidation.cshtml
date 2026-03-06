@@ -1,33 +1,33 @@
-﻿@using System.Linq
-@using xCodeGen.Abstractions
-@using xCodeGen.Abstractions.Metadata
+﻿@using xCodeGen.Abstractions.Metadata
+@using TKW.Framework.Domain.xCodeGen
 @model ClassMetadata
 @{
-    // 判定类型：1 为 DTO 校验，2 为 Model 校验
-    int checkType = !Model.ClassName.EndsWith("Dto") ? 2 : 1;
-}
-        // 运行时通过 ProjectMetaContext 构建字典
-        var _propMap = ProjectMetaContext.Instance.FindByClassName("@Model.ClassName").Properties.ToDictionary(x => x.Name);
+    var generateType = Model.GenerateCodeSettings.ContainsKey("Type") 
+            ? Model.GenerateCodeSettings["Type"].ToString() : "";
+    bool isDto = generateType == "Dto";
 
-@foreach (var p in Model.Properties)
-{
-    if (CodeGenPolicy.IsAutoManaged(p)) continue; 
+    // 1. 直接通过 this 启动验证链条
+    if (isDto) {
+        @:this.CreateDtoValidator<@(Model.ClassName), @(Model.ClassName)Dto>(scene, results)
+    } else {
+        @:this.CreateModelValidator(scene, results)
+    }
 
-    var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DtoFieldAttribute"));
-    var fieldLabel = Raw(CodeGenPolicy.GetStringProp(dtoAttr, "DisplayName") ?? (string.IsNullOrWhiteSpace(p.Summary) ? p.Name : p.Summary));
-
-@:    if (CodeGenPolicy.CanProcess(_propMap, "@p.Name", scene, this.IsFromPersistentSource, @checkType))
-@:    {
+    // 2. 链式调用：保持 12 格缩进以对齐起始方法
+    foreach (var p in Model.Properties)
+    {
         var colAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("ColumnAttribute"));
-        int slen = CodeGenPolicy.GetIntProp(colAttr, "StringLength", 0); 
-        if (slen > 0)
-        {
-@:        if (this.@(p.Name)?.Length > @slen) yield return new ValidationResult("@(fieldLabel) 长度超限 (@slen)", new[] { "@p.Name" });
-        }
-
+        var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DtoFieldAttribute"));
+        
         if (p.Attributes.Any(a => a.TypeFullName.Contains("RequiredAttribute")) || CodeGenPolicy.GetBoolProp(dtoAttr, "IsRequired", false))
         {
-@:        if (string.IsNullOrWhiteSpace(this.@p.Name)) yield return new ValidationResult("@(fieldLabel) 不能为空", new[] { "@p.Name" });
+            @:.Required(nameof(@p.Name), d => d.@p.Name)
         }
-@:    }
+
+        if (colAttr != null && colAttr.Properties.TryGetValue("StringLength", out var slenObj) && slenObj is int slen && slen > 0)
+        {
+            @:.MaxLength(nameof(@p.Name), @slen, d => d.@p.Name)
+        }
+    }
+        @:;
 }

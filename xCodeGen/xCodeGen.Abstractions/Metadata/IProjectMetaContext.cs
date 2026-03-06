@@ -16,5 +16,10 @@ namespace xCodeGen.Abstractions.Metadata
 
         ClassMetadata FindByClassName(string className);
         IEnumerable<ClassMetadata> FindByNamespace(string @namespace);
+
+        /// <summary>
+        /// 高性能获取属性字典的方法，供 ValidationCache 调用
+        /// </summary>
+        IReadOnlyDictionary<string, PropertyMetadata> GetPropertyMap(string className);
     }
 }

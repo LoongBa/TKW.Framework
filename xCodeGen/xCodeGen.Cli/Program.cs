@@ -78,21 +78,32 @@ class Program
         };
 
         var assembly = Assembly.LoadFrom(targetDll);
+
+        // 1. 定位生成的上下文类型 (IProjectMetaContext 的非抽象实现)
         var contextType = GetLoadableTypes(assembly).FirstOrDefault(t =>
             typeof(IProjectMetaContext).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
 
         if (contextType == null)
-            throw new InvalidOperationException("程序集中未发现有效的 IProjectMetaContext 实现。");
+            throw new InvalidOperationException("程序集中未发现有效的 ProjectMetaContext 实现类。");
 
-        var instanceProperty = contextType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+        // 2. 核心修复：显式触发生成类的静态构造函数
+        // 因为 Instance 的赋值逻辑位于生成的 ProjectMetaContext 静态构造函数中
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(contextType.TypeHandle);
+
+        // 3. 核心修复：从基类 ProjectMetaContextBase 读取单例
+        // 这样可以确保即便子类没有 Instance 属性，也能通过继承链拿到基类持有的引用
+        var baseType = typeof(ProjectMetaContextBase);
+        var instanceProperty = baseType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
         var contextInstance = instanceProperty?.GetValue(null) as IProjectMetaContext;
 
         if (contextInstance == null)
-            throw new InvalidOperationException("无法获取元数据上下文实例。");
+            throw new InvalidOperationException("无法获取元数据上下文实例。请检查生成的静态构造函数初始化逻辑。");
 
         // 初始化核心组件
         var fileWriter = new FileSystemWriter();
         var templateEngine = new RazorLightTemplateEngine(config.TemplatesPath);
+
+        // 此时 contextInstance 已经持有完整的项目元数据
         var extractors = new List<IMetaDataExtractor> { new CompiledMetadataExtractor(contextInstance) };
         var engine = EngineFactory.Create(config, extractors, templateEngine, fileWriter);
 

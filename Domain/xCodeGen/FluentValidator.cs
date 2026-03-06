@@ -3,30 +3,23 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Linq.Expressions;
-using TKW.Framework.Common.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 using xCodeGen.Abstractions;
-using xCodeGen.Abstractions.Metadata;
 
 namespace TKW.Framework.Domain.xCodeGen;
 
 /// <summary>
-/// 统一的流式验证器，支持 DTO 和 Model 场景，集成了策略引擎与元数据驱动逻辑
+/// 深度优化版流式验证器：Readonly Struct 架构，实现零堆分配验证流程
 /// </summary>
-/// <typeparam name="T">目标对象类型</typeparam>
-public class FluentValidator<T>(
+public readonly struct FluentValidator<T>(
     T target,
     EnumSceneFlags scene,
-    IReadOnlyDictionary<string, PropertyMetadata> meta,
-    ValidationModeEnum checkType)
+    ValidationModeEnum mode,
+    List<ValidationResult> results)
 where T : ISupportPersistenceState
 {
-    private readonly List<ValidationResult> _results = [];
-
-    #region 基础校验入口
-
     /// <summary>
-    /// 核心校验判定（高性能版本：由模板代码调用，避免运行时 Lambda 编译）
+    /// 核心校验判定（高性能版本：由模板代码调用）
     /// </summary>
     public FluentValidator<T> Check<TValue>(
         string propName,
@@ -34,21 +27,22 @@ where T : ISupportPersistenceState
         Func<TValue, bool> predicate,
         string errorMessage)
     {
-        meta.TryGetValue(propName, out var pMeta);
+        // 直接从静态泛型缓存获取元数据，无需外部传递字典
+        ValidationCache<T>.Meta.TryGetValue(propName, out var pMeta);
 
-        // 调用决策引擎判定当前字段在当前模式下是否应被验证
-        if (!CodeGenPolicy.CanProcess(pMeta, scene, target.IsFromPersistentSource, checkType))
+        // 调用决策引擎判定 (V1.31)
+        if (!CodeGenPolicy.CanProcess(pMeta, scene, target.IsFromPersistentSource, mode))
             return this;
 
         if (!predicate(getter(target)))
         {
-            _results.Add(new ValidationResult(errorMessage, [propName]));
+            results.Add(new ValidationResult(errorMessage, new[] { propName }));
         }
         return this;
     }
 
     /// <summary>
-    /// 核心校验判定（易用性版本：支持开发者在 Logic 文件中通过表达式调用）
+    /// 核心校验判定（易用性版本：支持手写代码调用，自动缓存编译结果）
     /// </summary>
     public FluentValidator<T> Check<TValue>(
         Expression<Func<T, TValue>> expression,
@@ -56,13 +50,11 @@ where T : ISupportPersistenceState
         string errorMessage)
     {
         var propName = GetPropertyName(expression);
-        var getter = expression.Compile();
+        var getter = ValidationCache<T>.GetOrCompile(expression); // 自动获取缓存的 Func
         return Check(propName, getter, predicate, errorMessage);
     }
 
-    #endregion
-
-    #region 常用规则重载
+    #region 常用规则 DSL
 
     public FluentValidator<T> Required<TValue>(string propName, Func<T, TValue> getter)
     {
@@ -74,30 +66,24 @@ where T : ISupportPersistenceState
         }, $"{GetDisplayName(propName)} 不能为空");
     }
 
-    public FluentValidator<T> Required<TValue>(Expression<Func<T, TValue>> expression)
-        => Required(GetPropertyName(expression), expression.Compile());
-
     public FluentValidator<T> MaxLength(string propName, int max, Func<T, string> getter)
     {
         return Check(propName, getter, s => (s?.Length ?? 0) <= max,
             $"{GetDisplayName(propName)} 长度不能超过 {max}");
     }
 
-    public FluentValidator<T> MaxLength(Expression<Func<T, string>> expression, int max)
-        => MaxLength(GetPropertyName(expression), max, expression.Compile());
-
     #endregion
 
-    #region 辅助与结果处理
+    #region 辅助处理
 
     private string GetDisplayName(string propName)
     {
-        if (meta.TryGetValue(propName, out var p))
+        if (ValidationCache<T>.Meta.TryGetValue(propName, out var p))
         {
             var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DtoFieldAttribute"));
             var dn = CodeGenPolicy.GetStringProp(dtoAttr, "DisplayName");
             if (!string.IsNullOrEmpty(dn)) return dn;
-            if (!string.IsNullOrEmpty(p.Summary)) return p.Summary;
+            return !string.IsNullOrEmpty(p.Summary) ? p.Summary : propName;
         }
         return propName;
     }
@@ -106,14 +92,7 @@ where T : ISupportPersistenceState
     {
         if (expression.Body is MemberExpression member) return member.Member.Name;
         if (expression.Body is UnaryExpression { Operand: MemberExpression m }) return m.Member.Name;
-        throw new ArgumentException("无法解析属性表达式", nameof(expression));
-    }
-
-    public List<ValidationResult> GetResults() => _results;
-
-    public void ThrowIfInvalid()
-    {
-        if (_results.Any()) throw new ValidationResultsException(_results);
+        throw new ArgumentException("无法解析属性表达式");
     }
 
     #endregion
