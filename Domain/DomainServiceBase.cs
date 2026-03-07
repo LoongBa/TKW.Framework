@@ -33,6 +33,18 @@ public abstract class DomainServiceBase<TUserInfo> : IDomainService
     {
         User = user.EnsureNotNull(nameof(user));
     }
+
+    /// <summary>
+    /// 智能解析搜索字符串（配合代码生成器的自动查询使用）
+    /// 规则：默认精确匹配；'*' 开头模糊匹配；'**' 开头转义为精确匹配。
+    /// </summary>
+    protected (string Value, bool IsFuzzy) ParseSearchValue(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return (input, false);
+        if (input.StartsWith("**")) return (input[1..], false);
+        if (input.StartsWith("*")) return (input[1..], true);
+        return (input, false);
+    }
 }
 
 /// <summary>

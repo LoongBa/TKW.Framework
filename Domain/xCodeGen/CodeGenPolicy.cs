@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using xCodeGen.Abstractions;
 using xCodeGen.Abstractions.Metadata;
 
 namespace TKW.Framework.Domain.xCodeGen;
 
 /// <summary>
-/// 核心决策引擎：统一管理属性的回填、验证及查询生成策略 (V1.30)
+/// 核心决策引擎：统一管理属性的回填、验证及 Service 查询生成策略 (V1.41)
 /// </summary>
 public static class CodeGenPolicy
 {
@@ -15,12 +16,15 @@ public static class CodeGenPolicy
     private const string ColumnAttr = "ColumnAttribute";
     private const string IndexAttr = "IndexAttribute";
 
+    public const int DefaultPageSize = 20;
+    public const int DefaultLimit = 1000;
+    public const int MaxSearchLimit = 500;
+
     #region 核心决策逻辑 (Mapping & Validation)
 
     public static bool CanProcess(PropertyMetadata? pMeta, EnumSceneFlags scene, bool isFromPersistent, ValidationModeEnum mode)
     {
         if (pMeta == null) return false;
-
         return mode switch
         {
             ValidationModeEnum.Dto => ShouldValidateDto(pMeta, scene, isFromPersistent),
@@ -34,7 +38,6 @@ public static class CodeGenPolicy
     {
         var autoFields = new[] { "Id", "CreateTime", "UpdateTime", "IsDeleted", "TenantId" };
         if (autoFields.Contains(p.Name)) return true;
-
         var col = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(ColumnAttr));
         return col != null && (GetBoolProp(col, "IsIdentity", false) || GetBoolProp(col, "IsPrimary", false));
     }
@@ -44,10 +47,8 @@ public static class CodeGenPolicy
         if (IsAutoManaged(p)) return false;
         var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr));
         if (dtoAttr == null) return true;
-
         if (GetBoolProp(dtoAttr, "CanModify", true) == false) return false;
         if (scene == EnumSceneFlags.Update && GetBoolProp(dtoAttr, "UpdateReadOnly", false)) return false;
-
         return true;
     }
 
@@ -69,87 +70,118 @@ public static class CodeGenPolicy
 
     public class SearchGroupInfo
     {
-        /// <summary> 方法名后缀（如 Code, GradeAndClass） </summary>
         public string GroupName { get; set; } = string.Empty;
-        /// <summary> 参与查询的属性集合 </summary>
-        public List<PropertyMetadata> Properties { get; set; } = new();
-        /// <summary> 是否为唯一约束查询（决定生成 GetBy 还是 First/Select） </summary>
+        public List<PropertyMetadata> Properties { get; set; } = [];
         public bool IsUnique { get; set; }
     }
 
-    /// <summary>
-    /// 提取类元数据中所有需要自动生成的查询组 (对齐文档 9.3)
-    /// </summary>
     public static List<SearchGroupInfo> GetSearchGroups(ClassMetadata classMeta)
     {
         var groups = new List<SearchGroupInfo>();
         var props = classMeta.Properties.ToList();
+        var className = classMeta.ClassName;
 
-        // 1. 处理 IndexAttribute (IsUnique = true)
-        var indices = classMeta.Attributes.Where(a => a.TypeFullName.Contains(IndexAttr)).ToList();
-        foreach (var idx in indices)
-        {
-            if (!GetBoolProp(idx, "IsUnique", false)) continue;
-
-            // 修正 CS0021 错误：使用 ElementAt 访问 ICollection 元素，并访问 .Value
-            // IndexAttribute(string name, string fields, bool isUnique) -> fields 是第 2 个参数 (index 1)
-            var columnNames = idx.ConstructorArguments.Count > 1
-                ? idx.ConstructorArguments.ElementAt(1)?.ToString()?.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                : null;
-
-            if (columnNames == null) continue;
-
-            var groupProps = props.Where(p => columnNames.Any(c => c.Trim().Equals(p.Name, StringComparison.OrdinalIgnoreCase))).ToList();
-            if (groupProps.Any())
-            {
-                groups.Add(new SearchGroupInfo
-                {
-                    GroupName = string.Join("And", groupProps.Select(p => p.Name)),
-                    Properties = groupProps,
-                    IsUnique = true
-                });
-            }
-        }
-
-        // 2. 处理 DtoFieldAttribute 配置
         var searchGroupMap = new Dictionary<string, List<PropertyMetadata>>();
 
+        // 1. 处理 DtoFieldAttribute (最高优先级)
         foreach (var p in props)
         {
             var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr));
             if (dtoAttr == null) continue;
 
-            // 2.1 独立唯一键 (IsUnique = true) -> 生成 GetBy...
-            if (GetBoolProp(dtoAttr, "IsUnique", false))
+            var isUnique = GetBoolProp(dtoAttr, "IsUnique", false);
+            var isSearchable = GetBoolProp(dtoAttr, "IsSearchable", false);
+            var groupName = GetStringProp(dtoAttr, "SearchGroup");
+
+            // 1.1 独立查询 (IsSearchable 或 IsUnique)
+            if (isSearchable || isUnique)
             {
-                // 去重：检查是否已被 Index 覆盖
-                if (!groups.Any(g => g.Properties.Count == 1 && g.Properties[0].Name == p.Name))
+                groups.Add(new SearchGroupInfo
                 {
-                    groups.Add(new SearchGroupInfo { GroupName = p.Name, Properties = new List<PropertyMetadata> { p }, IsUnique = true });
-                }
+                    GroupName = ToPascalCase(p.Name, className),
+                    Properties = [p],
+                    IsUnique = isUnique
+                });
             }
 
-            // 2.2 SearchGroup 逻辑分组 -> 生成 First/Select...
-            var groupName = GetStringProp(dtoAttr, "SearchGroup");
+            // 1.2 复合查询 (SearchGroup)
             if (!string.IsNullOrEmpty(groupName))
             {
-                if (!searchGroupMap.ContainsKey(groupName)) searchGroupMap[groupName] = new List<PropertyMetadata>();
+                if (!searchGroupMap.ContainsKey(groupName)) searchGroupMap[groupName] = [];
                 searchGroupMap[groupName].Add(p);
             }
         }
 
-        // 3. 将 SearchGroup 映射为 SearchGroupInfo
         foreach (var kvp in searchGroupMap)
         {
+            var pName = ToPascalCase(kvp.Key, className);
+            if (kvp.Value.Count == 1 && groups.Any(g => g.GroupName == pName)) continue;
+
             groups.Add(new SearchGroupInfo
             {
-                GroupName = kvp.Key,
+                GroupName = pName,
                 Properties = kvp.Value,
-                IsUnique = false // SearchGroup 统一视为非唯一组合查询
+                IsUnique = GetBoolProp(kvp.Value[0].Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr)), "IsUnique", false)
+            });
+        }
+
+        // 2. 处理 IndexAttribute (低优先级，自动避让已处理的同名字段组合)
+        var indices = classMeta.Attributes.Where(a => a.TypeFullName.Contains(IndexAttr)).ToList();
+        foreach (var idx in indices)
+        {
+            var fieldsStr = idx.ConstructorArguments.Count > 1 ? idx.ConstructorArguments.ElementAt(1)?.ToString() : "";
+            if (string.IsNullOrEmpty(fieldsStr)) continue;
+
+            var columnNames = fieldsStr.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(c => c.Trim()).ToList();
+            var groupProps = props.Where(p => columnNames.Contains(p.Name)).ToList();
+            if (!groupProps.Any()) continue;
+
+            // 核心排他逻辑：如果 DtoField 已经处理过完全相同的字段组合，则忽略此索引
+            if (groups.Any(g => g.Properties.Select(p => p.Name).OrderBy(n => n).SequenceEqual(columnNames.OrderBy(n => n)))) continue;
+
+            var businessName = groupProps.Count == 1 ? groupProps[0].Name : ExtractIndexName(idx.ConstructorArguments.ElementAtOrDefault(0)?.ToString(), className, groupProps);
+
+            groups.Add(new SearchGroupInfo
+            {
+                GroupName = ToPascalCase(businessName, className),
+                Properties = groupProps,
+                IsUnique = GetBoolProp(idx, "IsUnique", false)
             });
         }
 
         return groups.OrderBy(g => g.GroupName).ToList();
+    }
+
+    private static string ExtractIndexName(string? indexName, string className, List<PropertyMetadata> props)
+    {
+        if (string.IsNullOrWhiteSpace(indexName)) return string.Join("And", props.Select(p => p.Name));
+
+        var parts = indexName.Split(['_'], StringSplitOptions.RemoveEmptyEntries);
+        var pascalName = string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..]));
+
+        if (pascalName.StartsWith("Idx", StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[3..];
+        else if (pascalName.StartsWith("Index", StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[5..];
+
+        if (pascalName.StartsWith(className, StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[className.Length..];
+
+        if (string.IsNullOrWhiteSpace(pascalName) || pascalName.Length < 2)
+            return string.Join("And", props.Select(p => p.Name));
+
+        return pascalName;
+    }
+
+    private static string ToPascalCase(string input, string? className = null)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "Query";
+        var clean = Regex.Replace(input, @"[^a-zA-Z0-9_]", "");
+
+        if (!string.IsNullOrEmpty(className) && clean.StartsWith(className, StringComparison.OrdinalIgnoreCase))
+            clean = clean[className.Length..];
+
+        var parts = clean.Split(['_'], StringSplitOptions.RemoveEmptyEntries);
+        var result = string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..]));
+
+        return string.IsNullOrEmpty(result) ? "Group" : result;
     }
 
     #endregion

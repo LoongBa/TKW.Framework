@@ -52,6 +52,20 @@ public partial record @dtoClassName : DomainDtoBase<@Model.ClassName>
 }
     #endregion
 
+    #region [ 静态工厂 ]
+    /// <summary> 从实体转换为 DTO  </summary>
+    public static @(dtoClassName) FromEntity(@(Model.ClassName) entity)
+    {
+        if (entity == null) return null;
+        return new @(dtoClassName)
+        {
+@foreach (var p in dtoProps) {
+            @:@(p.Name) = entity.@(p.Name),
+}
+        };
+    }
+    #endregion
+
     public override @Model.ClassName ApplyToEntity(@Model.ClassName entity, EnumSceneFlags scene = EnumSceneFlags.Update)
     {
         ArgumentNullException.ThrowIfNull(entity);

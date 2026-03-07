@@ -143,6 +143,7 @@ namespace xCodeGen.SourceGenerator
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && (bool)ir,
                 BaseType = data["BaseType"] as string ?? string.Empty,
                 ImplementedInterfaces = (data["ImplementedInterfaces"] as List<string>)?.ToList() ?? new List<string>(),
+                Attributes = ConvertToAttributeMetadataList(data["Attributes"] as List<Dictionary<string, object>>),
                 Methods = ConvertToMethodMetadataList(data["Methods"] as List<Dictionary<string, object>>),
                 Properties = ConvertToPropertyMetadataList(data["Properties"] as List<Dictionary<string, object>>)
             };
