@@ -3,42 +3,32 @@ using System;
 namespace xCodeGen.Abstractions.Attributes
 {
     /// <summary>
-    /// 标记需要生成元数据的类或接口
+    /// 标记需要生成代码的元数据配置
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, Inherited = false)]
     public class GenerateCodeAttribute : Attribute
     {
         public static string TypeFullName => typeof(GenerateCodeAttribute).FullName;
 
-        /// <summary>
-        /// 生成模式（Full/Lite）
-        /// </summary>
-        public string Mode { get; set; } = "Full";
-
-        /// <summary>
-        /// 是否包含详细注释
-        /// </summary>
-        public bool IncludeComments { get; set; } = true;
-
-        /// <summary>
-        /// 目标语言，例如 Python、C#、Java 等
-        /// </summary>
-        public string TargetLanguage { get; set; } = "C#";
-
-        /// <summary>
-        /// 源码类型（以便模板区分不同类型，如 Dto、Entity、Controller 等）
-        /// </summary>
+        /// <summary> 源码类型（如 Dto, Model, View） </summary>
         public string Type { get; set; } = "Model";
 
-        /// <summary>
-        /// 用于覆盖类元数据的命名空间
-        /// </summary>
+        /// <summary> 是否为只读视图 [New] </summary>
+        public bool IsView { get; set; } = false;
+
+        /// <summary> 业务用户标识类型（如 DmpUserInfo），必填 </summary>
+        public string BaseUserType { get; set; } = string.Empty;
+
+        /// <summary> 默认分页大小 </summary>
+        public int DefaultPageSize { get; set; } = 20;
+
+        /// <summary> 默认全量限制 </summary>
+        public int DefaultLimit { get; set; } = 100;
+
+        /// <summary> 搜索结果上限 </summary>
+        public int MaxSearchLimit { get; set; } = 100;
+
+        /// <summary> 用于覆盖类元数据的命名空间 </summary>
         public string Namespace { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 模板名称（从配置中查找对应模板，默认按规则匹配对应类型的模板，这里可以覆盖匹配规则）
-        /// </summary>
-        public string TemplateName { get; set; } = string.Empty;
-
     }
 }

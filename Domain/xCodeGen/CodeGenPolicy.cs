@@ -8,17 +8,13 @@ using xCodeGen.Abstractions.Metadata;
 namespace TKW.Framework.Domain.xCodeGen;
 
 /// <summary>
-/// 核心决策引擎：统一管理属性的回填、验证及 Service 查询生成策略 (V1.41)
+/// 核心决策引擎：统一管理属性的回填、验证及 Service 查询生成策略 (V1.42)
 /// </summary>
 public static class CodeGenPolicy
 {
     private const string DtoFieldAttr = "DtoFieldAttribute";
     private const string ColumnAttr = "ColumnAttribute";
     private const string IndexAttr = "IndexAttribute";
-
-    public const int DefaultPageSize = 20;
-    public const int DefaultLimit = 1000;
-    public const int MaxSearchLimit = 500;
 
     #region 核心决策逻辑 (Mapping & Validation)
 
@@ -34,17 +30,22 @@ public static class CodeGenPolicy
         };
     }
 
-    public static bool IsAutoManaged(PropertyMetadata p)
+    /// <summary>
+    /// 识别系统自动管理字段，支持外部自定义扩展并忽略大小写
+    /// </summary>
+    public static bool IsAutoManaged(PropertyMetadata p, IEnumerable<string>? customAutoFields = null)
     {
-        var autoFields = new[] { "Id", "CreateTime", "UpdateTime", "IsDeleted", "TenantId" };
-        if (autoFields.Contains(p.Name)) return true;
+        var autoFields = customAutoFields ?? ["Id", "CreateTime", "UpdateTime", "IsDeleted", "TenantId"];
+        // 忽略大小写比对
+        if (autoFields.Any(f => string.Equals(f, p.Name, StringComparison.OrdinalIgnoreCase))) return true;
+
         var col = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(ColumnAttr));
         return col != null && (GetBoolProp(col, "IsIdentity", false) || GetBoolProp(col, "IsPrimary", false));
     }
 
-    private static bool ShouldMapToEntity(PropertyMetadata p, EnumSceneFlags scene)
+    public static bool ShouldMapToEntity(PropertyMetadata p, EnumSceneFlags scene, IEnumerable<string>? customAutoFields = null)
     {
-        if (IsAutoManaged(p)) return false;
+        if (IsAutoManaged(p, customAutoFields)) return false;
         var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr));
         if (dtoAttr == null) return true;
         if (GetBoolProp(dtoAttr, "CanModify", true) == false) return false;
@@ -54,7 +55,7 @@ public static class CodeGenPolicy
 
     private static bool ShouldValidateDto(PropertyMetadata p, EnumSceneFlags scene, bool isFromPersistent)
     {
-        if (isFromPersistent && (scene & EnumSceneFlags.ForceValidate) == 0) return false;
+        // 内部映射逻辑保持一致
         return ShouldMapToEntity(p, scene);
     }
 
@@ -80,10 +81,8 @@ public static class CodeGenPolicy
         var groups = new List<SearchGroupInfo>();
         var props = classMeta.Properties.ToList();
         var className = classMeta.ClassName;
-
         var searchGroupMap = new Dictionary<string, List<PropertyMetadata>>();
 
-        // 1. 处理 DtoFieldAttribute (最高优先级)
         foreach (var p in props)
         {
             var dtoAttr = p.Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr));
@@ -93,7 +92,6 @@ public static class CodeGenPolicy
             var isSearchable = GetBoolProp(dtoAttr, "IsSearchable", false);
             var groupName = GetStringProp(dtoAttr, "SearchGroup");
 
-            // 1.1 独立查询 (IsSearchable 或 IsUnique)
             if (isSearchable || isUnique)
             {
                 groups.Add(new SearchGroupInfo
@@ -104,7 +102,6 @@ public static class CodeGenPolicy
                 });
             }
 
-            // 1.2 复合查询 (SearchGroup)
             if (!string.IsNullOrEmpty(groupName))
             {
                 if (!searchGroupMap.ContainsKey(groupName)) searchGroupMap[groupName] = [];
@@ -116,16 +113,9 @@ public static class CodeGenPolicy
         {
             var pName = ToPascalCase(kvp.Key, className);
             if (kvp.Value.Count == 1 && groups.Any(g => g.GroupName == pName)) continue;
-
-            groups.Add(new SearchGroupInfo
-            {
-                GroupName = pName,
-                Properties = kvp.Value,
-                IsUnique = GetBoolProp(kvp.Value[0].Attributes.FirstOrDefault(a => a.TypeFullName.Contains(DtoFieldAttr)), "IsUnique", false)
-            });
+            groups.Add(new SearchGroupInfo { GroupName = pName, Properties = kvp.Value });
         }
 
-        // 2. 处理 IndexAttribute (低优先级，自动避让已处理的同名字段组合)
         var indices = classMeta.Attributes.Where(a => a.TypeFullName.Contains(IndexAttr)).ToList();
         foreach (var idx in indices)
         {
@@ -134,59 +124,37 @@ public static class CodeGenPolicy
 
             var columnNames = fieldsStr.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(c => c.Trim()).ToList();
             var groupProps = props.Where(p => columnNames.Contains(p.Name)).ToList();
-            if (!groupProps.Any()) continue;
-
-            // 核心排他逻辑：如果 DtoField 已经处理过完全相同的字段组合，则忽略此索引
-            if (groups.Any(g => g.Properties.Select(p => p.Name).OrderBy(n => n).SequenceEqual(columnNames.OrderBy(n => n)))) continue;
-
-            var businessName = groupProps.Count == 1 ? groupProps[0].Name : ExtractIndexName(idx.ConstructorArguments.ElementAtOrDefault(0)?.ToString(), className, groupProps);
+            if (!groupProps.Any() || groups.Any(g => g.Properties.Select(p => p.Name).OrderBy(n => n).SequenceEqual(columnNames.OrderBy(n => n)))) continue;
 
             groups.Add(new SearchGroupInfo
             {
-                GroupName = ToPascalCase(businessName, className),
+                GroupName = ToPascalCase(ExtractIndexName(idx.ConstructorArguments.ElementAtOrDefault(0)?.ToString(), className, groupProps), className),
                 Properties = groupProps,
                 IsUnique = GetBoolProp(idx, "IsUnique", false)
             });
         }
-
         return groups.OrderBy(g => g.GroupName).ToList();
     }
 
     private static string ExtractIndexName(string? indexName, string className, List<PropertyMetadata> props)
     {
         if (string.IsNullOrWhiteSpace(indexName)) return string.Join("And", props.Select(p => p.Name));
-
         var parts = indexName.Split(['_'], StringSplitOptions.RemoveEmptyEntries);
         var pascalName = string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..]));
-
         if (pascalName.StartsWith("Idx", StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[3..];
-        else if (pascalName.StartsWith("Index", StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[5..];
-
         if (pascalName.StartsWith(className, StringComparison.OrdinalIgnoreCase)) pascalName = pascalName[className.Length..];
-
-        if (string.IsNullOrWhiteSpace(pascalName) || pascalName.Length < 2)
-            return string.Join("And", props.Select(p => p.Name));
-
-        return pascalName;
+        return string.IsNullOrWhiteSpace(pascalName) ? string.Join("And", props.Select(p => p.Name)) : pascalName;
     }
 
     private static string ToPascalCase(string input, string? className = null)
     {
-        if (string.IsNullOrWhiteSpace(input)) return "Query";
+        if (string.IsNullOrWhiteSpace(input)) return "Group";
         var clean = Regex.Replace(input, @"[^a-zA-Z0-9_]", "");
-
         if (!string.IsNullOrEmpty(className) && clean.StartsWith(className, StringComparison.OrdinalIgnoreCase))
             clean = clean[className.Length..];
-
         var parts = clean.Split(['_'], StringSplitOptions.RemoveEmptyEntries);
-        var result = string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..]));
-
-        return string.IsNullOrEmpty(result) ? "Group" : result;
+        return string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..]));
     }
-
-    #endregion
-
-    #region 元数据安全解析辅助
 
     public static bool GetBoolProp(AttributeMetadata? attr, string key, bool defaultValue)
     {

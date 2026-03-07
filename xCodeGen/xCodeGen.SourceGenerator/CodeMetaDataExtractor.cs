@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
@@ -223,9 +224,12 @@ namespace xCodeGen.SourceGenerator
         {
             return attributes.Select(attr =>
             {
-                var props = new Dictionary<string, object>();
+                var typeFullName = attr.AttributeClass?.ToDisplayString();
 
-                // 提取命名参数 (NamedArguments)
+                // 1. 获取特性类的出厂默认值作为基座（通过反射）
+                var props = GetAttributeDefaults(typeFullName);
+
+                // 2. 提取显式声明的命名参数，覆盖默认值
                 foreach (var arg in attr.NamedArguments)
                 {
                     // 关键：保留原始值类型 (bool, int, string) 以便下游 Policy 准确判断
@@ -239,13 +243,53 @@ namespace xCodeGen.SourceGenerator
 
                 return new Dictionary<string, object>
                 {
-                    { "TypeFullName", attr.AttributeClass?.ToDisplayString() },
+                    { "TypeFullName", typeFullName },
                     { "Properties", props },
                     { "ConstructorArguments", constructorArgs }
                 };
             }).ToList();
         }
+        /// <summary>
+        /// 通过反射动态获取已知特性的属性默认值
+        /// </summary>
+        private Dictionary<string, object> GetAttributeDefaults(string typeFullName)
+        {
+            var defaults = new Dictionary<string, object>();
+            if (string.IsNullOrEmpty(typeFullName)) return defaults;
 
+            try
+            {
+                // 1. 获取 Abstractions 程序集 (因为所有特性都在这里)
+                var assembly = typeof(GenerateCodeAttribute).Assembly;
+
+                // 2. 尝试从该程序集中获取对应的类型
+                var targetType = assembly.GetType(typeFullName);
+
+                // 3. 如果找到了该类型，且它确实是一个 Attribute
+                if (targetType != null && typeof(Attribute).IsAssignableFrom(targetType))
+                {
+                    // 实例化特性类以触发其内部属性的默认值赋值
+                    var instance = Activator.CreateInstance(targetType);
+
+                    // 读取所有公共实例属性
+                    foreach (var prop in targetType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                    {
+                        // 过滤掉内部/只写属性，以及系统自带的 TypeId 等
+                        if (prop.CanRead && prop.Name != "TypeId")
+                        {
+                            defaults[prop.Name] = prop.GetValue(instance);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略实例化异常（例如抽象类、无无参构造函数的类或不在该程序集中的特性）
+                // 安全降级为空字典
+            }
+
+            return defaults;
+        }
         private string GetParamSummary(MethodDeclarationSyntax method, string name) { var trivia = method.GetLeadingTrivia().FirstOrDefault(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)); if (trivia == default) return string.Empty; var xml = trivia.GetStructure() as DocumentationCommentTriviaSyntax; var param = xml?.Content.OfType<XmlElementSyntax>().FirstOrDefault(e => e.StartTag.Name.ToString().Equals("param", StringComparison.OrdinalIgnoreCase) && e.StartTag.Attributes.Any(a => a.ToString().Contains($"\"{name}\""))); return param != null ? CleanXmlText(param.Content.ToString()) : string.Empty; }
 
         private string CleanXmlText(string text) => text.Replace("///", "").Replace("/**", "").Replace("*/", "").Replace("*", "").Trim();
