@@ -1,4 +1,5 @@
-﻿using xCodeGen.Abstractions;
+﻿using System.Text.Json.Serialization;
+using xCodeGen.Abstractions;
 
 namespace TKW.Framework.Domain.Interfaces;
 
@@ -10,6 +11,7 @@ public interface ISupportPersistenceState
     /// 如果为 false，表示 DTO 是新创建的、未持久化的数据对象。
     /// 用于帮助业务逻辑区分处理新数据和已存在数据的不同场景。
     /// </summary>
+    [JsonIgnore]
     bool IsFromPersistentSource { get; }
 }
 

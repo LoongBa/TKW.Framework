@@ -1,4 +1,6 @@
-# 《xCodeGen 领域驱动服务（Domain Service）开发规范与最佳实践》(V1.26)
+# 《xCodeGen 领域驱动服务开发规范与最佳实践》
+
+# V1.27
 
 本设计以 **“标注驱动生成 + 手写自治”** 为核心，xCodeGen 负责生成 80% 以上的场景化映射、基础验证及数据访问代码，剩余复杂业务逻辑由开发者在 `.Logic.cs` 中手写扩展。
 
@@ -26,6 +28,8 @@
 | **`CanModify = false`**     | 是          | 否                     | 否                    | 正常                 | `UId`, `Code` |
 | **`UpdateReadOnly = true`** | 是          | 仅 `Create` 场景可写       | 仅 `Create` 场景校验      | 正常                 | 证件号、初始类别      |
 | **`Masking / MaskPattern`** | 是          | 取决于 `CanModify`       | 取决于 `CanModify`      | 根据 Pattern 执行掩码替换  | 手机号、邮箱        |
+| `Navigate` /`IsIgnore`      | 是          | 绝对禁止 (防级联污染)          | 否                    | 正常                 | 关联子表、计算字段     |
+| `DtoFieldIgnore`            | 否          | 否                     | 否                    | -                  | 内部敏感字段        |
 
 **注**：只要属性配置了 `MaskPattern`，系统自动开启脱敏逻辑（`Masking = true`），除非显式声明 `Masking = false` 。
 
@@ -77,6 +81,30 @@
    
    - **非唯一参数**：统一转化为 `Nullable<T>`，支持 `null` 触发全量查询 。
 
+### 3.4 字段忽略优先级规范
+
+为了确保代码生成的严谨性，开发者需识别以下三种“忽略”语义的区别：
+
+1. **`[DtoFieldIgnore]` (业务层忽略)**：
+   
+   - **作用**：该字段**不出现在 DTO 类定义中**。
+   
+   - **后果**：回填引擎（ApplyToEntity）不会对其赋值，验证引擎（_InternalValidation）不会对其生成规则。
+   
+   - **场景**：仅限服务端内部使用的逻辑字段、敏感状态位。
+
+2. **`[Column(IsIgnore = true)]` (持久层忽略)**：
+   
+   - **作用**：该字段不映射数据库列。
+   
+   - **后果**：DTO 仍可能包含此字段（作为计算属性），但验证引擎会自动跳过基于物理列定义的 `MaxLength` 等约束。
+
+3. **`[Navigate]` (关系层忽略)**：
+   
+   - **作用**：定义导航属性（一对多、多对一）。
+   
+   - **后果**：DTO 可以包含此属性用于展示，但回填引擎**绝对禁止**将其回填至 Model，以防触发 FreeSql 的级联保存/更新。
+
 ---
 
 ## 4. 掩码系统规格 （Masking System Specification）
@@ -97,11 +125,13 @@
 
 - **优势**：实现了全链路“单一数据源”，开发者仅需在特性类定义中修改默认值，即可自动改变生成的逻辑及模板的 Fallback 行为。
 
-### 5.2 状态传递与校验拦截
+### 5.2 验证信任机制的安全闭环 (Persistence Trust Closed-Loop)
 
-- **FromEntity 闭环**：转换时强制同步 `IsFromPersistentSource` 标记位 。
+- **入口拦截 (DB $\rightarrow$ Model)**：在 Service 层的底层查询原语中（如 `InternalGet/SelectAsync`），从数据库读取实体后自动强制挂载 `IsFromPersistentSource = true`。
 
-- **校验拦截器**：当标记位为 `true` 且未开启 `ForceValidate` 场景时，DTO 与 Model 将跳过常规物理校验 。
+- **状态透传 (Model $\leftrightarrow$ DTO)**：`FromEntity` 转换时同步该标记。**注意**：实体和 DTO 的基类中，必须为该属性加上 `[JsonIgnore]`，防止前端通过 JSON 提交伪造的信任标记。
+
+- **出口终验 (Model 落库前)**：为了防止 DTO 因规则跳过校验，Service 层的 `InternalCreate/Update` 动作会在执行 ORM 写入前，强制调用 `entity.Validate(scene | EnumSceneFlags.ForceValidate)`。此举将强行击穿信任标记，完成入库前的终极防守。
 
 ---
 
@@ -128,6 +158,14 @@
 - **查询过滤**：`OnQueryFiltering`（基础查询过滤，自动应用软删除过滤）、`OnGraphQLFiltering`。
 
 - **动作周期**：`OnBefore/After` + `Create/Update/Delete`。
+
+## 6.5 可空引用类型 (NRTs) 与初始化规范
+
+生成代码全量开启 `#nullable enable`，并遵循以下最佳实践化解 C# 编译警告 (`CS8618`)：
+
+- **DTO 层 (数据契约)**：对于逻辑必填或非空值类型，生成器会自动追加 `required` 关键字，强制调用方在对象初始化器中显式赋值。
+
+- **Model 层 (ORM 实体)**：为兼容 FreeSql/EF Core 的无参构造函数实例化机制，开发者应在手动编写/调整实体类时，对非空属性使用 `= default!;` 进行初始化屏蔽。
 
 ---
 
@@ -172,6 +210,14 @@
   - `UpdateReadOnly = true`：仅在 `Create` 场景下允许回填，`Update` 场景自动跳过，常用于“初始类别”或“证件号码”。
 
 - **`MaskPattern` (脱敏掩码)**：一旦定义此属性，系统自动开启 `FromEntity` 阶段的脱敏逻辑，除非显式设置 `Masking = false`。
+
+### 8.3 [Column] 物理隔离与 MapType
+
+当属性配置了 `MapType`（例如将 `Enum` 映射为 `string`，或将复杂对象映射为 JSON）时，系统自动识别此字段为**物理映射失配**：
+
+- **物理约束让步**：在此场景下，生成的验证链条将**自动跳过** `MaxLength` 物理长度验证。
+
+- **防御目的**：防止验证器对非纯字符串类型执行长度检查从而引发编译期的类型推断错误。此类字段的长度安全性应交由数据库层约束或在 `.Logic.cs` 中手动处理。
 
 ---
 

@@ -1,4 +1,5 @@
-﻿using TKW.Framework.Domain.Interfaces;
+﻿using System.Text.Json.Serialization;
+using TKW.Framework.Domain.Interfaces;
 using xCodeGen.Abstractions;
 
 namespace TKW.Framework.Domain;
@@ -14,6 +15,7 @@ public abstract record DomainDtoBase<TEntity> : IDomainDto<TEntity>
     /// 是否来自持久化来源（如数据库查询）
     /// 用于执行“策略一：持久化信任”，若为 true 则跳过物理校验
     /// </summary>
+    [JsonIgnore]
     public bool IsFromPersistentSource { get; init; } = false;
 
     /// <summary>

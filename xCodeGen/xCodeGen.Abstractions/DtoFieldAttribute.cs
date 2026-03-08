@@ -63,4 +63,9 @@ public string StoreName { get; set; } = string.Empty;
         /// </summary>
         public string MaskPattern { get; set; } = string.Empty;
     }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class DtoFieldIgnoreAttribute : Attribute
+    {
+    }
 }

@@ -17,7 +17,7 @@
 // 模型: @Model.ClassName (@Model.FullName)
 // 生成时间: @timestamp
 // </auto-generated>
-
+#nullable enable
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -33,6 +33,7 @@ namespace @Model.Namespace;
 
 public partial class @Model.ClassName : IDomainEntity
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsFromPersistentSource { get; set; } = false;
 
     public void Validate(EnumSceneFlags scene = EnumSceneFlags.ForceValidate)
