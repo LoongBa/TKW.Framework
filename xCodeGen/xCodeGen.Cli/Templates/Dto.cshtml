@@ -63,7 +63,7 @@ public partial record @dtoClassName : DomainDtoBase<@Model.ClassName>
     string requiredModifier = (isRequiredConfig || (!p.IsNullable && isString)) ? "required " : "";
 
     @:/// <summary> @Raw(CleanSummary(p.Summary ?? p.Name)) </summary>
-    @:public @Raw(requiredModifier)@(p.TypeName) @(p.Name) { get; init; }
+    @:public @Raw(requiredModifier)@Raw(p.TypeName) @(p.Name) { get; init; }
 }
     #endregion
 
