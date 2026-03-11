@@ -9,7 +9,6 @@ using System.Reflection;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator
 {

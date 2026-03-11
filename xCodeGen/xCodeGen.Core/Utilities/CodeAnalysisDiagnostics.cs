@@ -1,9 +1,9 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
+﻿using System;
 using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace xCodeGen.Core.Utilities
+namespace xCodeGen.SourceGenerator
 {
     /// <summary>
     /// 提供代码分析和诊断相关的工具方法

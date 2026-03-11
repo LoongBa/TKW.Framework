@@ -62,7 +62,7 @@
 ### 第二步：运行生成命令
 
 - **常规生成**：xcodegen gen（自动解析元数据生成）。
-- **开发模式 (Watch)**：xcodegen gen --watch（监听 Models/ 变更，实时更新）。
+- **开发模式 (Watch)**：xcodegen gen --watch（监听 Entities/ 变更，实时更新）。
 - **最新**：添加 --dry-run（模拟生成，不写文件）。
 
 ### 第三步：编写业务逻辑

@@ -1,101 +1,67 @@
-### DMP Lite 系统架构完善：基于角色的权限过滤、全局异常处理、日志、事务及其他扩展
+# TKWF.Domain 领域基础框架 V3.0
 
-从 **Domain 框架（TKWF.Domain）** 角度，我们继续处理你提出的核心问题。以下内容严格遵循项目阶段1“优先简单、低成本、易扩展”的原则，同时保持领域自治、代码现代化（.NET 10 优势：async/await、null-safety、record 类型）、命名一致性（FilterAttribute / FlagAttribute），并确保与现有 AOP 机制（DomainInterceptor + DomainContext）无缝集成。
+TKWF.Domain 是 TKW 系列框架的领域层核心基础框架，始于 .NET 2.0/ASP.NET 2 时代，在 .NET 4.x 时代趋于成熟。
 
-#### 1. 基于角色的权限过滤（Role-Based Access Control）
+目前采用 .NET 10+ 重新构建（2006年1月）。
 
-**目标**：在 AuthorityFilterAttribute 基础上，支持细粒度角色检查（如 [RequireRole("admin")]），并兼容全局/方法级/控制器级。
+其核心目标是为应用提供一套轻量、现代、可扩展且高度领域自治的基础设施。
 
-**设计思路**：
+框架分为几个主要部分：
 
-- 新增 `RequireRoleFlagAttribute` 作为标记（Flag）
-- 在 `AuthorityFilterAttribute` 的 `PreProceedAsync` 中检查角色
-- 支持多个角色（OR 关系）
+- **TKWF.Common**
 
-**使用方式**：
+- **TKWF.Domain**：领域基础框架
+  
+  - **TKWF.Domain.Web**
+  
+  - **TKWF.Domain.Blazor**
+  
+  - **TKWF.Domain.MAUI**
+  
+  - ... ...
 
-```csharp
-[RequireRoleFlag("admin", "manager")]
-public async Task UpdateMerchantAsync(...) { ... }
-```
+- **TKWF.EntityORM**：数据库与对象映射（暂未升级，目前先使用 FreeSql）
 
-**全局注册**（在 DomainInterceptor.GlobalFilters 中添加 `new AuthorityFilterAttribute<TUserInfo>()`）。
+- **TKWF.xCodeGen**：基于元数据和模板的代码生成器（简称 xCodeGen）
 
-#### 2. 全局异常处理（未捕获、处理的异常）
+- **TKWF.Tools**：若干工具模块
 
-**目标**：捕获所有未处理的异常，记录日志，返回统一响应（JSON 错误码），避免原始异常泄露。
+- **TKWF.Extensions**：若干扩展模块
 
-**设计思路**：
+## 1. 核心设计理念
 
-- 实现 `IDomainGlobalExceptionFactory` 接口
-- 在 `DomainInterceptor.OnException` 中调用
-- 支持自定义错误码映射（401 → 401 Unauthorized，500 → InternalServerError）
+- **领域自治**：业务逻辑完全封装在领域层。表现层（如 Web API、Blazor、MAUI 等）仅充当“会话提供者”和“调用入口”，绝不在表现层控制器或视图中处理任何核心业务逻辑。
 
-**注册**（DmpDomainInitializerModule）：
+- **强类型上下文驱动**：所有领域服务必须通过唯一入口 `DomainUser<TUserInfo>` 获取。这确保了请求链路中的身份与权限绝对安全，实现了基于强类型的租户或用户隔离。
 
-```csharp
-builder.RegisterType<DefaultDomainExceptionFactory>().As<IDomainGlobalExceptionFactory>().SingleInstance();
-```
+- **现代化 AOP 拦截体系**：提供方法级、控制器级、全局级的强类型拦截（Filter 与 Flag）。后续将全面抛弃基于反射的动态代理，转向基于 Source Generator（源生成器）的编译时代理，彻底消除异步调用的死锁隐患，并完美支持 .NET 的 Native AOT。
 
-**未捕获异常**：在 DomainInterceptor.OnException 中调用此工厂。
-**已处理异常**：Filter 中设置 `context.ExceptionHandled = true;` 则不会调用工厂。
+- **异常不吞没原则**：领域层坚持“仅诊断，不决策”。针对异常仅进行日志记录和上下文填充，真实业务异常（如基础框架中定义的 `DomainException`）将直接向外抛出，交由特定宿主层（如 Web 层的 `DomainExceptionMiddleware`）进行协议级（如 HTTP 状态码）的映射和统一响应返回。
 
-#### 3. 日志——主要目的和功能
+## 2. 宿主集成与快速上手
 
-**目的**：
+- **系统接入与初始化**：应用启动时，通过统一的扩展入口 `ConfigTkwDomain` 即可完成领域容器的初始化与宿主管道的有序编排。框架严格保护领域自治，表现层配置通过 `DomainOptions` 传递后，领域层可在 `OnPreInitialize` 钩子中进行“守门员”式修正（例如检测到生产库连接时强制关闭开发模式开关）。在 Web 等宿主环境中，系统管道被显式划分为 `BeforeRouting`（路由前）、`Routing`（路由分水岭）和 `AfterRouting`（路由后）三个阶段，以保证中间件执行顺序的绝对确定性。
 
-- 记录系统运行轨迹，便于问题诊断、审计、安全分析
-- 监控性能（耗时、调用频率）
-- 合规性要求（操作留痕）
+- **业务服务调用规范**：开发中严禁直接从系统的依赖注入（DI）容器获取业务服务。业务调用必须严格遵守代理模式：
+  
+  1. 从上下文（如 HttpContext 或本地会话）中获取已认证的用户实例 `DomainUser<TUserInfo>`。
+  
+  2. 通过 `user.UseAop<IService>()` 获取受 AOP 拦截包裹的领域服务，或者通过 `user.Use<IService>()` 获取普通内部服务。
+  
+  3. 触发业务方法，框架底层会自动穿透并执行权限校验、日志记录、事务控制等各个生命周期拦截器。
 
-**主要功能**（分层实现）：
+## 3. 核心模块与扩展生态职责分工
 
-- **全局日志**（LoggingFilterAttribute）：记录每个方法进入/退出、耗时、用户、参数（脱敏）
-- **异常日志**（OnException + 全局工厂）：记录堆栈 + 上下文（方法名、用户）
-- **业务日志**（领域服务内部）：如 `logger.LogInformation("商户 {MerchantUid} 对账完成", ...)` 
-- **审计日志**（AuditLogFilterAttribute）：记录操作到数据库（谁、什么操作、何时、结果）
+为了保持 `TKWF.Domain` 核心框架的绝对纯净（不引入任何与表现层相关的第三方依赖包），特定技术栈的适配逻辑被严格分离到了独立的扩展项目中：
 
-**推荐实现**（LoggingFilterAttribute 已提供）：
+- **TKWF.Domain (核心层)**：定义系统的心脏，包括 `DomainHost` 宿主管理、`DomainUser` 会话流转、基础拦截器契约、核心 Filter 机制以及基础的 `DomainException` 异常定义。
 
-- 使用 Microsoft.Extensions.Logging（Serilog 作为 Sink）
-- 结构化日志（{MethodName}、{UserName}、{DurationMs}）
-- 级别控制：Information（正常）、Warning（异常）、Error（严重）
+- **TKWF.Domain.Web (Web 宿主扩展)**：处理与 HTTP 协议相关的一切逻辑。包含将业务异常转换为标准 JSON 响应的 `DomainExceptionMiddleware`、解析 Cookie/Header 会话的 `SessionUserMiddleware`，以及 Web 管道的扩展编排方法。
 
-#### 4. 事务——主要目的和功能
+- **TKWF.Domain.Blazor (Blazor 扩展)**：专注 Blazor 的状态与缓存支持。提供 `DomainAuthenticationStateProvider` 以桥接领域用户与 Blazor 认证体系，以及受保护的浏览器存储封装。
 
-**目的**：
+- **TKWF.Domain.Maui / ... 等跨平台扩展**：负责桌面端、移动端的底层适配。封装 SecureStorage 等本地安全存储，处理离线或弱网环境下的领域用户状态保持。
 
-- 保证数据一致性（ACID）
-- 防止并发修改导致脏数据
-- 支持回滚（异常时）
+- **TKWF.xCodeGen (代码生成引擎)**：作为独立的跨平台代码生成工具。它与领域运行时代码完全解耦，主要职责是读取数据库或结构化元数据，并基于模板引擎自动化生成实体模型、数据传输对象（DTO）以及标准化的服务框架骨架代码。
 
-**主要功能**：
-
-- **方法级事务**：标记 [TransactionFilter] 的方法自动包裹事务
-- **全局事务**：所有领域服务默认事务（可选）
-- **嵌套事务**：FreeSql 支持 SavePoints（嵌套回滚）
-
-**实现**（TransactionFilterAttribute 已提供）：
-
-- PreProceedAsync：Begin Transaction
-- PostProceedAsync：Commit（成功） / Rollback（异常）
-- 支持 SavePoint（嵌套事务）
-
-#### 5. 其他重要扩展（逐步添加）
-
-| 组件                         | 目的               | 实现方式（简要）                          |
-| -------------------------- | ---------------- | --------------------------------- |
-| CachingFilterAttribute     | 方法级缓存，减少数据库压力    | HybridCache + CacheKey            |
-| ValidationFilterAttribute  | 输入验证，防止无效数据      | FluentValidation 集成               |
-| RateLimitFilterAttribute   | 防止商户滥用（API 限流）   | HybridCache 计数                    |
-| AuditLogFilterAttribute    | 操作审计（合规、追责）      | 插入 audit_log 表                    |
-| CustomExceptionFactory     | 统一错误响应（JSON 格式）  | 已提供 DefaultDomainExceptionFactory |
-| PerformanceFilterAttribute | 记录方法耗时、慢查询监控     | Stopwatch 计时                      |
-| RetryFilterAttribute       | 自动重试（网络/数据库瞬时失败） | Polly 集成（后期）                      |
-
-**优先级建议**：
-
-1. 完成 AuthorityFilter + Role 支持（已提供）
-2. 实现 DefaultDomainExceptionFactory（已提供）
-3. 添加 LoggingFilterAttribute（全局日志）
-4. 添加 TransactionFilterAttribute（核心业务一致性）
+- **TKWF.EntityORM**：暂未升级，目前先使用 FreeSql 提供数据持久化支持。

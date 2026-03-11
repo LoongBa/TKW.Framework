@@ -1,10 +1,10 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
+﻿using System;
 using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using xCodeGen.Abstractions.Attributes;
 
-namespace xCodeGen.Core.Utilities
+namespace xCodeGen.SourceGenerator
 {
     /// <summary>
     /// 特性数据扩展方法

@@ -5,29 +5,29 @@
   "TemplatesPath": "Templates",
   "TemplateMappings": {
     "Service": "Service.cshtml",
-    "Model": "Model.cshtml",
+    "Entity": "Entity.cshtml",
     "Dto": "Dto.cshtml"
   },
   "SkeletonMappings": {
-    "ModelEmpty": "ModelEmpty.cshtml",
+    "EntityEmpty": "EntityEmpty.cshtml",
     "DtoEmpty": "DtoEmpty.cshtml"
   },
   "FileNamePatterns": {
-    "Service": "{ClassName}Service.generated.cs",
-    "ModelEmpty": "{ClassName}.cs",
-    "Model": "{ClassName}.generated.cs",
+    "Service": "{ClassName}Service.g.cs",
+    "EntityEmpty": "{ClassName}.biz.cs",
+    "Entity": "{ClassName}.g.cs",
     "DtoEmpty": "{ClassName}Dto.cs",
-    "Dto": "{ClassName}Dto.generated.cs"
+    "Dto": "{ClassName}Dto.g.cs"
   },
   "OutputDirectories": {
     "Service": "..\\..\\Services",
-    "ModelEmpty": "..\\..\\Models",
-    "Model": "..\\..\\Models",
-    "DtoEmpty": "..\\..\\Models\\DTOs",
-    "Dto": "..\\..\\Models\\DTOs"
+    "EntityEmpty": "..\\..\\Entities",
+    "Entity": "..\\..\\Entities",
+    "DtoEmpty": "..\\..\\Entities\\DTOs",
+    "Dto": "..\\..\\Entities\\DTOs"
   },
   "CustomSettings": {
-    "BaseUserType": "DmpUserInfo",
-    "EnableLogging": "true"
+    "EnableLogging": "true",
+    "AutoManagedFields": "Id,CreateTime,UpdateTime,IsDeleted,TenantId,UId"
   }
 }

@@ -8,7 +8,6 @@ using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Metadata;
-using xCodeGen.Core.Utilities;
 
 namespace xCodeGen.SourceGenerator
 {

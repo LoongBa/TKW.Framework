@@ -3,7 +3,7 @@
 ```csharp
 using Xunit;
 using Xunit.Abstractions;
-using DMP_Lite.Domain.Models;
+using DMP_Lite.Domain.Entities;
 using DMP_Lite.Domain.Services.DataAdapters;
 using Microsoft.Extensions.Logging;
 using System;

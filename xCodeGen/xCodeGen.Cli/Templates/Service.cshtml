@@ -7,8 +7,9 @@
     var className = Model.ClassName;
     var dtoName = $"{className}Dto";
     var serviceName = $"{className}Service";
-    var namespaceName = Model.Namespace.Replace(".Models", ".Services");
-    
+    var namespaceName = Model.Namespace.Replace(".Models", ".Entities");
+    var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
+   
     var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("GenerateCodeAttribute"));
     
     var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
@@ -48,10 +49,10 @@ using xCodeGen.Abstractions;
 using TKW.Framework.Domain;
 using TKW.Framework.Common.Entity;
 using TKW.Framework.Domain.xCodeGen;
-using @Model.Namespace;
-using @(Model.Namespace).DTOs;
+using @(namespaceName);
+using @(namespaceName).DTOs;
 
-namespace @namespaceName;
+namespace @(servicesNamespace);
 
 public partial class @serviceName : DomainServiceBase<@userType>
 {
