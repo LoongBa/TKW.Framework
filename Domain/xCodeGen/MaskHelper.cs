@@ -11,7 +11,7 @@ public static class MaskHelper
     /// #：掩盖该位置字符
     /// 其它：保留模式中的字面量（如 @, .）
     /// </summary>
-    public static string GetMaskedValue(string? value, string pattern)
+    public static string? GetMaskedValue(string? value, string pattern)
     {
         if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(pattern)) return value;
 
