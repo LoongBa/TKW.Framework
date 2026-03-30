@@ -1,5 +1,4 @@
-﻿using Autofac;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
@@ -17,27 +16,21 @@ namespace TKW.Framework.Domain.Web;
 /// Web 专用服务注册构建器（状态机起点）
 /// 负责初始的服务注册和配置，是构建管道的起点。
 /// </summary>
-public class RegisterServicesBuilder : DomainPipelineBuilderBase<RegisterServicesBuilder>
+public class RegisterServicesBuilder : DomainHostBuilder<RegisterServicesBuilder, DomainWebOptions>
 {
-    // 引用传递的管道配置委托列表。即使此时为空，后续链式调用也会持续填充该引用。
     private readonly List<Action<IApplicationBuilder>> _PipelineActions;
 
-    /// <summary>
-    /// 初始化构建器：在此处完成 IStartupFilter 的注册和基础中间件的挂载。
-    /// </summary>
+    // 构造函数接收 IHostApplicationBuilder（WebApplicationBuilder 是其子类）
     internal RegisterServicesBuilder(IHostApplicationBuilder builder,
         DomainWebOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
-        : base(builder, options)
+        : base(builder, options) // 传递给新的基类
     {
-        // 1. 创建共享的动作列表（这是所有中间件挂载的物理容器）
         _PipelineActions = pipelineActions ?? [];
 
-        // 2. 在此处注册唯一的 IStartupFilter。
-        // 这样做使得 WebApplicationExtensions 无需感知管道执行细节，只需关注注册。
+        // 注册唯一的 IStartupFilter
         builder.Services.AddSingleton<IStartupFilter>(new DomainPipelineFilter(_PipelineActions));
 
-        // 3. 自动挂载全局异常中间件。
-        // 确保 WebExceptionMiddleware 永远处于管道的最顶层，优先捕获后续所有组件的异常。
+        // 自动挂载全局异常中间件
         if (options.UseWebExceptionMiddleware)
         {
             _PipelineActions.Add(app => app.UseMiddleware<WebExceptionMiddleware>());
