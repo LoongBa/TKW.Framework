@@ -29,7 +29,7 @@ public static class WebApplicationExtensions
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureContainer<ContainerBuilder>(cb =>
             {
-                DomainHost<TUserInfo>.Build<TInitializer>(cb, builder.Configuration, options);
+                DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, options);
             });
 
         // 返回构建器，它会在内部自动添加 WebExceptionMiddleware（如果 options 开启）

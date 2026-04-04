@@ -17,8 +17,8 @@ public static class MauiAppBuilderExtensions
         // 1. 核心：MAUI 接入 Autofac，并执行领域初始化逻辑
         builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb =>
         {
-            // 直接调用领域主机的 Build 方法，这与 Web/Test 层的逻辑完全一致
-            DomainHost<TUserInfo>.Build<TInitializer>(cb, builder.Configuration, options);
+            // 直接调用领域主机的 Initialize 方法，这与 Web/Test 层的逻辑完全一致
+            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, options);
         });
 
         // 2. 返回通用构建器

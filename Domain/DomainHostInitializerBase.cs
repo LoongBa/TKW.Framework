@@ -30,7 +30,7 @@ where TUserInfo : class, IUserInfo, new()
     protected DomainHost<TUserInfo>? Host { get; private set; }
 
     /// <summary>
-    /// 初始化领域服务容器（由 DomainHost.Build 调用）
+    /// 初始化领域服务容器（由 DomainHost.Initialize 调用）
     /// </summary>
     public DomainUserHelperBase<TUserInfo> InitializeDiContainer(
         ContainerBuilder containerBuilder,

@@ -61,7 +61,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <summary>
     /// 领域主机构建入口。
     /// </summary>
-    public static DomainHost<TUserInfo> Build<TDomainInitializer>(
+    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(
         ContainerBuilder? upLevelContainer = null,
         IConfiguration? configuration = null,
         DomainOptions? options = null)

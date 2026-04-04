@@ -13,12 +13,12 @@ public class DomainGenericHostBuilder<TUserInfo, TInitializer>(
     where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
 {
     // DomainTestBuilder.cs (TKW.Framework.Domain.Testing)
-    public DomainHost<TUserInfo> Build()
+    public DomainHost<TUserInfo> Initialize()
     {
         // 1. 注册核心领域主机逻辑
         ConfigureContainer((cb, _) =>
         {
-            DomainHost<TUserInfo>.Build<TInitializer>(cb, Builder.Configuration, Options);
+            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, Builder.Configuration, Options);
         });
 
         // 2. 【保险措施】：自动补全测试日志能力
