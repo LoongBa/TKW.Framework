@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using TKW.Framework.Domain.Interception;
@@ -149,10 +148,19 @@ where TUserInfo : class, IUserInfo, new()
     {
         // 默认启用权限检查过滤器
         EnableAuthorityFilter();
+        if (container != null && Host != null)
+        {
+            // 核心改造点：优先从容器中解析表现层配置的自定义异常工厂。
+            // 如果表现层没有调 UseExceptionLogger()，就 fallback 回显式 new 一个默认的。
+            var exceptionLoggerFactory = container.ResolveOptional<DefaultExceptionLoggerFactory>()
+                                         ?? new DefaultExceptionLoggerFactory();
 
-        // 开发环境下默认启用控制台详细异常记录
-        if (IsDevelopment)
-            UseDefaultExceptionLoggerFactory();
+            // 配置并挂载到 Host
+            Host.ExceptionLoggerFactory = exceptionLoggerFactory
+                .SetLoggerFactory(Host.LoggerFactory)
+                // 你可以根据 IsDevelopment 动态决定异常输出的详细程度
+                .SetLogLevel(IsDevelopment ? EnumDomainLogLevel.Verbose : EnumDomainLogLevel.Normal);
+        }
     }
 
     #region 过滤器与辅助控制方法

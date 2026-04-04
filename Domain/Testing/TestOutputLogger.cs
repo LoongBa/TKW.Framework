@@ -1,5 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
-using Xunit;
+﻿using System;
+using Microsoft.Extensions.Logging;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Testing;
 
@@ -7,9 +8,9 @@ namespace TKW.Framework.Domain.Testing;
 /// 自定义测试日志类：将 ILogger 日志转发到 ITestOutputHelper
 /// </summary>
 /// <typeparam name="T">日志分类类型（与被测试类一致）</typeparam>
-public class TestOutputLogger<T>(ITestOutputHelper testOutput) : ILogger<T>
+public class TestOutputLogger<T>(ITestWriter testOutput) : ILogger<T>
 {
-    private readonly ITestOutputHelper _TestOutput = testOutput ?? throw new ArgumentNullException(nameof(testOutput));
+    private readonly ITestWriter _TestOutput = testOutput ?? throw new ArgumentNullException(nameof(testOutput));
     private readonly string _CategoryName = typeof(T).FullName ?? nameof(TestOutputLogger<T>);
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull
@@ -51,16 +52,10 @@ public class TestOutputLogger<T>(ITestOutputHelper testOutput) : ILogger<T>
 /// <summary>
 /// 非泛型测试日志类：兼容非泛型 ILogger 接口
 /// </summary>
-public class TestOutputLogger : ILogger
+public class TestOutputLogger(ITestWriter testOutput, string categoryName) : ILogger
 {
-    private readonly ITestOutputHelper _TestOutput;
-    private readonly string _CategoryName;
-
-    public TestOutputLogger(ITestOutputHelper testOutput, string categoryName)
-    {
-        _TestOutput = testOutput ?? throw new ArgumentNullException(nameof(testOutput));
-        _CategoryName = categoryName ?? throw new ArgumentNullException(nameof(categoryName));
-    }
+    private readonly ITestWriter _TestOutput = testOutput ?? throw new ArgumentNullException(nameof(testOutput));
+    private readonly string _CategoryName = categoryName ?? throw new ArgumentNullException(nameof(categoryName));
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull
     {

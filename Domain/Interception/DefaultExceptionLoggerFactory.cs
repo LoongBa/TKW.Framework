@@ -19,7 +19,7 @@ public class DefaultExceptionLoggerFactory
 
     protected internal DefaultExceptionLoggerFactory SetLoggerFactory(ILoggerFactory loggerFactory)
     {
-        _Logger = loggerFactory.CreateLogger("ExceptionLogger");
+        _Logger = loggerFactory.CreateLogger(GetType().Name);
         return this;
     }
 
@@ -50,7 +50,7 @@ public class DefaultExceptionLoggerFactory
 #endif
     }
 
-    internal DefaultExceptionLoggerFactory? SetLogLevel(EnumDomainLogLevel logLevel)
+    internal DefaultExceptionLoggerFactory SetLogLevel(EnumDomainLogLevel logLevel)
     {
         _LogLevel = logLevel;
         return this;

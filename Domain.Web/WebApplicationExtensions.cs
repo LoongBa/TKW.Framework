@@ -1,7 +1,6 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TKW.Framework.Domain.Interfaces;
@@ -19,7 +18,6 @@ public static class WebApplicationExtensions
         var options = new DomainWebOptions
         {
             IsDevelopment = builder.Environment.IsDevelopment(),
-            ConnectionString = builder.Configuration.GetConnectionString("Default") ?? ""
         };
         configure?.Invoke(options);
 
@@ -35,7 +33,7 @@ public static class WebApplicationExtensions
             });
 
         // 返回构建器，它会在内部自动添加 WebExceptionMiddleware（如果 options 开启）
-        return new RegisterServicesBuilder(builder, options);
+        return new RegisterServicesBuilder(new HostApplicationBuilderAdapter(builder), options);
     }
 
     public static DomainConfigurationBinder BindOptions(

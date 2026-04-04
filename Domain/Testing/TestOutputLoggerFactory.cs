@@ -1,6 +1,8 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
-using Xunit;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Testing;
 
@@ -37,7 +39,7 @@ public class TestOutputLoggerFactory : ILoggerFactory
     /// 实例级日志级别过滤委托（默认输出所有级别日志）
     /// 可自定义过滤规则，例如：仅输出 Debug 和 Error 级别
     /// </summary>
-    public Func<LogLevel, bool> LogLevelFilter { get; set; } = level => true;
+    public Func<LogLevel, bool> LogLevelFilter { get; set; } = _ => true;
 
     /// <summary>
     /// 实例级日志条目存储（仅当前实例输出的日志，便于单元测试断言）
@@ -125,7 +127,7 @@ public class TestOutputLoggerFactory : ILoggerFactory
     /// </summary>
     public void DisableAllLogging()
     {
-        LogLevelFilter = level => false;
+        LogLevelFilter = _ => false;
         ClearLogEntries(); // 重置日志存储
     }
 
@@ -134,7 +136,7 @@ public class TestOutputLoggerFactory : ILoggerFactory
     /// </summary>
     public void ResetLogConfiguration()
     {
-        LogLevelFilter = level => true;
+        LogLevelFilter = _ => true;
         ClearLogEntries(); // 清空历史日志
     }
 

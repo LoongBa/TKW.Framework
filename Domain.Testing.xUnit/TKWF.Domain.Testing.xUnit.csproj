@@ -4,14 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UseMaui>true</UseMaui>
-    <RootNamespace>TKW.Framework.Domain.Maui</RootNamespace>
-    <AssemblyName>TKWF.Domain.Maui</AssemblyName>
+    <RootNamespace>TKW.Framework.Domain.Testing.xUnit</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Services\" />
-    <Folder Include="Extensions\" />
+    <PackageReference Include="xunit.v3.extensibility.core" Version="3.2.2" />
   </ItemGroup>
 
   <ItemGroup>

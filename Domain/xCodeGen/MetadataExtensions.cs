@@ -2,7 +2,6 @@
 using System.ComponentModel.DataAnnotations;
 using TKW.Framework.Domain.Interfaces;
 using xCodeGen.Abstractions;
-using xCodeGen.Abstractions.Metadata;
 
 namespace TKW.Framework.Domain.xCodeGen;
 

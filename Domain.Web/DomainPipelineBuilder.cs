@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -16,12 +15,12 @@ namespace TKW.Framework.Domain.Web;
 /// Web 专用服务注册构建器（状态机起点）
 /// 负责初始的服务注册和配置，是构建管道的起点。
 /// </summary>
-public class RegisterServicesBuilder : DomainHostBuilder<RegisterServicesBuilder, DomainWebOptions>
+public class RegisterServicesBuilder : DomainAppBuilderBase<RegisterServicesBuilder, DomainWebOptions>
 {
     private readonly List<Action<IApplicationBuilder>> _PipelineActions;
 
     // 构造函数接收 IHostApplicationBuilder（WebApplicationBuilder 是其子类）
-    internal RegisterServicesBuilder(IHostApplicationBuilder builder,
+    internal RegisterServicesBuilder(IDomainAppBuilderAdapter builder,
         DomainWebOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
         : base(builder, options) // 传递给新的基类
     {
@@ -49,7 +48,7 @@ public class RegisterServicesBuilder : DomainHostBuilder<RegisterServicesBuilder
         where TSessionManager : class, ISessionManager<TUserInfo>
         where TUserInfo : class, IUserInfo, new()
     {
-        var webOptions = (DomainWebOptions)Options;
+        var webOptions = Options;
 
         // 应用用户提供的会话配置
         setupAction?.Invoke(webOptions.WebSession);
@@ -85,7 +84,7 @@ public class RegisterServicesBuilder : DomainHostBuilder<RegisterServicesBuilder
 /// 会话设置构建器
 /// 用于在 UseDomainSession 之后，路由配置之前的中间件挂载。
 /// </summary>
-public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class SessionSetupBuilder(IDomainAppBuilderAdapter builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 配置路由之前的自定义中间件
@@ -110,7 +109,7 @@ public class SessionSetupBuilder(IHostApplicationBuilder builder, DomainWebOptio
 /// 路由前构建器
 /// 负责配置 UseRouting 之前的标准中间件（如重定向、认证等）。
 /// </summary>
-public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class BeforeRoutingBuilder(IDomainAppBuilderAdapter builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 启用 ASP.NET Core 标准路由和授权体系
@@ -157,7 +156,7 @@ public class BeforeRoutingBuilder(IHostApplicationBuilder builder, DomainWebOpti
 /// 路由终结点映射构建器
 /// 专门负责 MapControllers, MapHub 等终结点配置。
 /// </summary>
-public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class RoutingBuilder(IDomainAppBuilderAdapter builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     /// <summary>
     /// 配置具体的终结点映射。
@@ -173,7 +172,7 @@ public class RoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions op
 /// <summary>
 /// 路由后构建器：支持终结点映射后的后续链式配置。
 /// </summary>
-public class AfterRoutingBuilder(IHostApplicationBuilder builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
+public class AfterRoutingBuilder(IDomainAppBuilderAdapter builder, DomainWebOptions options, List<Action<IApplicationBuilder>> pipelineActions)
 {
     public AfterRoutingBuilder AfterRouting(Action<IEndpointRouteBuilder, DomainWebOptions> action)
     {
