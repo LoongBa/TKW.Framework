@@ -17,11 +17,13 @@ public class MauiAppBuilder<TUserInfo, TInitializer>(
         return this;
     }
 
+    /// <summary>使用 MauiSessionManager 会话管理器</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession()
     {
         return UseMauiSession<MauiSessionManager<TUserInfo>>();
     }
 
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession<TSessionManager>()
         where TSessionManager : class, ISessionManager<TUserInfo>
     {
@@ -30,8 +32,10 @@ public class MauiAppBuilder<TUserInfo, TInitializer>(
         return this;
     }
 
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession(ISessionManager<TUserInfo> instance)
     {
+        ArgumentNullException.ThrowIfNull(instance);
         UseSessionManagerInternal(instance);
         return this;
     }

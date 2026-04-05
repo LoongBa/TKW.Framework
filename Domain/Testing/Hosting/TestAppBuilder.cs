@@ -1,4 +1,5 @@
 ﻿using Autofac;
+using System;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
@@ -56,5 +57,22 @@ public class TestAppBuilder<TUserInfo, TInitializer>(
         _ = (Builder as dynamic).Build();
 
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
+    }
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
+    /// <typeparam name="TUserInfo"></typeparam>
+    /// <typeparam name="TSessionManager"></typeparam>
+    public TestAppBuilder<TUserInfo, TInitializer> UseSessionManager<TSessionManager>()
+        where TSessionManager : ISessionManager<TUserInfo>
+    {
+        UseSessionManagerInternal<TUserInfo, TSessionManager>();
+        return this;
+    }
+
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
+    public TestAppBuilder<TUserInfo, TInitializer> UseSessionManager(ISessionManager<TUserInfo> instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        UseSessionManagerInternal(instance);
+        return this;
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.DataProtection;
+﻿using Autofac;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
@@ -14,9 +15,9 @@ namespace TKW.Framework.Domain.Hosting;
 /// </summary>
 /// <typeparam name="TUserInfo">用户信息类型</typeparam>
 /// <typeparam name="TInitializer">领域初始化器类型</typeparam>
-public class ConsoleAppBuilder<TUserInfo, TInitializer>(
+public class LocalAppBuilder<TUserInfo, TInitializer>(
     IDomainAppBuilderAdapter builder, DomainOptions options)
-    : DomainAppBuilderBase<ConsoleAppBuilder<TUserInfo, TInitializer>, DomainOptions>(builder, options)
+    : DomainAppBuilderBase<LocalAppBuilder<TUserInfo, TInitializer>, DomainOptions>(builder, options)
     where TUserInfo : class, IUserInfo, new()
     where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
 {
@@ -24,7 +25,7 @@ public class ConsoleAppBuilder<TUserInfo, TInitializer>(
     /// 显式声明不使用任何会话管理（纯净/无状态模式）
     /// 将自动注入 <see cref="StatelessSessionManager{TUserInfo}"/> 以阻断任何磁盘持久化行为。
     /// </summary>
-    public ConsoleAppBuilder<TUserInfo, TInitializer> NoSession()
+    public LocalAppBuilder<TUserInfo, TInitializer> NoSession()
     {
         // 调用基类保护方法注册无状态管理器
         UseSessionManagerInternal<TUserInfo, StatelessSessionManager<TUserInfo>>();
@@ -36,7 +37,7 @@ public class ConsoleAppBuilder<TUserInfo, TInitializer>(
     /// 自动配置 DataProtection 并将密钥存储在本地用户目录。
     /// </summary>
     /// <param name="applicationName">应用唯一名称，用于隔离不同应用的加密密钥</param>
-    public ConsoleAppBuilder<TUserInfo, TInitializer> UseLocalSession(string applicationName)
+    public LocalAppBuilder<TUserInfo, TInitializer> UseLocalSession(string applicationName)
     {
         // 1. 设置参数，确保核心层后续逻辑（如日志前缀）一致
         Options.ApplicationName = applicationName;
@@ -88,5 +89,23 @@ public class ConsoleAppBuilder<TUserInfo, TInitializer>(
 
         // 3. 返回静态单例入口
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败，未能正确创建静态实例。");
+    }
+
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
+    /// <typeparam name="TUserInfo"></typeparam>
+    /// <typeparam name="TSessionManager"></typeparam>
+    public LocalAppBuilder<TUserInfo, TInitializer> UseSessionManager<TSessionManager>()
+        where TSessionManager : ISessionManager<TUserInfo>
+    {
+        UseSessionManagerInternal<TUserInfo, TSessionManager>();
+        return this;
+    }
+
+    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
+    public LocalAppBuilder<TUserInfo, TInitializer> UseSessionManager(ISessionManager<TUserInfo> instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        UseSessionManagerInternal(instance);
+        return this;
     }
 }

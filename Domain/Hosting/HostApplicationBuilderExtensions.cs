@@ -15,20 +15,20 @@ public static class HostApplicationBuilderExtensions
     {
         return new TestAppBuilder<TUserInfo, TInitializer>(new HostApplicationBuilderAdapter(builder), new DomainOptions());
     }
-    public static ConsoleAppBuilder<TUserInfo, TInitializer> ConfigConsoleAppDomain<TUserInfo, TInitializer>(
+    public static LocalAppBuilder<TUserInfo, TInitializer> ConfigConsoleAppDomain<TUserInfo, TInitializer>(
         this IHostApplicationBuilder builder,
         Action<DomainOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        return new ConsoleAppBuilder<TUserInfo, TInitializer>(new HostApplicationBuilderAdapter(builder), new DomainOptions());
+        return new LocalAppBuilder<TUserInfo, TInitializer>(new HostApplicationBuilderAdapter(builder), new DomainOptions());
     }
-    public static ConsoleAppBuilder<TUserInfo, TInitializer> ConfigDesktopAppDomain<TUserInfo, TInitializer>(
+    public static LocalAppBuilder<TUserInfo, TInitializer> ConfigDesktopAppDomain<TUserInfo, TInitializer>(
         this IHostApplicationBuilder builder,
         Action<DomainOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        return new ConsoleAppBuilder<TUserInfo, TInitializer>(new HostApplicationBuilderAdapter(builder), new DomainOptions());
+        return new LocalAppBuilder<TUserInfo, TInitializer>(new HostApplicationBuilderAdapter(builder), new DomainOptions());
     }
 }
