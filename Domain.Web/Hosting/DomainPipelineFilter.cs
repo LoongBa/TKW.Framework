@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 
-namespace TKW.Framework.Domain.Web;
+namespace TKW.Framework.Domain.Web.Hosting;
 
 internal sealed class DomainPipelineFilter(List<Action<IApplicationBuilder>> actions) : IStartupFilter
 {

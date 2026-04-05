@@ -4,8 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Session;
 
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Domain.Hosting;
 
 public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuilderAdapter builder, TOptions options)
     where TSubBuilder : DomainAppBuilderBase<TSubBuilder, TOptions>
@@ -34,6 +35,38 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
         Builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb => action(cb, Options));
         return (TSubBuilder)this;
     }
+
+    /// <summary>使用指定的会话管理器</summary>
+    /// <typeparam name="TUserInfo"></typeparam>
+    /// <typeparam name="TSessionManager"></typeparam>
+    /// <remarks>覆盖默认的 LocalSessionManager——后面注册覆盖默认、前面注册
+    /// 注意 UseWebSession()/UseMauiSession() 的先后顺序</remarks>
+    protected TSubBuilder UseSessionManagerInternal<TUserInfo, TSessionManager>()
+        where TUserInfo : class, IUserInfo, new()
+        where TSessionManager : ISessionManager<TUserInfo>
+    {
+        ConfigureContainer((cb, _) =>
+        {
+            cb.RegisterType<TSessionManager>().As<ISessionManager<TUserInfo>>().SingleInstance();
+        });
+        return (TSubBuilder)this;
+    }
+
+    /// <summary>使用指定的会话管理器实例</summary>
+    protected TSubBuilder UseSessionManagerInternal<TUserInfo>(ISessionManager<TUserInfo> instance)
+        where TUserInfo : class, IUserInfo, new()
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        ConfigureContainer((cb, _) =>
+        {
+            cb.RegisterInstance(instance)
+                .As<ISessionManager<TUserInfo>>()
+                .SingleInstance();
+        });
+        return (TSubBuilder)this;
+    }
+
     /// <summary>
     /// 使用指定的异常日志工厂实例
     /// </summary>

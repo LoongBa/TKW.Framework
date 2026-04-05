@@ -11,10 +11,10 @@
 
   <ItemGroup>
     <!-- 核心 WASM 包（包含 ProtectedLocalStorage） -->
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.5" />
 
     <!-- 认证相关（ProtectedSessionStorage、AuthenticationStateProvider 等） -->
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.5" />
 
     <!-- 日志支持 -->
   </ItemGroup>

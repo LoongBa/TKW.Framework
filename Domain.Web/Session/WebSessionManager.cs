@@ -1,21 +1,20 @@
 ﻿using Microsoft.Extensions.Caching.Hybrid;
-using System;
-using System.Threading.Tasks;
 using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Session;
 
-namespace TKW.Framework.Domain.Session;
+namespace TKW.Framework.Domain.Web.Session;
 
 /// <summary>
 /// 领域会话管理器实现类
 /// 负责处理用户会话的生命周期，支持内存与分布式二级缓存。
 /// </summary>
 /// <typeparam name="TUserInfo">用户信息类型</typeparam>
-public class SessionManager<TUserInfo> : ISessionManager<TUserInfo>
+public class WebSessionManager<TUserInfo> : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
     private readonly HybridCache _Cache;
-    private readonly DomainOptions _Options;
+    private readonly DomainWebOptions _Options;
 
     private IIdGenerator IdGenerator { get; }
 
@@ -25,7 +24,7 @@ public class SessionManager<TUserInfo> : ISessionManager<TUserInfo>
     /// <param name="cache">HybridCache 缓存实例</param>
     /// <param name="options">领域层全局配置对象</param>
     /// <param name="idGenerator">唯一标识符生成器（可传入性能更好的 NanoId 生成器，默认使用内置生成器）</param>
-    public SessionManager(HybridCache cache, DomainOptions options, IIdGenerator? idGenerator = null)
+    public WebSessionManager(HybridCache cache, DomainWebOptions options, IIdGenerator? idGenerator = null)
     {
         _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _Options = options ?? throw new ArgumentNullException(nameof(options));

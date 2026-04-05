@@ -1,4 +1,5 @@
 ﻿using Autofac;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -79,16 +80,20 @@ where TUserInfo : class, IUserInfo, new()
         // 1. 执行派生类的“钩子”方法，让业务层先进行配置（如 JSON 序列化设置）
         OnRegisterInfrastructureServices(containerBuilder, services, configuration, options);
 
-        // 2. 强制执行框架基类的基础设施注册
-        // 配置 HybridCache：SessionManager 默认使用内存缓存
-        services.AddHybridCache();
+        // 2. 默认注册：DataProtection (为缺省的 LocalSessionManager 提供支持)
+        var appName = options.ApplicationName ??
+                      System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ??
+                      "TKWF.DefaultApp";
+        services.AddDataProtection().SetApplicationName(appName);
 
-        // 内存版 SessionManager 必须注册为单例 (SingleInstance)
-        // 否则在 Scoped 生命周期下，跨请求的会话数据将无法共享，导致“孤儿 Cookie”问题无法闭环
-        containerBuilder.RegisterTypeReplaceable<ISessionManager<TUserInfo>, SessionManager<TUserInfo>>()
+        // 3. 默认注册：将 StatelessSessionManager 作为基础 SessionManager
+        // 使用 IfNotRegistered 确保如果在 Web 扩展或表现层调用了 UseWebSession 等方法，这个默认值会被跳过/覆盖。
+        containerBuilder.RegisterType<StatelessSessionManager<TUserInfo>>()
+            .As<ISessionManager<TUserInfo>>()
+            .IfNotRegistered(typeof(ISessionManager<TUserInfo>))
             .SingleInstance();
 
-        // 开启 AOP 日志注入能力
+        // 4. 开启 AOP 日志注入能力
         if (options.EnableDomainLogging)
             containerBuilder.UseLogger();
     }

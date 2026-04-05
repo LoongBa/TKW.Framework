@@ -1,11 +1,11 @@
 ﻿using System;
 using TKW.Framework.Domain.Interfaces;
 
-namespace TKW.Framework.Domain.Testing;
+namespace TKW.Framework.Domain.Testing.Hosting;
 
 public static class DomainTestBuilderExtensions
 {
-    public static DomainGenericHostBuilder<TUserInfo, TInitializer> ConfigTkwDomain<TUserInfo, TInitializer>(
+    public static TestAppBuilder<TUserInfo, TInitializer> ConfigTestDomain<TUserInfo, TInitializer>(
         this IDomainAppBuilderAdapter builder,
         Action<DomainOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
@@ -14,7 +14,6 @@ public static class DomainTestBuilderExtensions
         var options = new DomainOptions();
         configure?.Invoke(options);
 
-        // 返回构建器，并记录 Initializer 类型
-        return new DomainGenericHostBuilder<TUserInfo, TInitializer>(builder, options);
+        return new TestAppBuilder<TUserInfo, TInitializer>(builder, options);
     }
 }

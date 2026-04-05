@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using TKW.Framework.Domain.Web.Session;
 
 namespace TKW.Framework.Domain.Web.Middlewares;
 

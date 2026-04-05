@@ -1,4 +1,6 @@
-﻿namespace TKW.Framework.Domain.Web;
+﻿using TKW.Framework.Domain.Web.Session;
+
+namespace TKW.Framework.Domain.Web;
 
 /// <summary>
 /// Web 专用领域配置扩展

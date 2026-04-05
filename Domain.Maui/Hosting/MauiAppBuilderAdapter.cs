@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using TKW.Framework.Domain.Interfaces;
 
-namespace TKW.Framework.Domain.Maui;
+namespace TKW.Framework.Domain.Maui.Hosting;
 
 /// <summary>
 /// MAUI 主机构建器适配器

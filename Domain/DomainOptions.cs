@@ -15,6 +15,7 @@ public class DomainOptions
     public Type IIdGeneratorType { get; set; } = typeof(DefaultIdGenerator);
     public DomainSessionOptions Session { get; } = new();
 
+    public string ApplicationName { get; set; } = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "TKWF.DefaultApp";
     /// <summary>
     /// 是否开启领域层 AOP 日志（拦截方法调用、耗时等）
     /// </summary>

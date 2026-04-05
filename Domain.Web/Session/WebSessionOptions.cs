@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 
-namespace TKW.Framework.Domain.Web;
+namespace TKW.Framework.Domain.Web.Session;
 
 public class WebSessionOptions : DomainSessionOptions
 {

@@ -1,5 +1,7 @@
 ﻿using Autofac;
+using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Testing.Hosting;
 
 namespace TKW.Framework.Domain.Testing.xUnit;
 
@@ -8,7 +10,7 @@ public static class DomainTestBuilderExtensions
     /// <summary>
     /// 封装 xUnit 专用日志桥接逻辑，业务层无需再手动注册 Bridge
     /// </summary>
-    public static DomainGenericHostBuilder<TUserInfo, TInitializer> UseXunitLogger<TUserInfo, TInitializer>(this DomainGenericHostBuilder<TUserInfo, TInitializer> builder)
+    public static TestAppBuilder<TUserInfo, TInitializer> UseXunitLogger<TUserInfo, TInitializer>(this TestAppBuilder<TUserInfo, TInitializer> builder)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {

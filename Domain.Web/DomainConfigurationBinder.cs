@@ -28,7 +28,7 @@ public class DomainConfigurationBinder(WebApplicationBuilder builder, DomainWebO
             throw new InvalidOperationException($"未找到配置节: {sectionName}");
 
         // 1. 如果泛型 TDomainOptions 正是当前实例 (或其基类)，立即绑定到 this
-        // 这样在 ConfigTkwDomain 的闭包里，cfg 就能立刻读到值
+        // 这样在 ConfigWebAppDomain 的闭包里，cfg 就能立刻读到值
         if (domainOptions is TDomainOptions currentInstance)
             section.Bind(currentInstance);
 

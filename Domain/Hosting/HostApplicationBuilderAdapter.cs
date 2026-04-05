@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TKW.Framework.Domain.Interfaces;
 
-namespace TKW.Framework.Domain; // 建议放在核心包中
+namespace TKW.Framework.Domain.Hosting; // 建议放在核心包中
 
 /// <summary>
 /// 通用主机构建器适配器（适配 WebApplicationBuilder, HostApplicationBuilder 等）
