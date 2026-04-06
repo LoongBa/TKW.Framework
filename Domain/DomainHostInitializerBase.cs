@@ -2,9 +2,11 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
@@ -87,11 +89,10 @@ where TUserInfo : class, IUserInfo, new()
         services.AddDataProtection().SetApplicationName(appName);
 
         // 3. 默认注册：将 StatelessSessionManager 作为基础 SessionManager
-        // 使用 IfNotRegistered 确保如果在 Web 扩展或表现层调用了 UseWebSession 等方法，这个默认值会被跳过/覆盖。
         containerBuilder.RegisterType<StatelessSessionManager<TUserInfo>>()
             .As<ISessionManager<TUserInfo>>()
-            .IfNotRegistered(typeof(ISessionManager<TUserInfo>))
-            .SingleInstance();
+            .SingleInstance()
+            .PreserveExistingDefaults();    // 即使 Populate 进来的服务，也会优先于我
 
         // 4. 开启 AOP 日志注入能力
         if (options.EnableDomainLogging)

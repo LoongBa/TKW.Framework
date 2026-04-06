@@ -2,6 +2,7 @@
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -15,32 +16,46 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
     protected readonly IDomainAppBuilderAdapter Builder = builder;
     protected readonly TOptions Options = options;
 
-    // 对应原 DomainPipelineBuilderBase 的功能
+    // 【魔法核心】：动作缓冲池
+    private readonly List<Action<ContainerBuilder, TOptions>> _containerActions = new();
+    private bool _isFactoryRegistered = false;
+
     public TSubBuilder RegisterServices(Action<IServiceCollection, TOptions> action)
     {
         action(Builder.Services, Options);
         return (TSubBuilder)this;
     }
 
-    // 核心构建器功能：配置 Options
     public TSubBuilder Configure(Action<TOptions> action)
     {
         action(Options);
         return (TSubBuilder)this;
     }
 
-    // 核心构建器功能：配置 Autofac 容器 (解决 CS1660 编译错误)
+    // 核心构建器功能：配置 Autofac 容器 
     public TSubBuilder ConfigureContainer(Action<ContainerBuilder, TOptions> action)
     {
-        Builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb => action(cb, Options));
+        // 1. 将注册动作放入缓冲池
+        _containerActions.Add(action);
+
+        // 2. 只向底层注册一次 Factory。
+        if (!_isFactoryRegistered)
+        {
+            Builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb =>
+            {
+                // 当 .NET 底层最终调用 Build() 触发此委托时，
+                // _containerActions 已经被后续所有的链式调用填满了！
+                foreach (var queuedAction in _containerActions)
+                {
+                    queuedAction(cb, Options);
+                }
+            });
+            _isFactoryRegistered = true;
+        }
+
         return (TSubBuilder)this;
     }
 
-    /// <summary>使用指定的会话管理器</summary>
-    /// <typeparam name="TUserInfo"></typeparam>
-    /// <typeparam name="TSessionManager"></typeparam>
-    /// <remarks>覆盖默认的 LocalSessionManager——后面注册覆盖默认、前面注册
-    /// 注意 UseWebSession()/UseMauiSession() 的先后顺序</remarks>
     protected TSubBuilder UseSessionManagerInternal<TUserInfo, TSessionManager>()
         where TUserInfo : class, IUserInfo, new()
         where TSessionManager : ISessionManager<TUserInfo>
@@ -52,52 +67,33 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
         return (TSubBuilder)this;
     }
 
-    /// <summary>使用指定的会话管理器实例</summary>
     protected TSubBuilder UseSessionManagerInternal<TUserInfo>(ISessionManager<TUserInfo> instance)
         where TUserInfo : class, IUserInfo, new()
     {
         ArgumentNullException.ThrowIfNull(instance);
-
         ConfigureContainer((cb, _) =>
         {
-            cb.RegisterInstance(instance)
-                .As<ISessionManager<TUserInfo>>()
-                .SingleInstance();
+            cb.RegisterInstance(instance).As<ISessionManager<TUserInfo>>().SingleInstance();
         });
         return (TSubBuilder)this;
     }
 
-    /// <summary>
-    /// 使用指定的异常日志工厂实例
-    /// </summary>
     public TSubBuilder UseExceptionLogger(DefaultExceptionLoggerFactory instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
-
-        // 利用 Autofac 容器的实例注册特性
         ConfigureContainer((cb, _) =>
         {
-            // 将外部传入的实例注册为基类 DefaultExceptionLoggerFactory
-            cb.RegisterInstance(instance)
-                .As<DefaultExceptionLoggerFactory>()
-                .SingleInstance();
+            cb.RegisterInstance(instance).As<DefaultExceptionLoggerFactory>().SingleInstance();
         });
         return (TSubBuilder)this;
     }
-    /// <summary>
-    /// 使用指定的异常日志工厂实例
-    /// </summary>
+
     public TSubBuilder UseExceptionLogger<TExceptionLogger>()
         where TExceptionLogger : DefaultExceptionLoggerFactory
     {
-        // 利用 Autofac 容器的覆盖特性
         ConfigureContainer((cb, _) =>
         {
-            // 无论表现层传入什么自定义派生类，都将其注册为基类 DefaultExceptionLoggerFactory
-            // 这样领域层就能统一解析
-            cb.RegisterType<TExceptionLogger>()
-                .As<DefaultExceptionLoggerFactory>()
-                .SingleInstance();
+            cb.RegisterType<TExceptionLogger>().As<DefaultExceptionLoggerFactory>().SingleInstance();
         });
         return (TSubBuilder)this;
     }

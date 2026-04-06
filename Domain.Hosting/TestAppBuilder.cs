@@ -1,21 +1,38 @@
 ﻿using Autofac;
-using System;
 using TKW.Framework.Domain.Exceptions;
-using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using TKW.Framework.Domain.Testing;
 using TKW.Framework.Domain.Testing.Session;
 
-namespace TKW.Framework.Domain.Testing.Hosting;
+namespace TKW.Framework.Domain.Hosting;
 
 public class TestAppBuilder<TUserInfo, TInitializer>(
-    IDomainAppBuilderAdapter builder, DomainOptions options)
+    HostApplicationBuilderAdapter builder, DomainOptions options)
     : DomainAppBuilderBase<TestAppBuilder<TUserInfo, TInitializer>, DomainOptions>(builder, options)
     where TUserInfo : class, IUserInfo, new()
     where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
 {
+    public DomainHost<TUserInfo> Build()
+    {
+        ConfigureContainer((cb, _) =>
+        {
+            cb.RegisterType<ConsoleTestWriter>().As<ITestWriter>()
+                .IfNotRegistered(typeof(ITestWriter))
+                .SingleInstance();
+
+            cb.RegisterType<TestOutputLoggerFactory>().As<Microsoft.Extensions.Logging.ILoggerFactory>()
+                .IfNotRegistered(typeof(Microsoft.Extensions.Logging.ILoggerFactory))
+                .SingleInstance();
+            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, Options);
+        });
+        builder.Build();
+        return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
+    }
+
     public TestAppBuilder<TUserInfo, TInitializer> NoSession()
     {
+        // 调用基类保护方法注册无状态管理器
         UseSessionManagerInternal<TUserInfo, StatelessSessionManager<TUserInfo>>();
         return this;
     }
@@ -38,26 +55,6 @@ public class TestAppBuilder<TUserInfo, TInitializer>(
         return this;
     }
 
-    public DomainHost<TUserInfo> Initialize()
-    {
-        ConfigureContainer((cb, _) =>
-        {
-            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, Builder.Configuration, Options);
-
-            // 补充测试必备的日志和容器回退机制
-            cb.RegisterType<ConsoleTestWriter>().As<ITestWriter>()
-                .IfNotRegistered(typeof(ITestWriter))
-                .SingleInstance();
-
-            cb.RegisterType<TestOutputLoggerFactory>().As<Microsoft.Extensions.Logging.ILoggerFactory>()
-                .IfNotRegistered(typeof(Microsoft.Extensions.Logging.ILoggerFactory))
-                .SingleInstance();
-        });
-
-        _ = (Builder as dynamic).Build();
-
-        return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
-    }
     /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
     /// <typeparam name="TUserInfo"></typeparam>
     /// <typeparam name="TSessionManager"></typeparam>

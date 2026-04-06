@@ -11,35 +11,31 @@ public class MauiAppBuilder<TUserInfo, TInitializer>(
     where TUserInfo : class, IUserInfo, new()
     where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
 {
+    /// <summary>
+    /// 明确宣告不使用会话特性，注入 NoSessionManager 实施严格防守。
+    /// </summary>
     public MauiAppBuilder<TUserInfo, TInitializer> NoSession()
     {
-        UseSessionManagerInternal<TUserInfo, StatelessSessionManager<TUserInfo>>();
+        UseSessionManagerInternal<TUserInfo, NoSessionManager<TUserInfo>>();
         return this;
     }
 
-    /// <summary>使用 MauiSessionManager 会话管理器</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession()
     {
         return UseMauiSession<MauiSessionManager<TUserInfo>>();
     }
 
-    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession<TSessionManager>()
         where TSessionManager : class, ISessionManager<TUserInfo>
     {
-        // 可以在这里插入 MAUI 专属的全局生命周期事件挂载
         UseSessionManagerInternal<TUserInfo, TSessionManager>();
         return this;
     }
 
-    /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>
     public MauiAppBuilder<TUserInfo, TInitializer> UseMauiSession(ISessionManager<TUserInfo> instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
         UseSessionManagerInternal(instance);
         return this;
     }
-
-    // [保留的初始化出口] 
-    // 注意：MAUI 通常由其自己的 builder.Build() 触发完成，如果需要，可通过扩展方法在 MAUI 管线构建时断言 Root
 }

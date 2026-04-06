@@ -12,4 +12,5 @@ public interface IDomainAppBuilderAdapter
     IServiceCollection Services { get; }
     IConfiguration Configuration { get; }
     void ConfigureContainer<TBuilder>(IServiceProviderFactory<TBuilder> factory, Action<TBuilder>? configure = null) where TBuilder : notnull;
+    void Build();
 }

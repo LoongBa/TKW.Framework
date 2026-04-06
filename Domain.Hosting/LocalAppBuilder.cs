@@ -1,8 +1,5 @@
-﻿using Autofac;
-using Microsoft.AspNetCore.DataProtection;
+﻿using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.IO;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -16,11 +13,33 @@ namespace TKW.Framework.Domain.Hosting;
 /// <typeparam name="TUserInfo">用户信息类型</typeparam>
 /// <typeparam name="TInitializer">领域初始化器类型</typeparam>
 public class LocalAppBuilder<TUserInfo, TInitializer>(
-    IDomainAppBuilderAdapter builder, DomainOptions options)
+    HostApplicationBuilderAdapter builder, DomainOptions options)
     : DomainAppBuilderBase<LocalAppBuilder<TUserInfo, TInitializer>, DomainOptions>(builder, options)
     where TUserInfo : class, IUserInfo, new()
     where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
 {
+    /// <summary>
+    /// 完成配置并执行初始化，返回领域主机实例。
+    /// </summary>
+    /// <returns>初始化完成的 DomainHost 实例</returns>
+    /// <exception cref="DomainException">当初始化失败或容器构建异常时抛出</exception>
+    public DomainHost<TUserInfo> Build()
+    {
+        // 1. 注册核心领域主机逻辑到 Autofac 容器
+        ConfigureContainer((cb, _) =>
+        {
+            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, Options);
+        });
+
+        // 2. 触发外部宿主构建逻辑
+        // 由于 Adapter 封装了不同的宿主（如 HostApplicationBuilder 或其他）
+        // 此处通过动态调用触发其 Build 行为以冻结服务容器
+        builder.Build();
+
+        // 3. 返回静态单例入口
+        return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败，未能正确创建静态实例。");
+    }
+
     /// <summary>
     /// 显式声明不使用任何会话管理（纯净/无状态模式）
     /// 将自动注入 <see cref="StatelessSessionManager{TUserInfo}"/> 以阻断任何磁盘持久化行为。
@@ -60,35 +79,6 @@ public class LocalAppBuilder<TUserInfo, TInitializer>(
         // 内部会利用注入的 IDataProtectionProvider 执行加密持久化
         UseSessionManagerInternal<TUserInfo, LocalSessionManager<TUserInfo>>();
         return this;
-    }
-
-    /// <summary>
-    /// 完成配置并执行初始化，返回领域主机实例。
-    /// </summary>
-    /// <returns>初始化完成的 DomainHost 实例</returns>
-    /// <exception cref="DomainException">当初始化失败或容器构建异常时抛出</exception>
-    public DomainHost<TUserInfo> Initialize()
-    {
-        // 1. 注册核心领域主机逻辑到 Autofac 容器
-        ConfigureContainer((cb, _) =>
-        {
-            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, Builder.Configuration, Options);
-        });
-
-        // 2. 触发外部宿主构建逻辑
-        // 由于 Adapter 封装了不同的宿主（如 HostApplicationBuilder 或其他）
-        // 此处通过动态调用触发其 Build 行为以冻结服务容器
-        try
-        {
-            _ = (Builder as dynamic).Build();
-        }
-        catch (Exception ex)
-        {
-            throw new DomainException($"宿主容器构建失败: {ex.Message}", ex);
-        }
-
-        // 3. 返回静态单例入口
-        return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败，未能正确创建静态实例。");
     }
 
     /// <summary>使用指定的会话管理器（定制完整的会话管理器）</summary>

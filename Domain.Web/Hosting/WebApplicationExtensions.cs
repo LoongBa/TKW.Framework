@@ -34,7 +34,7 @@ public static class WebApplicationExtensions
             });
 
         // 返回构建器，它会在内部自动添加 WebExceptionMiddleware（如果 options 开启）
-        return new WebAppBuilder<TUserInfo>(new HostApplicationBuilderAdapter(builder), options);
+        return new WebAppBuilder<TUserInfo>(new WebApplicationBuilderAdapter(builder), options);
     }
 
     public static DomainConfigurationBinder BindOptions(

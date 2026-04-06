@@ -1,7 +1,6 @@
 ﻿using Autofac;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
-using TKW.Framework.Domain.Testing.Hosting;
 
 namespace TKW.Framework.Domain.Testing.xUnit;
 
