@@ -33,6 +33,7 @@ namespace @Model.Namespace;
 
 public partial class @Model.ClassName : IDomainEntity
 {
+    [FreeSql.DataAnnotations.Column(IsIgnore = true)]
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsFromPersistentSource { get; set; } = false;
 
