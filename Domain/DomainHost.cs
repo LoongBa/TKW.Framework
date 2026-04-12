@@ -27,7 +27,8 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     public static DomainHost<TUserInfo>? Root { get; private set; }
 
     public bool IsExternalContainer { get; private set; }
-    public bool IsDevelopment { get; internal set; }
+    public DomainOptions Options { get; }
+    public bool IsDevelopment => Options.IsDevelopment;
 
     // 全局过滤器列表
     private readonly List<DomainFilterAttribute<TUserInfo>> _GlobalFilters = [];
@@ -36,7 +37,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     // 控制器/方法合同缓存，提升 AOP 拦截时的反射性能
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
 
-    #region 过滤器管理方法 (已补全)
+    #region 过滤器管理方法
 
     /// <summary>
     /// 添加全局领域过滤器。
@@ -61,10 +62,9 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// <summary>
     /// 领域主机构建入口。
     /// </summary>
-    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(
+    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(DomainOptions options,
         ContainerBuilder? upLevelContainer = null,
-        IConfiguration? configuration = null,
-        DomainOptions? options = null)
+        IConfiguration? configuration = null)
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
         if (Root != null)
@@ -77,10 +77,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
 
-        options ??= new DomainOptions();
-        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
-        containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
-
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
 
@@ -88,11 +84,14 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration, options);
 
         // 创建主机实例
-        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, configuration, isExternalContainer);
+        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, options, configuration, isExternalContainer);
+        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
+        // containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
 
         // 关键内聚点：将主机实例反向关联给 UserHelper，消除内部对静态 Root 的直接依赖
         userHelper.AttachHost(Root);
 
+        // 注册 DomainHost
         containerBuilder.RegisterInstance(Root).AsSelf();
 
         containerBuilder.RegisterBuildCallback(context =>
@@ -115,10 +114,11 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     }
 
     private DomainHost(DomainUserHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
-        IServiceCollection services, IConfiguration? configuration = null, bool isExternalContainer = false)
+        IServiceCollection services, DomainOptions options, IConfiguration? configuration = null, bool isExternalContainer = false)
     {
         ArgumentNullException.ThrowIfNull(userHelper);
         UserHelper = userHelper;
+        Options = options;
         IsExternalContainer = isExternalContainer;
 
         // 将外部或内置的 IServiceCollection Populate 进 Autofac 容器

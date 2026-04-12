@@ -19,7 +19,7 @@ public static class MauiAppBuilderExtensions
 
         builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb =>
         {
-            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, options);
+            DomainHost<TUserInfo>.Initialize<TInitializer>(options, cb, builder.Configuration);
         });
 
         return new MauiAppBuilder<TUserInfo, TInitializer>(

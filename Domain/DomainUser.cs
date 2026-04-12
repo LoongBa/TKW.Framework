@@ -6,9 +6,12 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Enumerations;
+using TKW.Framework.Common.TKWConfig;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace TKW.Framework.Domain;
 
@@ -59,6 +62,25 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
         return CurrentScope.Resolve<TAopContract>(TypedParameter.From(this));
     }
 
+    /// <summary>
+    /// 创建日志记录器 
+    /// </summary>
+    /// <param name="categoryName">日志类别名称</param>
+    /// <returns>日志记录器实例</returns>
+    public ILogger CreateLogger(string categoryName)
+    {
+        return Host.LoggerFactory.CreateLogger(categoryName);
+    }
+
+    /// <summary>
+    /// 创建日志记录器，日志类别默认为领域服务类型名
+    /// </summary>
+    /// <returns>日志记录器实例</returns>
+    public ILogger<T> CreateLogger<T>()
+    {
+        return Host.LoggerFactory.CreateLogger<T>();
+    }
+
     #endregion
 
     #region 角色判断、登录、Claims 转换
@@ -102,4 +124,21 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     }
 
     #endregion
+
+    /// <summary>
+    /// 返回 DomainOptions.ConfigDictionary 字典项的值，提供给领域服务访问配置项的能力。
+    /// </summary>
+    public string? TryGetOption(string keyName)
+    {
+        Host.Options.ConfigDictionary.TryGetValue(keyName, out var value);
+        return value;
+    }
+    /// <summary>
+    /// 返回 DomainOptions.ConfigDictionary 字典项的值，提供给领域服务访问配置项的能力。
+    /// </summary>
+    public string GetRequiredOption(string keyName)
+    {
+        return TryGetOption(keyName) ?? throw new ConfigurationErrorException(keyName);
+    }
+
 }

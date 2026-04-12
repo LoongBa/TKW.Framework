@@ -24,7 +24,7 @@ public class TestAppBuilder<TUserInfo, TInitializer>(
             cb.RegisterType<TestOutputLoggerFactory>().As<Microsoft.Extensions.Logging.ILoggerFactory>()
                 .IfNotRegistered(typeof(Microsoft.Extensions.Logging.ILoggerFactory))
                 .SingleInstance();
-            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, Options);
+            DomainHost<TUserInfo>.Initialize<TInitializer>(Options, cb, builder.Configuration);
         });
         builder.Build();
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");

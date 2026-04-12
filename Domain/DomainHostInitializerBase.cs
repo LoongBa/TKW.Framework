@@ -2,11 +2,9 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
@@ -24,9 +22,6 @@ where TUserInfo : class, IUserInfo, new()
 {
     // 基础属性，用于在领域层内快捷访问表现层传递的参数
     protected bool IsDevelopment { get; private set; }
-    protected string ConnectionString { get; private set; } = string.Empty;
-    protected Dictionary<string, string> ConfigDictionary { get; private set; } = new();
-
     /// <summary>
     /// 当前初始化器关联的领域主机实例
     /// </summary>
@@ -41,27 +36,17 @@ where TUserInfo : class, IUserInfo, new()
         IConfiguration? configuration,
         DomainOptions options)
     {
-        // 1. 第一次同步：获取来自表现层的初始设定
-        SyncOptionsToProperties(options);
-
-        // 2. 领域层“守门员”逻辑：允许具体领域项目在注册前根据业务安全要求强制修正参数
+        // 1. 领域层“守门员”逻辑：允许具体领域项目在注册前根据业务安全要求强制修正参数
         OnPreInitialize(options, configuration);
 
-        // 3. 第二次同步：确保领域层在 OnPreInitialize 中所做的修改能反映到初始化器属性中
-        SyncOptionsToProperties(options);
+        // 2. 同步设置：确保领域层在 OnPreInitialize 中所做的修改能反映到初始化器属性中
+        IsDevelopment = options.IsDevelopment;
 
-        // 4. 注册基础设施服务（包含日志能力、会话管理等）
+        // 3. 注册基础设施服务（包含日志能力、会话管理等）
         RegisterInfrastructureInternal(containerBuilder, services, configuration, options);
 
-        // 5. 注册业务逻辑服务（由子类实现）
+        // 4. 注册业务逻辑服务（由子类实现）
         return OnRegisterDomainServices(containerBuilder, services, configuration);
-    }
-
-    private void SyncOptionsToProperties(DomainOptions options)
-    {
-        IsDevelopment = options.IsDevelopment;
-        ConnectionString = options.ConnectionString;
-        ConfigDictionary = options.ConfigDictionary;
     }
 
     /// <summary>
@@ -83,9 +68,7 @@ where TUserInfo : class, IUserInfo, new()
         OnRegisterInfrastructureServices(containerBuilder, services, configuration, options);
 
         // 2. 默认注册：DataProtection (为缺省的 LocalSessionManager 提供支持)
-        var appName = options.ApplicationName ??
-                      System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ??
-                      "TKWF.DefaultApp";
+        var appName = options.ApplicationName;
         services.AddDataProtection().SetApplicationName(appName);
 
         // 3. 默认注册：将 StatelessSessionManager 作为基础 SessionManager
@@ -124,7 +107,6 @@ where TUserInfo : class, IUserInfo, new()
     {
         ArgumentNullException.ThrowIfNull(host);
         Host = host;
-        host.IsDevelopment = IsDevelopment;
 
         // 提取局部变量并进行空检查，彻底消除 CS8604 警告
         var container = host.Container;

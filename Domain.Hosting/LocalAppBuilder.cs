@@ -28,7 +28,7 @@ public class LocalAppBuilder<TUserInfo, TInitializer>(
         // 1. 注册核心领域主机逻辑到 Autofac 容器
         ConfigureContainer((cb, _) =>
         {
-            DomainHost<TUserInfo>.Initialize<TInitializer>(cb, builder.Configuration, Options);
+            DomainHost<TUserInfo>.Initialize<TInitializer>(Options, cb, builder.Configuration);
         });
 
         // 2. 触发外部宿主构建逻辑
