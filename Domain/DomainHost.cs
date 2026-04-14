@@ -76,6 +76,8 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         // 注册核心上下文与拦截器
         containerBuilder.RegisterType<DomainContext<TUserInfo>>();
         containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
+        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
+        containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
 
         IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
@@ -85,8 +87,6 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
         // 创建主机实例
         Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, options, configuration, isExternalContainer);
-        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
-        // containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
 
         // 关键内聚点：将主机实例反向关联给 UserHelper，消除内部对静态 Root 的直接依赖
         userHelper.AttachHost(Root);

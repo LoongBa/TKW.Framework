@@ -67,12 +67,8 @@ where TUserInfo : class, IUserInfo, new()
         // 1. 执行派生类的“钩子”方法，让业务层先进行配置（如 JSON 序列化设置）
         OnRegisterInfrastructureServices(containerBuilder, services, configuration, options);
 
-        // 2. 默认注册：DataProtection (为缺省的 LocalSessionManager 提供支持)
-        var appName = options.ApplicationName;
-        services.AddDataProtection().SetApplicationName(appName);
-
-        // 3. 默认注册：将 StatelessSessionManager 作为基础 SessionManager
-        containerBuilder.RegisterType<StatelessSessionManager<TUserInfo>>()
+        // 2. 默认注册：将 NoSessionManager 作为基础 SessionManager
+        containerBuilder.RegisterType<NoSessionManager<TUserInfo>>()
             .As<ISessionManager<TUserInfo>>()
             .SingleInstance()
             .PreserveExistingDefaults();    // 即使 Populate 进来的服务，也会优先于我

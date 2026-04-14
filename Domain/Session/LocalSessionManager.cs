@@ -28,13 +28,11 @@ public class LocalSessionManager<TUserInfo> : ISessionManager<TUserInfo>
 
     public string SessionKeyKeyName => "LocalSessionKey";
 
-    public LocalSessionManager(
-        IDataProtectionProvider protectionProvider,
-        ILogger<LocalSessionManager<TUserInfo>> logger,
-        string applicationName)
+    public LocalSessionManager(DomainOptions options, IDataProtectionProvider protectionProvider,
+        ILogger<LocalSessionManager<TUserInfo>> logger)
     {
         _Logger = logger;
-
+        var applicationName = options.ApplicationName;
         // 创建该应用的专属加密器（用途字符串必须唯一）
         _Protector = protectionProvider.CreateProtector("TKW.Domain.Session.v1");
 

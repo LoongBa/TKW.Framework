@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.DataProtection;
+﻿using Autofac;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
@@ -63,7 +64,7 @@ public class LocalAppBuilder<TUserInfo, TInitializer>(
 
         // 2. 配置本地数据保护（DataProtection）
         // 确保跨平台（Windows/Linux/macOS）下的密钥持有与加密能力
-        this.RegisterServices((services, options) =>
+        RegisterServices((services, options) =>
         {
             var keyPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -72,12 +73,19 @@ public class LocalAppBuilder<TUserInfo, TInitializer>(
 
             services.AddDataProtection()
                 .SetApplicationName(applicationName)
-                .PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+                .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
+                .ProtectKeysWithDpapi();
         });
 
         // 3. 注入 LocalSessionManager 占据坑位
         // 内部会利用注入的 IDataProtectionProvider 执行加密持久化
-        UseSessionManagerInternal<TUserInfo, LocalSessionManager<TUserInfo>>();
+        ConfigureContainer((cb, _) =>
+        {
+            cb.RegisterType<LocalSessionManager<TUserInfo>>()
+                .As<ISessionManager<TUserInfo>>()
+                .WithParameter("applicationName", applicationName)
+                .SingleInstance();
+        });
         return this;
     }
 
