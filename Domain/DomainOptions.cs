@@ -12,14 +12,14 @@ public class DomainOptions
     public bool IsDevelopment { get; set; }
     public string ConnectionString { get; set; } = string.Empty;
     public Dictionary<string, string> ConfigDictionary { get; set; } = new();
+    /// <summary>标签服务的规则配置</summary>
+    public List<TagRule> TagRules { get; set; } = [];
+    /// <summary>是否开启领域层 AOP 日志（拦截方法调用、耗时等）</summary>
+    public bool EnableDomainLogging { get; set; }
     public Type IIdGeneratorType { get; set; } = typeof(DefaultIdGenerator);
     public DomainSessionOptions Session { get; } = new();
 
     public string ApplicationName { get; set; } = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "TKWF.DefaultApp";
-    /// <summary>
-    /// 是否开启领域层 AOP 日志（拦截方法调用、耗时等）
-    /// </summary>
-    public bool EnableDomainLogging { get; set; }
 }
 
 public class DomainSessionOptions

@@ -3,6 +3,7 @@ using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -17,9 +18,8 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
     protected readonly TOptions Options = options;
 
     // 【魔法核心】：动作缓冲池
-    private readonly List<Action<ContainerBuilder, TOptions>> _containerActions = new();
-    private bool _isFactoryRegistered = false;
-
+    private readonly List<Action<ContainerBuilder, TOptions>> _ContainerActions = [];
+    private bool _IsFactoryRegistered;
     public TSubBuilder RegisterServices(Action<IServiceCollection, TOptions> action)
     {
         action(Builder.Services, Options);
@@ -36,21 +36,21 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
     public TSubBuilder ConfigureContainer(Action<ContainerBuilder, TOptions> action)
     {
         // 1. 将注册动作放入缓冲池
-        _containerActions.Add(action);
+        _ContainerActions.Add(action);
 
         // 2. 只向底层注册一次 Factory。
-        if (!_isFactoryRegistered)
+        if (!_IsFactoryRegistered)
         {
             Builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb =>
             {
                 // 当 .NET 底层最终调用 Build() 触发此委托时，
                 // _containerActions 已经被后续所有的链式调用填满了！
-                foreach (var queuedAction in _containerActions)
+                foreach (var queuedAction in _ContainerActions)
                 {
                     queuedAction(cb, Options);
                 }
             });
-            _isFactoryRegistered = true;
+            _IsFactoryRegistered = true;
         }
 
         return (TSubBuilder)this;
@@ -94,6 +94,23 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions>(IDomainAppBuil
         ConfigureContainer((cb, _) =>
         {
             cb.RegisterType<TExceptionLogger>().As<DefaultExceptionLoggerFactory>().SingleInstance();
+        });
+        return (TSubBuilder)this;
+    }
+
+    /// <summary>使用标签服务（TagService）并加载规则</summary>
+    public TSubBuilder UseTagService(IEnumerable<TagRule>? tagRules = null)
+    {
+        // 注册为单例服务
+        Builder.Services.AddSingleton<TagService>(_ =>
+        {
+            var tagService = new TagService();
+            // 如果外部传入了特定的规则，则使用传入的；
+            // 否则回退（Fallback）到 Options 中从配置文件加载的规则。
+            var effectiveRules = tagRules ?? Options.TagRules;
+            tagService.LoadRules(effectiveRules);
+
+            return tagService;
         });
         return (TSubBuilder)this;
     }
