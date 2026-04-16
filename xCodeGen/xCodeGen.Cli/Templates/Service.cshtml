@@ -13,9 +13,11 @@
     var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("GenerateCodeAttribute"));
     var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
     bool isView = CodeGenPolicy.GetBoolProp(genAttr, "IsView", false);
+    
     int defPageSize = genAttr != null && genAttr.Properties.TryGetValue("DefaultPageSize", out var ps) ? (int)ps : 20;
     int defLimit = genAttr != null && genAttr.Properties.TryGetValue("DefaultLimit", out var dl) ? (int)dl : 1000;
     int maxSearch = genAttr != null && genAttr.Properties.TryGetValue("MaxSearchLimit", out var ms) ? (int)ms : 500;
+
     var pkProp = Model.Properties.FirstOrDefault(p => 
         p.Attributes.Any(a => a.TypeFullName.Contains("ColumnAttribute") && CodeGenPolicy.GetBoolProp(a, "IsPrimary", false))) 
         ??
@@ -52,16 +54,11 @@ using @(namespaceName).DTOs;
 using TKW.Framework.Domain.Exceptions;
 
 namespace @(servicesNamespace);
-
+/// <summary>@Raw(Model.Summary)Service</summary>
 public partial class @serviceName : DomainServiceBase<@userType>
 {
-    protected readonly IFreeSql _fsql;
+    protected readonly IFreeSql _fsql = fsql;
     protected IBaseRepository<@(className)> Repo => _fsql.GetRepository<@(className)>();
-
-    public @(serviceName)(DomainUser<@userType> user, IFreeSql fsql) : base(user)
-    {
-        _fsql = fsql ?? throw new ArgumentNullException(nameof(fsql));
-    }
 
     #region [ 1. 公共查询接口 (DTO 返回值) ]
 
@@ -116,8 +113,7 @@ public partial class @serviceName : DomainServiceBase<@userType>
     @:public virtual async Task<@(dtoName)> CreateAsync(@(dtoName) dto, CancellationToken ct = default)
     @:{
     @:    dto.ValidateData(EnumSceneFlags.Create);
-    @:    var entity = new @(className)();
-    @:    dto.ApplyToEntity(entity, EnumSceneFlags.Create);
+    @:    var entity = dto.ToEntity(EnumSceneFlags.Create);
     @:    var result = await InternalCreateAsync(entity, ct);
     @:    return @(dtoName).FromEntity(result);
     @:}
@@ -125,7 +121,7 @@ public partial class @serviceName : DomainServiceBase<@userType>
     @:public virtual async Task UpdateAsync(@pkType id, @(dtoName) dto, CancellationToken ct = default)
     @:{
     @:    var entity = await InternalGetAsync(x => x.@pkName == id, ct);
-    @:    if (entity == null) throw new InvalidOperationException($"未找到记录: {id}");
+    @:    if (entity == null) throw new EntityNotFoundException(nameof(@(className)), $"@(pkName)={id}");
     @:    dto.ValidateData(EnumSceneFlags.Update);
     @:    dto.ApplyToEntity(entity, EnumSceneFlags.Update);
     @:    await InternalUpdateAsync(entity, ct);
@@ -142,13 +138,15 @@ public partial class @serviceName : DomainServiceBase<@userType>
 }
     #endregion
 
-    #region [ 3. 自动化业务查询 (Get/Select/Count/SelectPage 四位一体) ]
+    #region [ 3. 自动化业务查询 (双轨制：Internal Entity / Public DTO) ]
 
 @foreach (var group in searchGroups)
 {
     var safeGroupName = group.GroupName;
     var paramDecls = new List<string>();
     var conditions = new List<string>();
+    var callParams = new List<string>();
+
     foreach (var p in group.Properties)
     {
         var pType = p.TypeName;
@@ -159,42 +157,69 @@ public partial class @serviceName : DomainServiceBase<@userType>
         {
             paramDecls.Add($"{pType} {pParam}");
             conditions.Add($"q = q.Where(x => x.{pName} == {pParam});");
+            callParams.Add(pParam);
         }
         else 
         {
             if (pType.Contains("string")) {
                 paramDecls.Add($"string? {pParam} = null");
                 conditions.Add($"if (!string.IsNullOrEmpty({pParam})) {{ var parsed_{pParam} = ParseSearchValue({pParam}); if (parsed_{pParam}.IsFuzzy) q = q.Where(x => x.{pName}.Contains(parsed_{pParam}.Value)); else q = q.Where(x => x.{pName} == parsed_{pParam}.Value); }}");
+                callParams.Add(pParam);
             } else if (pType.Contains("DateTime")) {
                 paramDecls.Add($"DateTime? begin{pName} = null");
                 paramDecls.Add($"DateTime? end{pName} = null");
                 conditions.Add($"if (begin{pName}.HasValue) q = q.Where(x => x.{pName} >= begin{pName}.Value);");
                 conditions.Add($"if (end{pName}.HasValue) q = q.Where(x => x.{pName} <= end{pName}.Value);");
+                callParams.Add($"begin{pName}");
+                callParams.Add($"end{pName}");
             } else {
                 var nullableType = pType.EndsWith("?") ? pType : pType + "?";
                 paramDecls.Add($"{nullableType} {pParam} = null");
                 conditions.Add($"if ({pParam}.HasValue) q = q.Where(x => x.{pName} == {pParam}.Value);");
+                callParams.Add(pParam);
             }
         }
     }
 
-    var finalParams = string.Join(", ", paramDecls);
-    var paramComma = paramDecls.Any() ? ", " : "";
+    var joinedParams = string.Join(", ", paramDecls);
+    var joinedCall = string.Join(", ", callParams);
+    var defComma = paramDecls.Any() ? ", " : "";
+    var callComma = callParams.Any() ? ", " : "";
 
     @:// =========================================================================
     @:// [ Search API: @(safeGroupName) ] 
     @:// =========================================================================
     if (group.IsUnique) {
-        var getWhere = string.Join(" && ", group.Properties.Select(p => $"x.{p.Name} == {p.Name.ToLower()}"));
-        @:public async Task<@(dtoName)> GetBy@(safeGroupName)Async(@finalParams, CancellationToken ct = default)
+        @:internal async Task<@(className)?> FindEntityBy@(safeGroupName)Async(@joinedParams, CancellationToken ct = default)
         @:{
-        @:    var entity = await InternalGetAsync(x => @Raw(getWhere), ct);
+        @:    var q = QueryForUser();
+        foreach (var cond in conditions) { @Raw(cond) }
+        @:    return await q.FirstAsync(ct);
+        @:}
+        @:
+        @:public async Task<@(dtoName)> GetBy@(safeGroupName)Async(@joinedParams, CancellationToken ct = default)
+        @:{
+        @:    var entity = await FindEntityBy@(safeGroupName)Async(@joinedCall@(callComma)ct);
         @:    if (entity == null) throw new EntityNotFoundException(nameof(@(className)), $"@(safeGroupName) search failed");
         @:    return @(dtoName).FromEntity(entity);
         @:}
     } else {
-        var paramNames = string.Join(", ", paramDecls.Select(p => p.Split(' ')[1].Replace("?", "")));
-        @:public async Task<List<@(dtoName)>> SelectBy@(safeGroupName)Async(@finalParams@(paramComma)int skip = 0, int limit = @maxSearch, Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
+        @:internal async Task<@(className)?> FindFirstEntityBy@(safeGroupName)Async(@joinedParams@(defComma)Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
+        @:{
+        @:    var q = QueryForUser();
+        foreach (var cond in conditions) { @Raw(cond) }
+        @:    q = orderBy != null ? orderBy(q) : q.OrderByDescending(x => x.@pkName);
+        @:    return await q.FirstAsync(ct);
+        @:}
+        @:
+        @:public async Task<@(dtoName)> GetFirstBy@(safeGroupName)Async(@joinedParams@(defComma)Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
+        @:{
+        @:    var entity = await FindFirstEntityBy@(safeGroupName)Async(@joinedCall@(callComma)orderBy, ct);
+        @:    if (entity == null) throw new EntityNotFoundException(nameof(@(className)), $"@(safeGroupName) first not found");
+        @:    return @(dtoName).FromEntity(entity);
+        @:}
+        @:
+        @:public async Task<List<@(dtoName)>> SelectBy@(safeGroupName)Async(@joinedParams@(defComma)int skip = 0, int limit = @maxSearch, Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
         @:{
         @:    var q = QueryForUser();
         foreach (var cond in conditions) { @Raw(cond) }
@@ -203,14 +228,14 @@ public partial class @serviceName : DomainServiceBase<@userType>
         @:    return list.Select(@(dtoName).FromEntity).ToList();
         @:}
         @:
-        @:public async Task<PageResult<@(dtoName)>> SelectPageBy@(safeGroupName)Async(@finalParams@(paramComma)int pageNumber = 1, int pageSize = @defPageSize, Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
+        @:public async Task<PageResult<@(dtoName)>> SelectPageBy@(safeGroupName)Async(@joinedParams@(defComma)int pageNumber = 1, int pageSize = @defPageSize, Func<ISelect<@(className)>, ISelect<@(className)>>? orderBy = null, CancellationToken ct = default)
         @:{
-        @:    var count = await CountBy@(safeGroupName)Async(@(paramNames)@(paramComma)ct);
-        @:    var list = await SelectBy@(safeGroupName)Async(@(paramNames)@(paramComma)(pageNumber - 1) * pageSize, pageSize, orderBy, ct);
+        @:    var count = await CountBy@(safeGroupName)Async(@joinedCall@(callComma)ct);
+        @:    var list = await SelectBy@(safeGroupName)Async(@joinedCall@(callComma)(pageNumber - 1) * pageSize, pageSize, orderBy, ct);
         @:    return new PageResult<@(dtoName)>(count, list, pageNumber, pageSize);
         @:}
         @:
-        @:public Task<long> CountBy@(safeGroupName)Async(@finalParams@(paramComma)CancellationToken ct = default)
+        @:public Task<long> CountBy@(safeGroupName)Async(@joinedParams@(defComma)CancellationToken ct = default)
         @:{
         @:    var q = QueryForUser();
         foreach (var cond in conditions) { @Raw(cond) }
