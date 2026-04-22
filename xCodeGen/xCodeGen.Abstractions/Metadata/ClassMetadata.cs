@@ -12,6 +12,11 @@ namespace xCodeGen.Abstractions.Metadata
         public string Summary { get; set; } = string.Empty;
         public bool IsView { get; set; } = false;
 
+        public bool IsDomainService { get; set; } = false;
+        public bool IsDomainController { get; set; } = false;
+        public string DecoratorTypeFullName { get; set; } = string.Empty;
+        public bool HasDecoratorCandidate { get; set; } = false;
+
         public ICollection<MethodMetadata> Methods { get; set; } = new Collection<MethodMetadata>();
         public ICollection<PropertyMetadata> Properties { get; set; } = new Collection<PropertyMetadata>();
         public ICollection<string> ImplementedInterfaces { get; set; } = new Collection<string>();

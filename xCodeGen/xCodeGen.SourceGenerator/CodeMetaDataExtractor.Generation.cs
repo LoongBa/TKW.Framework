@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Metadata;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -19,7 +21,10 @@ namespace xCodeGen.SourceGenerator
                 var codeContent = BuildMetaCode(metadata);
                 context.AddSource(fileName, SourceText.From(codeContent, Encoding.UTF8));
             }
-            catch (Exception ex) { ReportError(context, $"生成元数据时出错: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                ReportError(context, $"生成元数据时出错: {ex.Message}");
+            }
         }
 
         private string BuildMetaCode(ClassMetadata metadata)
@@ -41,6 +46,12 @@ namespace xCodeGen.SourceGenerator
             if (metadata.GenerateCodeSettings.TryGetValue("ClassSummarySource", out var source))
                 codeBuilder.AppendLine($"        // [Summary Source: {source}]");
 
+            // Prepare some fallback values
+            var decoratorType = metadata.GetType().GetProperty("DecoratorTypeFullName") != null
+                ? metadata.GetType().GetProperty("DecoratorTypeFullName").GetValue(metadata) as string
+                : null;
+            // Note: metadata may already contain SourceHash in GenerateCodeSettings["MetadataHash"]
+
             codeBuilder.AppendLine("        public static ClassMetadata Metadata { get; } = new ClassMetadata");
             codeBuilder.AppendLine("        {");
             codeBuilder.AppendLine($"            Namespace = \"{EscapeString(metadata.Namespace)}\",");
@@ -54,6 +65,17 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"            TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
             codeBuilder.AppendLine($"            BaseType = \"{EscapeString(metadata.BaseType)}\",");
 
+            // new fields (these properties must also be present in ClassMetadata type)
+            codeBuilder.AppendLine($"            IsDomainService = {(metadata.IsDomainService ? "true" : "false")},");
+            codeBuilder.AppendLine(
+                $"            IsDomainController = {(metadata.IsDomainController ? "true" : "false")},");
+            codeBuilder.AppendLine(
+                $"            DecoratorTypeFullName = {(string.IsNullOrEmpty(metadata.DecoratorTypeFullName) ? "null" : $"\"{EscapeString(metadata.DecoratorTypeFullName)}\"")},");
+            codeBuilder.AppendLine(
+                $"            HasDecoratorCandidate = {(metadata.HasDecoratorCandidate ? "true" : "false")},");
+            codeBuilder.AppendLine(
+                $"            SourceHash = \"{EscapeString(metadata.SourceHash ?? (metadata.GenerateCodeSettings.ContainsKey("MetadataHash") ? metadata.GenerateCodeSettings["MetadataHash"]?.ToString() : string.Empty))}\",");
+
             // --- 序列化 Class 级别的 Attributes ---
             codeBuilder.AppendLine("            Attributes = new Collection<AttributeMetadata>");
             codeBuilder.AppendLine("            {");
@@ -61,6 +83,7 @@ namespace xCodeGen.SourceGenerator
             {
                 BuildAttributeInitialization(codeBuilder, attr, "                ");
             }
+
             codeBuilder.AppendLine("            },");
 
             codeBuilder.AppendLine("            Properties = new Collection<PropertyMetadata>");
@@ -80,9 +103,11 @@ namespace xCodeGen.SourceGenerator
                 {
                     BuildAttributeInitialization(codeBuilder, attr, "                        ");
                 }
+
                 codeBuilder.AppendLine("                    }");
                 codeBuilder.AppendLine("                },");
             }
+
             codeBuilder.AppendLine("            },");
 
             codeBuilder.AppendLine("            Methods = new Collection<MethodMetadata>");
@@ -95,16 +120,20 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    ReturnType = \"{EscapeString(method.ReturnType)}\",");
                 codeBuilder.AppendLine($"                    IsAsync = {method.IsAsync.ToString().ToLower()},");
                 codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
-                codeBuilder.AppendLine($"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
+                codeBuilder.AppendLine(
+                    $"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
                 codeBuilder.AppendLine("                    Parameters = new List<ParameterMetadata>");
                 codeBuilder.AppendLine("                    {");
                 foreach (var param in method.Parameters)
                 {
-                    codeBuilder.AppendLine($"                        new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
+                    codeBuilder.AppendLine(
+                        $"                        new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
                 }
+
                 codeBuilder.AppendLine("                    }");
                 codeBuilder.AppendLine("                },");
             }
+
             codeBuilder.AppendLine("            }");
             codeBuilder.AppendLine("        };");
             codeBuilder.AppendLine("    }");
@@ -130,6 +159,7 @@ namespace xCodeGen.SourceGenerator
             {
                 codeBuilder.AppendLine($"{indent}        {GetLiteralValue(arg)},");
             }
+
             codeBuilder.AppendLine($"{indent}    }},");
 
             // 序列化命名参数字典 (Properties & NamedArguments)
@@ -137,28 +167,27 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"{indent}    {{");
             foreach (var prop in attr.Properties)
             {
-                codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
+                codeBuilder.AppendLine(
+                    $"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
             }
-            codeBuilder.AppendLine($"{indent}    }},");
 
-            /*codeBuilder.AppendLine($"{indent}    NamedArguments = new Dictionary<string, object>");
-            codeBuilder.AppendLine($"{indent}    {{");
-            foreach (var prop in attr.Properties)
-            {
-                codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
-            }
-            codeBuilder.AppendLine($"{indent}    }}");*/
+            codeBuilder.AppendLine($"{indent}    }},");
 
             codeBuilder.AppendLine($"{indent}}},");
         }
 
-        public void GenerateProjectMetaContext(SourceProductionContext context, IEnumerable<ClassMetadata> allMetadatas, ProjectInfo projectInfo, MetadataChangeLog changeLog)
+        public void GenerateProjectMetaContext(SourceProductionContext context, IEnumerable<ClassMetadata> allMetadatas,
+            ProjectInfo projectInfo, MetadataChangeLog changeLog)
         {
             var classMetadatas = allMetadatas.ToList();
+            // enrich metadata with service/controller/ decorator info and compute hashes
+            EnrichAndHashMetadatas(classMetadatas);
+
             try
             {
                 var codeBuilder = new StringBuilder();
                 codeBuilder.AppendLine("// <auto-generated/>");
+
                 codeBuilder.AppendLine("#nullable disable");
                 codeBuilder.AppendLine("using System;");
                 codeBuilder.AppendLine("using System.Collections.Generic;");
@@ -168,43 +197,72 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"namespace {projectInfo.GeneratedNamespace}");
                 codeBuilder.AppendLine("{");
 
-                // 修改：继承 ProjectMetaContextBase
                 codeBuilder.AppendLine("    public class ProjectMetaContext : ProjectMetaContextBase");
                 codeBuilder.AppendLine("    {");
 
-                // 修改：在静态构造函数中初始化单例并挂载到基类
                 codeBuilder.AppendLine("        static ProjectMetaContext()");
                 codeBuilder.AppendLine("        {");
                 codeBuilder.AppendLine("            Instance = new ProjectMetaContext();");
                 codeBuilder.AppendLine("        }");
                 codeBuilder.AppendLine();
-                codeBuilder.AppendLine("        private readonly List<ClassMetadata> _allMetadatas = new List<ClassMetadata>();");
+                codeBuilder.AppendLine(
+                    "        private readonly List<ClassMetadata> _allMetadatas = new List<ClassMetadata>();");
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine("        private ProjectMetaContext()");
                 codeBuilder.AppendLine("        {");
                 foreach (var metadata in classMetadatas.OrderBy(m => m.ClassName))
-                    codeBuilder.AppendLine($"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
+                    codeBuilder.AppendLine(
+                        $"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
                 codeBuilder.AppendLine("        }");
                 codeBuilder.AppendLine();
 
-                // 实现基类抽象成员
-                codeBuilder.AppendLine("        public override IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();");
-                codeBuilder.AppendLine($"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
-                codeBuilder.AppendLine("        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
+                codeBuilder.AppendLine(
+                    "        public override IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();");
+                codeBuilder.AppendLine(
+                    $"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
+                codeBuilder.AppendLine(
+                    "        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
                 codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.0\";");
+
+                // No additional registration arrays here; Domain registration will be driven by ClassMetadata flags in AllMetadatas.
 
                 codeBuilder.AppendLine("    }");
                 codeBuilder.AppendLine("}");
 
                 context.AddSource("ProjectMetaContext.g.cs", SourceText.From(codeBuilder.ToString(), Encoding.UTF8));
             }
-            catch (Exception ex) { ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}");
+            }
         }
 
-        private void GenerateDebugLogFile(SourceProductionContext context) { var logContent = new StringBuilder(); logContent.AppendLine("namespace " + DebugLogNamespace + " { public class CodeMetaData_DebugLog { public static List<string> Logs = new List<string>(); } }"); context.AddSource("Logs/CodeMetaData_DebugLog.g.cs", SourceText.From(logContent.ToString(), Encoding.UTF8)); }
-        private void ReportError(SourceProductionContext context, string message) { context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("CMD001", "元数据生成错误", message, "CodeMeta", DiagnosticSeverity.Error, true), Location.None)); }
-        private string EscapeString(string value) { if (value == null) return string.Empty; return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n"); }
-        private string FormatStringValue(string value) { if (string.IsNullOrEmpty(value)) return "\"\""; return "@\"" + value.Replace("\"", "\"\"") + "\""; }
+        private void GenerateDebugLogFile(SourceProductionContext context)
+        {
+            var logContent = new StringBuilder();
+            logContent.AppendLine("namespace " + DebugLogNamespace +
+                                  " { public class CodeMetaData_DebugLog { public static List<string> Logs = new List<string>(); } }");
+            context.AddSource("Logs/CodeMetaData_DebugLog.g.cs", SourceText.From(logContent.ToString(), Encoding.UTF8));
+        }
+
+        private void ReportError(SourceProductionContext context, string message)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                new DiagnosticDescriptor("CMD001", "元数据生成错��", message, "CodeMeta", DiagnosticSeverity.Error, true),
+                Location.None));
+        }
+
+        private string EscapeString(string value)
+        {
+            if (value == null) return string.Empty;
+            return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n");
+        }
+
+        private string FormatStringValue(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "\"\"";
+            return "@\"" + value.Replace("\"", "\"\"") + "\"";
+        }
 
         /// <summary>
         /// 获取值的字面量表示，确保类型安全
@@ -225,6 +283,120 @@ namespace xCodeGen.SourceGenerator
             return $"\"{EscapeString(strVal)}\""; // 默认作为字符串回退，防止生成非法代码
         }
 
-        private string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName) ? "Unknown" : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
+        private string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName)
+            ? "Unknown"
+            : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
+                .ToArray());
+
+        // --- 新增：建立 Entity <-> Service 映射，装饰器候选检测，以及计算 metadata hash ---
+        private void EnrichAndHashMetadatas(List<ClassMetadata> classMetadatasLocal)
+        {
+            if (classMetadatasLocal == null || classMetadatasLocal.Count == 0) return;
+
+            // 1. 索引
+            var byFullName = classMetadatasLocal.ToDictionary(m => m.FullName ?? $"{m.Namespace}.{m.ClassName}", m => m,
+                StringComparer.Ordinal);
+            var byShortName = classMetadatasLocal.GroupBy(m => m.ClassName).ToDictionary(g => g.Key, g => g.ToList());
+
+            // 2. 标记 Service / Controller（保守策略：实现接口包含 IDomainService 或 类名后缀 Service）
+            foreach (var m in classMetadatasLocal)
+            {
+                bool isService = false;
+                if (m.ImplementedInterfaces != null)
+                {
+                    isService = m.ImplementedInterfaces.Any(i =>
+                        !string.IsNullOrEmpty(i) &&
+                        i.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+
+                if (!isService && !string.IsNullOrEmpty(m.ClassName) &&
+                    m.ClassName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                    isService = true;
+
+                m.IsDomainService = isService;
+
+                // Controller 判定（基于特性或接口命名）
+                bool isController = false;
+                if (m.Attributes != null)
+                {
+                    isController = m.Attributes.Any(a =>
+                        !string.IsNullOrEmpty(a.TypeFullName) && a.TypeFullName.IndexOf("DomainControllerAttribute",
+                            StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+
+                if (!isController && m.ImplementedInterfaces != null)
+                {
+                    isController = m.ImplementedInterfaces.Any(i =>
+                        !string.IsNullOrEmpty(i) &&
+                        (i.IndexOf("DomainController", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         i.EndsWith("Controller", StringComparison.OrdinalIgnoreCase)));
+                }
+
+                m.IsDomainController = isController;
+            }
+
+            // 3. 关联：对于每个 Service，推断对应 Entity（去除 Service 后缀）并在 Entity 的 GenerateCodeSettings 中写入 ServiceFullName（可选）
+            foreach (var svc in classMetadatasLocal.Where(x => x.IsDomainService))
+            {
+                var shortEntityName = svc.ClassName;
+                if (shortEntityName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                    shortEntityName = shortEntityName.Substring(0, shortEntityName.Length - "Service".Length);
+
+                // 找到与实体短名匹配的类（优先命名空间相关匹配）
+                ClassMetadata? entity = null;
+                if (byShortName.TryGetValue(shortEntityName, out var list))
+                {
+                    // 优先选择位于相邻命名空间或 Entities 命名空间的类型
+                    entity = list.FirstOrDefault(l => l.Namespace != null && l.Namespace.EndsWith(".Entities")) ??
+                             list.FirstOrDefault();
+                }
+
+                if (entity != null)
+                {
+                    // 将服务的 FullName 写入实体的 GenerateCodeSettings（便于 CLI 根据实体找到 service）
+                    entity.GenerateCodeSettings["ServiceTypeFullName"] =
+                        svc.FullName ?? $"{svc.Namespace}.{svc.ClassName}";
+                    entity.GenerateCodeSettings["ServiceShortName"] = svc.ClassName;
+                }
+
+                // 约定装饰器类型全名（可调整命名约定）
+                var decoFull = $"{svc.Namespace}.Services.{svc.ClassName}Decorator";
+                svc.DecoratorTypeFullName = decoFull;
+
+                // 检查该装饰器是否出现在元数据集中（作为候选）
+                svc.HasDecoratorCandidate = byFullName.ContainsKey(decoFull);
+            }
+
+            // 4. 计算 metadata hash（基于关键字段）
+            foreach (var m in classMetadatasLocal)
+            {
+                var hashSource = new
+                {
+                    m.Namespace,
+                    m.ClassName,
+                    m.FullName,
+                    m.Summary,
+                    IsDomainService = m.IsDomainService,
+                    IsDomainController = m.IsDomainController,
+                    Decorator = m.DecoratorTypeFullName,
+                    Methods = m.Methods?.Select(mm => new
+                        {
+                            mm.Name, mm.ReturnType, Parameters = mm.Parameters?.Select(p => p.TypeName + " " + p.Name)
+                        })
+                        .ToArray() ?? Array.Empty<object>(),
+                    Attributes = m.Attributes?.Select(a => a.TypeFullName).ToArray() ?? Array.Empty<string>()
+                };
+
+                string json = JsonSerializer.Serialize(hashSource);
+                using var sha = SHA256.Create();
+                var bytes = Encoding.UTF8.GetBytes(json);
+                var hash = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+
+                // 写入
+                m.SourceHash = hash;
+                // 同时写入到 GenerateCodeSettings 便于模���读取
+                m.GenerateCodeSettings["MetadataHash"] = hash;
+            }
+        }
     }
 }

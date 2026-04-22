@@ -51,14 +51,14 @@ public abstract class DomainServiceBase<TUserInfo> : IDomainService
 /// 领域控制器基类：可选，用于封装 DomainService + IAopContract
 /// 可作为 AOP 切入点或控制器基类
 /// </summary>
-public class DomainController<TUserInfo> : DomainServiceBase<TUserInfo>, IAopContract
+public abstract class DomainControllerBase<TUserInfo> : DomainServiceBase<TUserInfo>, IAopContract
     where TUserInfo : class, IUserInfo, new()
 {
     /// <summary>
     /// 初始化领域控制器
     /// </summary>
     /// <param name="user">当前用户上下文（不可为 null）</param>
-    public DomainController(DomainUser<TUserInfo> user) : base(user)
+    protected DomainControllerBase(DomainUser<TUserInfo> user) : base(user)
     {
         // 可在此处添加控制器特有的初始化逻辑
     }

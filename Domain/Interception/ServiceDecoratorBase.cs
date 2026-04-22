@@ -20,7 +20,8 @@ public abstract class ServiceDecoratorBase<TService, TUserInfo>(TService inner, 
         {
             return await func().ConfigureAwait(false);
         }
-        catch (Exception ex)
+        // ReSharper disable once RedundantCatchClause
+        catch (Exception)
         {
             // 统一异常处理/日志记录
             throw;

@@ -6,9 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
@@ -93,7 +95,8 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
         // 注册 DomainHost
         containerBuilder.RegisterInstance(Root).AsSelf();
-
+        // 自动注册生成的服务（基于 ProjectMetaContext 中的 RegistrationDescriptor 列表）
+        AutoRegisterGeneratedServices(containerBuilder);
         containerBuilder.RegisterBuildCallback(context =>
         {
             if (Root == null) return;
@@ -195,5 +198,141 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     {
         var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey).ConfigureAwait(false);
         return session.User!;
+    }
+
+    // 在 DomainHost<TUserInfo> 内部添加以下私有静态方法
+
+    private static void AutoRegisterGeneratedServices(ContainerBuilder containerBuilder)
+    {
+        try
+        {
+            // 在已加载程序集里寻找生成的 ProjectMetaContext，且要求具有静态 GetRegistrationDescriptors 方法
+            var metaType = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a =>
+                {
+                    try { return a.GetTypes(); } catch { return Array.Empty<Type>(); }
+                })
+                .FirstOrDefault(t => t.Name == "ProjectMetaContext" && t.GetMethod("GetRegistrationDescriptors", BindingFlags.Public | BindingFlags.Static) != null);
+
+            if (metaType == null) return;
+
+            var getMethod = metaType.GetMethod("GetRegistrationDescriptors", BindingFlags.Public | BindingFlags.Static);
+            var descriptorsEnum = getMethod?.Invoke(null, null) as IEnumerable;
+            if (descriptorsEnum == null) return;
+
+            foreach (var d in descriptorsEnum)
+            {
+                if (d == null) continue;
+                var dt = d.GetType();
+                var serviceName = dt.GetProperty("ServiceTypeFullName")?.GetValue(d) as string;
+                var implName = dt.GetProperty("ImplementationTypeFullName")?.GetValue(d) as string;
+                var decoratorName = dt.GetProperty("DecoratorTypeFullName")?.GetValue(d) as string;
+                var lifetime = dt.GetProperty("Lifetime")?.GetValue(d) as string ?? "InstancePerLifetimeScope";
+
+                var implType = ResolveTypeAcrossAssemblies(implName);
+                if (implType == null) continue;
+
+                var serviceType = ResolveTypeAcrossAssemblies(serviceName);
+                var decoratorType = ResolveTypeAcrossAssemblies(decoratorName);
+
+                // 1. 注册实现：AsSelf()，并尽可能同时 As(service)（这样装饰器构造函数无论注入 impl 还是 interface 都能解析）
+                dynamic implReg = containerBuilder.RegisterType(implType);
+                try
+                {
+                    // 先注册为接口（如果有的话）
+                    if (serviceType != null)
+                    {
+                        implReg = implReg.As(serviceType);
+                    }
+                }
+                catch { /* 忽略 */ }
+
+                try
+                {
+                    implReg = implReg.AsSelf();
+                }
+                catch { /* 忽略 */ }
+
+                // 应用生命周期
+                ApplyLifetime(implReg, lifetime);
+
+                // 2. 若存在装饰器类型并且 serviceType 可用，则把装饰器注册为接口（装饰器的构造应接受 inner impl 或接口）
+                if (decoratorType != null && serviceType != null)
+                {
+                    try
+                    {
+                        dynamic decoReg = containerBuilder.RegisterType(decoratorType).As(serviceType);
+                        ApplyLifetime(decoReg, lifetime);
+                    }
+                    catch
+                    {
+                        // 忽略单个装饰器注册错误，继续处理其余项
+                    }
+                }
+                // 若无装饰器但 serviceType 已注册为 impl 则无需额外动作（impl 已 As(serviceType)）
+            }
+        }
+        catch
+        {
+            // 容错：如果任何反射或加载异常出现，不阻止程序启动
+        }
+    }
+
+    private static Type? ResolveTypeAcrossAssemblies(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return null;
+
+        // 首先尝试直接解析（能解析带 assembly-qualified name）
+        try
+        {
+            var t = Type.GetType(fullName);
+            if (t != null) return t;
+        }
+        catch
+        {
+            // ignored
+        }
+
+        // 其次遍历当前 AppDomain 中的程序集
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                var t = asm.GetType(fullName);
+                if (t != null) return t;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+        return null;
+    }
+
+    private static void ApplyLifetime(dynamic reg, string lifetime)
+    {
+        if (reg == null) return;
+        try
+        {
+            switch (lifetime)
+            {
+                case "Singleton":
+                case "SingleInstance":
+                    reg.SingleInstance();
+                    break;
+                case "Transient":
+                case "InstancePerDependency":
+                    reg.InstancePerDependency();
+                    break;
+                default:
+                    // 默认与推荐：InstancePerLifetimeScope
+                    reg.InstancePerLifetimeScope();
+                    break;
+            }
+        }
+        catch
+        {
+            // 如果调用生命周期方法失败（不同 Autofac 版本或方法签名），忽略以保持注册继续
+        }
     }
 }

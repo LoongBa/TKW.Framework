@@ -10,13 +10,17 @@
     var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
     var namespaceName = Model.Namespace.Replace(".Models", ".Entities");
     var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
+    var baseClassName = Model.IsDomainController ? "DomainControllerBase" : "DomainServiceBase";
 }
 using TKW.Framework.Domain;
 
+// 注意：如果不启用领域控制器特性，且将基类改为 DomainControllerBase
+// 将无法使用 AOP 功能（如权限过滤器），但仍可作为普通领域服务使用。
+// [TKW.Framework.Domain.Interception.DomainControllerAttribute]
 namespace @(servicesNamespace);
 /// <summary>@Raw(Model.Summary)Service</summary>
 public partial class @(serviceName)(DomainUser<@(userType)> user, IFreeSql fsql) 
-    : DomainServiceBase<@userType>(user)
+    : @(baseClassName)<@userType>(user)
 {
 
 }
