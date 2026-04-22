@@ -36,7 +36,7 @@ namespace xCodeGen.SourceGenerator
         {
             var log = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
             _debugLogs.Add(log);
-            System.Diagnostics.Debug.WriteLine($"[CodeMeta] {log}");
+            System.Diagnostics.Debug.WriteLine($"[xCodeGen:Meta] {log}");
         }
     }
 }

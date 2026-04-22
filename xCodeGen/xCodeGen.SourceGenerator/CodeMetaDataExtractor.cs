@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using xCodeGen.Abstractions.Attributes;
@@ -33,24 +34,32 @@ namespace xCodeGen.SourceGenerator
             context.RegisterSourceOutput(candidateTypes.Collect().Combine(projectInfoProvider), (spc, combined) =>
             {
                 var (infos, projectInfo) = combined;
+                // 按 FullName 去重 infos，保证后续索引/字典安全
+                var groupedInfos = infos.GroupBy(i => (i.Metadata.FullName ?? $"{i.Metadata.Namespace}.{i.Metadata.ClassName}"), StringComparer.Ordinal)
+                    .Select(g => g.First())
+                    .ToList();
+                // 从去重后的集合构造 metadata 列表
+                var allMetadatas = groupedInfos.Select(i => i.Metadata).ToList();
 
-                // 收集所有 metadata 对象（注意顺序：infos 中即包含 entities + services + decorators）
-                var allMetadatas = infos.Select(i => i.Metadata).ToList();
+                // System.Diagnostics.Debugger.Launch();
+                // enrichment 之前请先对 metadata 列表做必要合并/填充
+                EnrichAndHashMetadatas(ref allMetadatas);
 
-                // --- 关键：先 enrichment（关联 service/controller/decorator 与 entity），以便单类 Meta 文件也包含 enrichment 结果 ---
-                EnrichAndHashMetadatas(allMetadatas);
+                var metadatas = allMetadatas.Where(m => m.IsEntity || m.IsView).ToList();
+                Trace.WriteLine($"*** [xCodeGen: outputMetadatas = {metadatas.Count}");
+                foreach (var metadata in allMetadatas)
+                    Trace.WriteLine($"*** [xCodeGen: Metadata] {metadata.ClassName} IsView:{metadata.IsView} IsEntity:{metadata.IsEntity} IsService:{metadata.IsService} IsController:{metadata.IsController} IsDecorator:{metadata.IsDecorator}");
+                // 生成 ProjectMetaContext（引用所有已 enrichment 的 meta）
+                GenerateProjectMetaContext(spc, metadatas, projectInfo, new MetadataChangeLog());
 
-                // 然后生成 ProjectMetaContext（它会引用每个单类 meta）
-                GenerateProjectMetaContext(spc, allMetadatas, projectInfo, new MetadataChangeLog());
-
-                // 最后为每个类生成单独的元数据文件（使用已经 enrichment 的 metadata 实例）
-                foreach (var info in infos)
+                foreach (var metadata in metadatas)
                 {
-                    try { GenerateMetaFile(spc, info.Metadata); }
-                    catch (Exception ex) { ReportError(spc, $"生成 {info.Metadata.ClassName} 失败: {ex.Message}"); }
+                    if (metadata.IsView || metadata.IsEntity)
+                        try { GenerateMetaFile(spc, metadata); }
+                        catch (Exception ex) { ReportError(spc, $"生成 {metadata.ClassName} 失败: {ex.Message}"); }
                 }
 
-                GenerateDebugLogFile(spc);
+                //GenerateDebugLogFile(spc);
             });
         }
 
@@ -82,9 +91,23 @@ namespace xCodeGen.SourceGenerator
 
             // 标记是否原始由 GenerateCodeAttribute 触发（便于判定 Entities）
             if (hasGenerateAttr)
+            {
+                // 找到 GenerateCodeAttribute 的 AttributeData
+                var genAttrData = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName);
+                if (genAttrData != null)
+                {
+                    if (genAttrData.NamedArguments.FirstOrDefault(kv => kv.Key == "IsView").Value.Value is bool isView)
+                    {
+                        classMetadata.IsView = isView;
+                        classMetadata.GenerateCodeSettings["IsView"] = isView;
+                    }
+                }
                 classMetadata.GenerateCodeSettings["IsEntity"] = true;
+            }
             else
+            {
                 classMetadata.GenerateCodeSettings["IsEntity"] = false;
+            }
 
             return new ClassGenerationInfo
             {
@@ -110,10 +133,12 @@ namespace xCodeGen.SourceGenerator
                 {
                     { "Namespace", symbol.ContainingNamespace.ToString() },
                     { "ClassName", symbol.Name },
+                    { "Name", symbol.Name },
                     { "FullName", symbol.ToDisplayString() },
                     { "Summary", summary },
                     { "SummarySource", source },
                     { "IsRecord", typeDecl is RecordDeclarationSyntax },
+                    { "TypeKind", symbol.TypeKind.ToString() },
                     { "GenerateMode", GetGenerateMode(symbol) },
                     { "TemplateName", DefaultTemplateName },
                     { "BaseType", symbol.BaseType?.ToDisplayString() ?? "object" },
@@ -168,11 +193,11 @@ namespace xCodeGen.SourceGenerator
                 ClassName = data["ClassName"] as string,
                 FullName = data["FullName"] as string,
                 Summary = data.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
-                Mode = data["GenerateMode"] as string,
                 SourceType = rawMetadata.SourceType,
                 TemplateName = data["TemplateName"] as string,
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && (bool)ir,
                 BaseType = data["BaseType"] as string ?? string.Empty,
+                TypeKind = data["TypeKind"] as string ?? "Class",
                 ImplementedInterfaces = (data["ImplementedInterfaces"] as List<string>)?.ToList() ?? new List<string>(),
                 Attributes = ConvertToAttributeMetadataList(data["Attributes"] as List<Dictionary<string, object>>),
                 Methods = ConvertToMethodMetadataList(data["Methods"] as List<Dictionary<string, object>>),
@@ -219,7 +244,8 @@ namespace xCodeGen.SourceGenerator
                         { "IsAsync", method.IsAsync },
                         { "Summary", sum },
                         { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(method.DeclaredAccessibility) },
-                        { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() }
+                        { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() },
+                        { "Attributes", ExtractAttributeMetadataList(method.GetAttributes()) }
                     };
                 }).ToList();
         }
@@ -255,6 +281,7 @@ namespace xCodeGen.SourceGenerator
             return attributes.Select(attr =>
             {
                 var typeFullName = attr.AttributeClass?.ToDisplayString();
+                var name = attr.AttributeClass?.Name ?? string.Empty;
 
                 // 1. 获取特性类的出厂默认值作为基座（通过反射）
                 var props = GetAttributeDefaults(typeFullName);
@@ -274,6 +301,7 @@ namespace xCodeGen.SourceGenerator
                 return new Dictionary<string, object>
                 {
                     { "TypeFullName", typeFullName },
+                    { "Name", name },
                     { "Properties", props },
                     { "ConstructorArguments", constructorArgs }
                 };

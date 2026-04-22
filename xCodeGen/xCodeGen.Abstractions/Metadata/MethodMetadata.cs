@@ -27,7 +27,8 @@ namespace xCodeGen.Abstractions.Metadata
         /// 方法参数元数据
         /// </summary>
         public List<ParameterMetadata> Parameters { get; set; } = new List<ParameterMetadata>();
-
+        /// <summary> 方法级特性 </summary>
+        public List<AttributeMetadata> Attributes { get; set; } = new List<AttributeMetadata>();
         /// <summary>
         /// 方法的唯一签名（用于处理重载）
         /// </summary>

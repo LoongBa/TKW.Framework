@@ -34,7 +34,6 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 ClassName = GetValue(data, "ClassName", string.Empty),
                 FullName = GetValue(data, "FullName", string.Empty),
                 Summary = GetValue(data, "Summary", null),
-                Mode = GetValue(data, "GenerateMode", "Full"),
                 SourceType = rawMetadata.SourceType,
                 TemplateName = GetValue(data, "TemplateName", "Default"),
                 BaseType = GetValue(data, "BaseType", "object"),
@@ -43,7 +42,8 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ??
                                         [],
                 Methods = ConvertToMethodMetadataList(data.GetValueOrDefault("Methods") as List<Dictionary<string, object>>),
-                Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>)
+                Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>),
+                Attributes = ConvertToAttributeMetadataList(data.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>)
             };
         }
 
@@ -89,7 +89,8 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
             IsAsync = m.TryGetValue("IsAsync", out var ia) && (bool)ia,
             Summary = GetValue(m, "Summary", string.Empty),
             AccessModifier = GetValue(m, "AccessModifier", "public"),
-            Parameters = ConvertToParameterMetadataList(m.GetValueOrDefault("Parameters") as List<Dictionary<string, object>>)
+            Parameters = ConvertToParameterMetadataList(m.GetValueOrDefault("Parameters") as List<Dictionary<string, object>>),
+            Attributes = ConvertToAttributeMetadataList(m.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>),
         }).ToList();
     }
 
@@ -98,7 +99,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         if (rawProps == null) return [];
         return rawProps.Select(p => new PropertyMetadata
         {
-            Name = GetValue(p, "Name", "Unknown"),
+            Name = GetValue(p, "Name", ""),
             TypeName = GetValue(p, "Type", "object"),
             TypeFullName = GetValue(p, "TypeFullName", string.Empty),
             IsNullable = p.TryGetValue("IsNullable", out var n) && (bool)n,
@@ -112,10 +113,11 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         if (rawParams == null) return [];
         return rawParams.Select(p => new ParameterMetadata
         {
-            Name = GetValue(p, "Name", "unnamed"),
+            Name = GetValue(p, "Name", ""),
             TypeName = GetValue(p, "Type", "object"),
             IsNullable = p.TryGetValue("IsNullable", out var n) && (bool)n,
-            Summary = GetValue(p, "Summary", string.Empty)
+            Summary = GetValue(p, "Summary", string.Empty),
+            Attributes = ConvertToAttributeMetadataList(p.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>)
         }).ToList();
     }
 
@@ -124,6 +126,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         if (rawAttrs == null) return [];
         return rawAttrs.Select(a => new AttributeMetadata
         {
+            Name = GetValue(a, "Name", ""),
             TypeFullName = GetValue(a, "TypeFullName", string.Empty),
             Properties = a.GetValueOrDefault("Properties") as Dictionary<string, object> ?? new Dictionary<string, object>()
         }).ToList();

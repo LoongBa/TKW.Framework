@@ -25,7 +25,6 @@ namespace xCodeGen.Abstractions.Metadata
         public ICollection<string> DependentTypes { get; set; } = new Collection<string>();
         public string BaseType { get; set; } = string.Empty;
 
-        public string Mode { get; set; } = string.Empty;
         public MetadataSource SourceType { get; set; }
         public string TemplateName { get; set; } = string.Empty;
         public Dictionary<string, object> GenerateCodeSettings { get; set; } = new Dictionary<string, object>();

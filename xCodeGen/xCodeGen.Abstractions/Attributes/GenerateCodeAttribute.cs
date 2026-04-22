@@ -10,9 +10,6 @@ namespace xCodeGen.Abstractions.Attributes
     {
         public static string TypeFullName => typeof(GenerateCodeAttribute).FullName;
 
-        /// <summary> 源码类型（如 Dto, Model, View） </summary>
-        public string Type { get; set; } = "Model";
-
         /// <summary> 是否为只读视图 [New] </summary>
         public bool IsView { get; set; } = false;
 

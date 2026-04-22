@@ -270,7 +270,7 @@
 **模型标注参考：**
 
 ```csharp
-[GenerateCode(BaseUserType = "DmpUserInfo", DefaultPageSize = 50)]
+[GenerateCode(BaseUserType = nameof(DmpUserInfo), DefaultPageSize = 50)]
 public partial class MerchantInfo
 {
     [DtoField(IsUnique = true, SearchGroup = "Keyword")]

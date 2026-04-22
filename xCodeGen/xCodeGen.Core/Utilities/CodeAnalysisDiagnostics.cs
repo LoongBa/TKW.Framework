@@ -41,13 +41,39 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         public static bool IsCandidateClass(SyntaxNode node)
         {
-            // 核心修改：改为 TypeDeclarationSyntax 以支持 class/record/struct
             if (!(node is TypeDeclarationSyntax typeDeclaration))
                 return false;
 
-            return typeDeclaration.AttributeLists
+            // 1) 带 GenerateCodeAttribute 的类型（实体）
+            var hasGenerateAttr = typeDeclaration.AttributeLists
                 .SelectMany(al => al.Attributes)
                 .Any(attr => attr.Name.ToString().Contains("GenerateCode"));
+
+            if (hasGenerateAttr) return true;
+
+            // 2) 基于名称或继承/实现列表的启发式判断，纳入 Service/Controller/Decorator
+            if (!string.IsNullOrEmpty(typeDeclaration.Identifier.Text) &&
+                typeDeclaration.Identifier.Text.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (typeDeclaration.BaseList != null)
+            {
+                foreach (var bt in typeDeclaration.BaseList.Types)
+                {
+                    var name = bt.Type.ToString();
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    if (name.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("DomainController", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Decorator", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         public static bool IsSpecialMethod(IMethodSymbol method)
