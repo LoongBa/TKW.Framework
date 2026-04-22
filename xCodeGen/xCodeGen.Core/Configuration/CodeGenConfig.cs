@@ -14,6 +14,15 @@ namespace xCodeGen.Core.Configuration
         // 调试配置
         public DebugConfig Debug { get; set; } = new();
 
+        /// <summary> 是否开启业务类接口自动提取 </summary>
+        public bool EnableInterfaceExtraction { get; set; } = true;
+
+        /// <summary> 接口输出相对路径 (如 "Interfaces") </summary>
+        public string InterfaceOutputPath { get; set; } = "Interfaces";
+
+        /// <summary> 服务实现类目录 (如 "Services") </summary>
+        public string ServiceDirectory { get; set; } = "Services";
+
         // 命名与映射规则
         public List<NamingRule> NamingRules { get; set; } = [];
         // 文件名生成模式 (e.g. "{ClassName}.Dto.generated.cs")

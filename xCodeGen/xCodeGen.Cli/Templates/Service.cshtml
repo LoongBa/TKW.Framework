@@ -52,10 +52,12 @@ using TKW.Framework.Domain.xCodeGen;
 using @(namespaceName);
 using @(namespaceName).DTOs;
 using TKW.Framework.Domain.Exceptions;
+using TKW.Framework.Domain.Interfaces;
 
 namespace @(servicesNamespace);
+public partial interface I@(serviceName) : IDomainService {}
 /// <summary>@Raw(Model.Summary)Service</summary>
-public partial class @serviceName : DomainServiceBase<@userType>
+public partial class @serviceName : DomainServiceBase<@userType>, I@(serviceName)
 {
     protected readonly IFreeSql _fsql = fsql;
     protected IBaseRepository<@(className)> Repo => _fsql.GetRepository<@(className)>();

@@ -55,6 +55,6 @@
     <Folder Include="Extractors\" />
   </ItemGroup>
   <Target Name="CopyDependencies" AfterTargets="Build">
-    <Copy SourceFiles="..\xCodeGen.Abstractions\bin\Debug\netstandard2.0\xCodeGen.Abstractions.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="..\xCodeGen.Abstractions\bin\$(Configuration)\netstandard2.0\xCodeGen.Abstractions.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
   </Target>
 </Project>

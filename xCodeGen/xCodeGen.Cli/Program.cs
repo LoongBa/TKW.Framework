@@ -18,38 +18,23 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
-        // 核心修复：强制 UTF8 编码以支持 Emojis 和 Nerd Font 符号
         Console.OutputEncoding = Encoding.UTF8;
-
         PrintHeader();
 
         try
         {
             var configProvider = new ConfigurationProvider();
             var searchDir = Directory.GetCurrentDirectory();
-            if (!File.Exists(Path.Combine(searchDir, "xCodeGen.config.json")))
-            {
-                searchDir = AppContext.BaseDirectory;
-            }
+            var config = configProvider.Load(searchDir) ?? throw new InvalidOperationException("无法加载配置文件。");
 
-            var config = configProvider.Load(searchDir);
-            if (config == null)
-            {
-                LogError("无法加载配置文件 xCodeGen.config.json。");
-                return 1;
-            }
-
-            // 解析详细日志开关 (-v 或 --verbose)
-            var verbose = args.Any(a => a.Equals("-v", StringComparison.OrdinalIgnoreCase) || a.Equals("--verbose", StringComparison.OrdinalIgnoreCase));
-
-            // 提取非选项参数作为命令，默认为 gen
+            var verbose = args.Any(a => a.Equals("-v", StringComparison.OrdinalIgnoreCase));
             var command = args.FirstOrDefault(a => !a.StartsWith("-"))?.ToLower() ?? "gen";
 
             return command switch
             {
                 "help" => ShowHelp(),
                 "init" => HandleInit(config),
-                _ => await HandleGenerate(config, verbose)
+                _ => await ExecuteWorkflow(config, verbose)
             };
         }
         catch (Exception ex)
@@ -59,73 +44,116 @@ class Program
         }
     }
 
-    static async Task<int> HandleGenerate(CodeGenConfig config, bool verbose)
+    static async Task<int> ExecuteWorkflow(CodeGenConfig config, bool verbose)
     {
-        if (string.IsNullOrWhiteSpace(config.TargetProject))
-            throw new InvalidOperationException("未配置 TargetProject 路径。");
+        // 1. 执行标准代码生成 (Service.g.cs, Service.cs 等)
+        var result = await HandleGenerate(config, verbose);
+        if (!result.Success) return 1;
 
-        var targetDll = ResolveAssemblyPath(config.TargetProject);
-        if (string.IsNullOrEmpty(targetDll) || !File.Exists(targetDll))
-            throw new FileNotFoundException($"找不到程序集。请确认项目文件已成功编译。");
+        // 2. 执行接口合成 (V4 AOP 核心准备)
+        if (config.EnableInterfaceExtraction)
+        {
+            await HandleInterfaceSynthesis(config, verbose);
+        }
 
+        return 0;
+    }
+
+    static async Task<GenerateResult> HandleGenerate(CodeGenConfig config, bool verbose)
+    {
+        var targetDll = ResolveAssemblyPath(config.TargetProject) ?? throw new FileNotFoundException("找不到程序集。请确认项目已编译。");
         var targetDir = Path.GetDirectoryName(Path.GetFullPath(targetDll))!;
 
-        // 注册依赖解析钩子以解决加载问题
-        AssemblyLoadContext.Default.Resolving += (context, assemblyName) =>
-        {
-            var expectedPath = Path.Combine(targetDir, assemblyName.Name + ".dll");
-            return File.Exists(expectedPath) ? context.LoadFromAssemblyPath(expectedPath) : null;
+        AssemblyLoadContext.Default.Resolving += (ctx, name) => {
+            var p = Path.Combine(targetDir, name.Name + ".dll");
+            return File.Exists(p) ? ctx.LoadFromAssemblyPath(p) : null;
         };
 
         var assembly = Assembly.LoadFrom(targetDll);
-
-        // 1. 定位生成的上下文类型 (IProjectMetaContext 的非抽象实现)
         var contextType = GetLoadableTypes(assembly).FirstOrDefault(t =>
-            typeof(IProjectMetaContext).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+            typeof(IProjectMetaContext).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+            ?? throw new InvalidOperationException("未发现元数据上下文。");
 
-        if (contextType == null)
-            throw new InvalidOperationException("程序集中未发现有效的 ProjectMetaContext 实现类。");
-
-        // 2. 核心修复：显式触发生成类的静态构造函数
-        // 因为 Instance 的赋值逻辑位于生成的 ProjectMetaContext 静态构造函数中
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(contextType.TypeHandle);
+        var contextInstance = typeof(ProjectMetaContextBase).GetProperty("Instance")?.GetValue(null) as IProjectMetaContext
+            ?? throw new InvalidOperationException("元数据实例为空。");
 
-        // 3. 核心修复：从基类 ProjectMetaContextBase 读取单例
-        // 这样可以确保即便子类没有 Instance 属性，也能通过继承链拿到基类持有的引用
-        var baseType = typeof(ProjectMetaContextBase);
-        var instanceProperty = baseType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-        var contextInstance = instanceProperty?.GetValue(null) as IProjectMetaContext;
-
-        if (contextInstance == null)
-            throw new InvalidOperationException("无法获取元数据上下文实例。请检查生成的静态构造函数初始化逻辑。");
-
-        // 初始化核心组件
-        var fileWriter = new FileSystemWriter();
         var templateEngine = new RazorLightTemplateEngine(config.TemplatesPath);
-
-        // 此时 contextInstance 已经持有完整的项目元数据
         var extractors = new List<IMetaDataExtractor> { new CompiledMetadataExtractor(contextInstance) };
-        var engine = EngineFactory.Create(config, extractors, templateEngine, fileWriter);
+        var engine = EngineFactory.Create(config, extractors, templateEngine, new FileSystemWriter());
 
-        var options = new GenerateOptions
-        {
-            ProjectPath = config.TargetProject,
-            OutputPath = config.OutputRoot,
-            MetadataSources = new List<string> { "Code" }
-        };
+        var result = await engine.GenerateAsync(new GenerateOptions { ProjectPath = config.TargetProject, OutputPath = config.OutputRoot, MetadataSources = new[] { "Code" } }, config);
 
-        var result = await engine.GenerateAsync(options, config);
-
-        // --- 输出统计摘要 ---
         PrintSummary(config, result);
+        if (verbose || result.Errors.Any()) PrintDetails(result, verbose);
 
-        // --- 输出详细清单 (Verbose 模式或有错误时) ---
-        if (verbose || result.Errors.Any())
+        return result;
+    }
+
+    static async Task HandleInterfaceSynthesis(CodeGenConfig config, bool verbose)
+    {
+        Console.WriteLine("\n🔍 正在提取业务接口 (Interface Synthesis)...");
+        var synthesizer = new InterfaceSynthesizer();
+        var serviceDir = Path.Combine(config.OutputRoot, config.ServiceDirectory);
+        var interfaceDir = Path.Combine(config.OutputRoot, config.InterfaceOutputPath);
+
+        if (!Directory.Exists(serviceDir)) return;
+        if (!Directory.Exists(interfaceDir)) Directory.CreateDirectory(interfaceDir);
+
+        var serviceFiles = Directory.GetFiles(serviceDir, "*Service.cs");
+        int count = 0;
+
+        foreach (var manualFile in serviceFiles)
         {
-            PrintDetails(result, verbose);
+            var className = Path.GetFileNameWithoutExtension(manualFile).Replace("Service", "");
+            var generatedFile = manualFile.Replace(".cs", ".g.cs");
+
+            if (!File.Exists(generatedFile)) continue;
+
+            var manualText = await File.ReadAllTextAsync(manualFile);
+            var generatedText = await File.ReadAllTextAsync(generatedFile);
+
+            var nsLine = generatedText.Split('\n').FirstOrDefault(l => l.Trim().StartsWith("namespace")) ?? "";
+            var ns = nsLine.Replace("namespace", "").Replace(";", "").Trim();
+
+            var interfaceCode = synthesizer.Synthesize(className, ns, manualText, generatedText);
+
+            var interfacePath = Path.Combine(interfaceDir, $"I{className}Service.g.cs");
+
+            // 从生成的 interfaceCode 中解析新 hash
+            var newHash = "";
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(interfaceCode, @"xCodeGen\.Hash:\s*([0-9a-fA-F]+)");
+                if (m.Success) newHash = m.Groups[1].Value;
+            }
+
+            bool writeFile = true;
+            if (File.Exists(interfacePath))
+            {
+                var existing = await File.ReadAllTextAsync(interfacePath);
+                var m = System.Text.RegularExpressions.Regex.Match(existing, @"xCodeGen\.Hash:\s*([0-9a-fA-F]+)");
+                if (m.Success)
+                {
+                    var existingHash = m.Groups[1].Value;
+                    if (!string.IsNullOrEmpty(existingHash) && !string.IsNullOrEmpty(newHash) && existingHash == newHash)
+                    {
+                        writeFile = false;
+                        if (verbose) Console.WriteLine($"  [-] 跳过未变更接口: I{className}Service");
+                    }
+                }
+            }
+
+            if (writeFile)
+            {
+                await File.WriteAllTextAsync(interfacePath, interfaceCode, Encoding.UTF8);
+                if (verbose) Console.WriteLine($"  [+] 合成接口: I{className}Service -> {Path.GetRelativePath(config.OutputRoot, interfacePath)}");
+                count++;
+            }
         }
 
-        return result.Success ? 0 : 1;
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"✨ 接口提取完成，共生成/更新 {count} 个接口文件。");
+        Console.ResetColor();
     }
 
     private static void PrintSummary(CodeGenConfig config, GenerateResult result)
@@ -270,7 +298,7 @@ class Program
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("--------------------------------------------------------------------");
-        Console.WriteLine(" xCodeGen Ver2.26 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品");
+        Console.WriteLine(" xCodeGen Ver2.27 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品");
         Console.WriteLine("--------------------------------------------------------------------");
         Console.ResetColor();
     }

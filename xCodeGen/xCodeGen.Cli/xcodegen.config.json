@@ -2,6 +2,10 @@
   "TargetProject": "..\\DMP-Lite.Domain.csproj",
   "EnableSkipUnchanged": true,
   "OutputRoot": "Generated",
+  "EnableInterfaceExtraction": true,
+  "InterfaceOutputPath": "..\\..\\Interfaces",
+  "ServiceDirectory": "..\\..\\Services",
+
   "TemplatesPath": "Templates",
   "TemplateMappings": {
     "Service": "Service.cshtml",
@@ -10,21 +14,24 @@
   },
   "SkeletonMappings": {
     "EntityEmpty": "EntityEmpty.cshtml",
-    "DtoEmpty": "DtoEmpty.cshtml"
+    "DtoEmpty": "DtoEmpty.cshtml",
+    "ServiceEmpty": "ServiceEmpty.cshtml"
   },
   "FileNamePatterns": {
     "Service": "{ClassName}Service.g.cs",
+    "ServiceEmpty": "{ClassName}Service.cs",
     "EntityEmpty": "{ClassName}.biz.cs",
     "Entity": "{ClassName}.g.cs",
     "DtoEmpty": "{ClassName}Dto.cs",
     "Dto": "{ClassName}Dto.g.cs"
   },
   "OutputDirectories": {
-    "Service": "..\\..\\Services",
     "EntityEmpty": "..\\..\\Entities",
     "Entity": "..\\..\\Entities",
     "DtoEmpty": "..\\..\\Entities\\DTOs",
-    "Dto": "..\\..\\Entities\\DTOs"
+    "Dto": "..\\..\\Entities\\DTOs",
+    "Service": "..\\..\\Services",
+    "ServiceEmpty": "..\\..\\Services"
   },
   "CustomSettings": {
     "EnableLogging": "true",
