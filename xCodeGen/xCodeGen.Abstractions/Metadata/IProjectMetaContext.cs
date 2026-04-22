@@ -21,5 +21,11 @@ namespace xCodeGen.Abstractions.Metadata
         /// 高性能获取属性字典的方法，供 ValidationCache 调用
         /// </summary>
         IReadOnlyDictionary<string, PropertyMetadata> GetPropertyMap(string className);
+
+        // 新增：按角色区分的集合，便于运行时/CLI 筛选
+        IReadOnlyList<ClassMetadata> Entities { get; }
+        IReadOnlyList<ClassMetadata> Services { get; }
+        IReadOnlyList<ClassMetadata> Controllers { get; }
+        IReadOnlyList<ClassMetadata> Decorators { get; }
     }
 }

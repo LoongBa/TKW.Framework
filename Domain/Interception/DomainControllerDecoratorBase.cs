@@ -4,8 +4,8 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
 
-public abstract class ServiceDecoratorBase<TService, TUserInfo>(TService inner, DomainHost<TUserInfo> host)
-    where TService : class, IDomainService, new()
+public abstract class DomainControllerDecoratorBase<TService, TUserInfo>(TService inner, DomainHost<TUserInfo> host)
+    where TService : class, IDomainService, IAopContract, new()
     where TUserInfo : class, IUserInfo, new()
 {
     protected readonly TService Inner = inner ?? throw new ArgumentNullException(nameof(inner));

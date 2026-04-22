@@ -31,7 +31,7 @@
 
     var metaHash = Model.GenerateCodeSettings.ContainsKey("MetadataHash") ? Model.GenerateCodeSettings["MetadataHash"]?.ToString() : "N/A";
     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-    var generateDecorator = Model.IsDomainController;
+    var generateDecorator = Model.IsController;
     var decoratorTypeName = $"{servicesNamespace}.{serviceName}Decorator";
 }
 <!--
@@ -350,7 +350,7 @@ public partial class @serviceName : I@(serviceName)
 @if (generateDecorator)
 {
     // --- 自动生成装饰器类 ---
-    public partial class @($"{serviceName}Decorator") : ServiceDecoratorBase<I@serviceName, @userType>, I@serviceName
+    public partial class @($"{serviceName}Decorator") : DomainControllerDecoratorBase<I@serviceName, @userType>, I@serviceName
     {
         private readonly I@serviceName Inner;
         public @($"{serviceName}Decorator")(I@serviceName inner, DomainHost<@userType> host) : base(inner, host)

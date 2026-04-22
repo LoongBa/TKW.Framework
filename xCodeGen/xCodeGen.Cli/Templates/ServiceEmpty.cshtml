@@ -10,7 +10,7 @@
     var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
     var namespaceName = Model.Namespace.Replace(".Models", ".Entities");
     var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
-    var baseClassName = Model.IsDomainController ? "DomainControllerBase" : "DomainServiceBase";
+    var baseClassName = Model.IsController ? "DomainControllerBase" : "DomainServiceBase";
 }
 using TKW.Framework.Domain;
 

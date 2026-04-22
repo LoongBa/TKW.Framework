@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -16,13 +17,26 @@ namespace xCodeGen.Abstractions.Metadata
         private static readonly ConcurrentDictionary<string, IReadOnlyDictionary<string, PropertyMetadata>> _propCache =
             new ConcurrentDictionary<string, IReadOnlyDictionary<string, PropertyMetadata>>();
 
-        public abstract IReadOnlyList<ClassMetadata> AllMetadatas { get; }
+        protected readonly List<ClassMetadata> _allMetadatas = new List<ClassMetadata>();
 
         public abstract ProjectConfiguration Configuration { get; }
 
         public abstract MetadataChangeLog ChangeLog { get; }
 
         public abstract string MetadataSchemaVersion { get; }
+
+        public IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();
+        /// <summary>
+        /// 新增抽象属性：按角色筛选的集合（具体实现由生成的 ProjectMetaContext 提供）
+        /// </summary>
+        public IReadOnlyList<ClassMetadata> Entities => _allMetadatas.Where(m => m.GenerateCodeSettings.ContainsKey("IsEntity") && (bool)m.GenerateCodeSettings["IsEntity"]).ToList().AsReadOnly();
+
+        public IReadOnlyList<ClassMetadata> Services => _allMetadatas.Where(m => (m.ImplementedInterfaces != null && m.ImplementedInterfaces.Any(i => !string.IsNullOrEmpty(i) && i.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0)) || (!string.IsNullOrEmpty(m.ClassName) && m.ClassName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))).ToList().AsReadOnly();
+
+        public IReadOnlyList<ClassMetadata> Controllers => _allMetadatas.Where(m => m.IsController).ToList().AsReadOnly();
+
+        public IReadOnlyList<ClassMetadata> Decorators => _allMetadatas.Where(m => !string.IsNullOrEmpty(m.DecoratorTypeFullName) || m.HasDecoratorCandidate).ToList().AsReadOnly();
+
 
         public virtual ClassMetadata FindByClassName(string className)
             => AllMetadatas.FirstOrDefault(m => m.ClassName == className);

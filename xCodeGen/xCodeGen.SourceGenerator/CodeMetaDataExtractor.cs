@@ -33,15 +33,23 @@ namespace xCodeGen.SourceGenerator
             context.RegisterSourceOutput(candidateTypes.Collect().Combine(projectInfoProvider), (spc, combined) =>
             {
                 var (infos, projectInfo) = combined;
+
+                // 收集所有 metadata 对象（注意顺序：infos 中即包含 entities + services + decorators）
                 var allMetadatas = infos.Select(i => i.Metadata).ToList();
 
+                // --- 关键：先 enrichment（关联 service/controller/decorator 与 entity），以便单类 Meta 文件也包含 enrichment 结果 ---
+                EnrichAndHashMetadatas(allMetadatas);
+
+                // 然后生成 ProjectMetaContext（它会引用每个单类 meta）
                 GenerateProjectMetaContext(spc, allMetadatas, projectInfo, new MetadataChangeLog());
 
+                // 最后为每个类生成单独的元数据文件（使用已经 enrichment 的 metadata 实例）
                 foreach (var info in infos)
                 {
                     try { GenerateMetaFile(spc, info.Metadata); }
                     catch (Exception ex) { ReportError(spc, $"生成 {info.Metadata.ClassName} 失败: {ex.Message}"); }
                 }
+
                 GenerateDebugLogFile(spc);
             });
         }
@@ -50,10 +58,33 @@ namespace xCodeGen.SourceGenerator
         {
             var typeDecl = (TypeDeclarationSyntax)context.Node;
             if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
-            if (!symbol.HasGenerateCodeAttribute()) return null;
+
+            // 我们放宽条件：只要满足任一：
+            //  - 带 [GenerateCode]（entity）
+            //  - 或者 实现了 IDomainService / 命名含 IDomainService（service/controller/装饰类）
+            // 则都提取元数据以便后续 enrichment 能看到 service/controller/装饰类。
+            var hasGenerateAttr = symbol.HasGenerateCodeAttribute();
+            var implementsDomainService = symbol.AllInterfaces.Any(i => !string.IsNullOrEmpty(i.ToDisplayString()) && i.ToDisplayString().IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
+
+            if (!hasGenerateAttr && !implementsDomainService)
+            {
+                // 仍然保守过滤：如果类声明名以 Service 或包含 Decorator/Controller 识别字符串，也允许
+                if (!symbol.Name.EndsWith("Service", StringComparison.OrdinalIgnoreCase) &&
+                    !symbol.Name.Contains("Decorator", StringComparison.OrdinalIgnoreCase) &&
+                    !symbol.Name.Contains("Controller", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
 
             var rawMetadata = ConvertToRawMetadata(typeDecl, context.SemanticModel);
             var classMetadata = ConvertToClassMetadata(rawMetadata);
+
+            // 标记是否原始由 GenerateCodeAttribute 触发（便于判定 Entities）
+            if (hasGenerateAttr)
+                classMetadata.GenerateCodeSettings["IsEntity"] = true;
+            else
+                classMetadata.GenerateCodeSettings["IsEntity"] = false;
 
             return new ClassGenerationInfo
             {
@@ -97,11 +128,11 @@ namespace xCodeGen.SourceGenerator
         private (string Text, string Source) GetNodeSummary(ISymbol symbol, SyntaxNode node)
         {
             // 轨道 1: Semantic XML (最稳健，原样返回 XML 内容)
-            string xml = symbol.GetDocumentationCommentXml();
+            var xml = symbol.GetDocumentationCommentXml();
             if (!string.IsNullOrWhiteSpace(xml))
             {
-                int start = xml.IndexOf("<summary>");
-                int end = xml.IndexOf("</summary>");
+                var start = xml.IndexOf("<summary>", StringComparison.OrdinalIgnoreCase);
+                var end = xml.IndexOf("</summary>", StringComparison.OrdinalIgnoreCase);
                 if (start != -1 && end != -1)
                 {
                     return (xml.Substring(start + 9, end - start - 9).Trim(), "Semantic XML");

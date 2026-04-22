@@ -12,8 +12,10 @@ namespace xCodeGen.Abstractions.Metadata
         public string Summary { get; set; } = string.Empty;
         public bool IsView { get; set; } = false;
 
-        public bool IsDomainService { get; set; } = false;
-        public bool IsDomainController { get; set; } = false;
+        public bool IsEntity { get; set; } = false;
+        public bool IsService { get; set; } = false;
+        public bool IsController { get; set; } = false;
+        public bool IsDecorator { get; set; } = false;
         public string DecoratorTypeFullName { get; set; } = string.Empty;
         public bool HasDecoratorCandidate { get; set; } = false;
 
