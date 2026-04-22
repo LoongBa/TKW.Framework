@@ -253,6 +253,7 @@ namespace xCodeGen.SourceGenerator
         private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs) =>
             rawAttrs?.Select(a => new AttributeMetadata
             {
+                Name = a["Name"] as string,
                 TypeFullName = a["TypeFullName"] as string,
                 Properties = a.TryGetValue("Properties", out var p) ? (Dictionary<string, object>)p : new Dictionary<string, object>(),
                 ConstructorArguments = a.TryGetValue("ConstructorArguments", out var c) ? (List<object>)c : new List<object>()
