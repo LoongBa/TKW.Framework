@@ -116,7 +116,12 @@ class Program
             var nsLine = generatedText.Split('\n').FirstOrDefault(l => l.Trim().StartsWith("namespace")) ?? "";
             var ns = nsLine.Replace("namespace", "").Replace(";", "").Trim();
 
-            var interfaceCode = synthesizer.Synthesize(className, ns, manualText, generatedText);
+            // 传入配置中的 AttributeWhitelist（可能为空 -> 表示复制所有特性）
+            var attributeWhitelist = (config.AttributeWhitelist != null && config.AttributeWhitelist.Count > 0)
+                ? config.AttributeWhitelist.AsEnumerable()
+                : null;
+
+            var interfaceCode = synthesizer.Synthesize(className, ns, manualText, generatedText, attributeWhitelist);
 
             var interfacePath = Path.Combine(interfaceDir, $"I{className}Service.g.cs");
 

@@ -9,8 +9,10 @@ namespace xCodeGen.Core.Configuration
         public string TargetProject { get; set; } = string.Empty; // 目标项目路径
         public string OutputRoot { get; set; } = "Generated";    // 输出根目录
         public string TemplatesPath { get; set; } = "Templates"; // 模板所在目录
+
         // 增量生成/防抖动开关
         public bool EnableSkipUnchanged { get; set; } = true;
+
         // 调试配置
         public DebugConfig Debug { get; set; } = new();
 
@@ -23,8 +25,14 @@ namespace xCodeGen.Core.Configuration
         /// <summary> 服务实现类目录 (如 "Services") </summary>
         public string ServiceDirectory { get; set; } = "Services";
 
+        /// <summary>
+        /// 属性白名单：当不为 null/empty 时，InterfaceSynthesizer 只会复制白名单内的特性（大小写不敏感，可带或不带 "Attribute" 后缀）。
+        /// 若为 null 或空列表，则默认复制所有特性（兼容旧行为）。
+        /// </summary>
+        public List<string> AttributeWhitelist { get; set; } = new();
+
         // 命名与映射规则
-        public List<NamingRule> NamingRules { get; set; } = [];
+        public List<NamingRule> NamingRules { get; set; } = new();
         // 文件名生成模式 (e.g. "{ClassName}.Dto.generated.cs")
         public Dictionary<string, string> FileNamePatterns { get; set; } = new();
         public Dictionary<string, string> TemplateMappings { get; set; } = new(); // ArtifactType -> TemplatePath
