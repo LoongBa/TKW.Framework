@@ -20,10 +20,7 @@ namespace xCodeGen.SourceGenerator
                 var codeContent = BuildMetaCode(metadata);
                 context.AddSource(fileName, SourceText.From(codeContent, Encoding.UTF8));
             }
-            catch (Exception ex)
-            {
-                ReportError(context, $"生成元数据时出错: {ex.Message}");
-            }
+            catch (Exception ex) { ReportError(context, $"生成元数据时出错: {ex.Message}"); }
         }
 
         private string BuildMetaCode(ClassMetadata metadata)
@@ -40,44 +37,22 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine("{");
             codeBuilder.AppendLine($"    public class {metadata.ClassName}Meta");
             codeBuilder.AppendLine("    {");
-
-            // 记录类 Summary 来源（若存在）
-            if (metadata.GenerateCodeSettings.TryGetValue("ClassSummarySource", out var source))
-                codeBuilder.AppendLine($"        // [Summary Source: {source}]");
-
             codeBuilder.AppendLine("        public static ClassMetadata Metadata { get; } = new ClassMetadata");
             codeBuilder.AppendLine("        {");
             codeBuilder.AppendLine($"            Namespace = \"{EscapeString(metadata.Namespace)}\",");
             codeBuilder.AppendLine($"            ClassName = \"{EscapeString(metadata.ClassName)}\",");
             codeBuilder.AppendLine($"            FullName = \"{EscapeString(metadata.FullName)}\",");
-            codeBuilder.AppendLine($"            SourceType = MetadataSource.{metadata.SourceType},");
+            codeBuilder.AppendLine($"            Type = MetaType.{metadata.Type},"); // 核心：使用统一的 Type 属性
             codeBuilder.AppendLine($"            Summary = {FormatStringValue(metadata.Summary)},");
             codeBuilder.AppendLine($"            IsRecord = {metadata.IsRecord.ToString().ToLower()},");
             codeBuilder.AppendLine($"            TypeKind = \"{EscapeString(metadata.TypeKind)}\",");
-            codeBuilder.AppendLine($"            TemplateName = \"{EscapeString(metadata.TemplateName)}\",");
             codeBuilder.AppendLine($"            BaseType = \"{EscapeString(metadata.BaseType)}\",");
 
-            // --- 新增/保留的标识字段 ---
-            // IsEntity / IsView 可能由 ExtractGenerationInfo 填写到 GenerateCodeSettings，保险地读取（fallback to metadata.IsView / default）
-            var isEntityLiteral = metadata.GenerateCodeSettings.TryGetValue("IsEntity", out var ie) && ie is bool b1 && b1 ? "true" : "false";
-            var isViewLiteral = metadata.GenerateCodeSettings.TryGetValue("IsView", out var iv) && iv is bool b2 && b2 ? "true" : (metadata.IsView ? "true" : "false");
-
-            codeBuilder.AppendLine($"            IsEntity = {isEntityLiteral},");
-            codeBuilder.AppendLine($"            IsView = {isViewLiteral},");
-            codeBuilder.AppendLine($"            IsService = {metadata.IsService.ToString().ToLower()},");
-            codeBuilder.AppendLine($"            IsController = {metadata.IsController.ToString().ToLower()},");
-            codeBuilder.AppendLine($"            IsDecorator = {metadata.IsDecorator.ToString().ToLower()},");
-
-            // 装饰器信息
+            // 记录装饰器关联信息
             codeBuilder.AppendLine($"            DecoratorTypeFullName = {(string.IsNullOrEmpty(metadata.DecoratorTypeFullName) ? "null" : $"\"{EscapeString(metadata.DecoratorTypeFullName)}\"")},");
             codeBuilder.AppendLine($"            HasDecoratorCandidate = {metadata.HasDecoratorCandidate.ToString().ToLower()},");
-
-            // SourceHash / MetadataHash 回退
-            var hashValue = metadata.SourceHash;
-            if (string.IsNullOrEmpty(hashValue) && metadata.GenerateCodeSettings.ContainsKey("MetadataHash"))
-                hashValue = metadata.GenerateCodeSettings["MetadataHash"]?.ToString() ?? string.Empty;
-            codeBuilder.AppendLine($"            SourceHash = \"{EscapeString(hashValue ?? string.Empty)}\",");
-
+            codeBuilder.AppendLine($"            SourceHash = \"{EscapeString(metadata.SourceHash)}\",");
+            
             // --- 序列化 Class 级别的 Attributes ---
             codeBuilder.AppendLine("            Attributes = new Collection<AttributeMetadata>");
             codeBuilder.AppendLine("            {");
@@ -287,104 +262,73 @@ namespace xCodeGen.SourceGenerator
         {
             if (allMetadatas == null || allMetadatas.Count == 0) return;
 
-            // 1. 预构建索引（用于后续快速查找）
-            var byFullName = allMetadatas.ToDictionary(m => m.FullName ?? $"{m.Namespace}.{m.ClassName}", m => m, StringComparer.Ordinal);
-
             var filteredList = new List<ClassMetadata>();
 
-            // --- 第一步：身份判定与初步过滤 ---
+            // --- 第一步：身份判定与 Type 归类 ---
             foreach (var m in allMetadatas)
             {
-                // 判定 1: GenerateCode 特性 (最高优先级)
+                // 1. GenerateCode 特性优先判定 View/Entity
                 var genCodeAttr = FindAttribute(m.Attributes, "GenerateCodeAttribute");
                 if (genCodeAttr != null)
                 {
-                    m.IsView = GetBoolProp(genCodeAttr, "IsView", false);
-                    m.IsEntity = !m.IsView;
-                    filteredList.Add(m);
-                    continue; // 跳过后续逻辑
-                }
-
-                // 判定 2: DomainController 特性
-                if (FindAttribute(m.Attributes, "DomainControllerAttribute") != null)
-                {
-                    m.IsController = true;
+                    var isView = GetBoolProp(genCodeAttr, "IsView", false);
+                    m.Type = isView ? MetaType.View : MetaType.Entity;
                     filteredList.Add(m);
                     continue;
                 }
 
-                // 判定 3: IDomainService 接口
+                // 2. DomainController 特性判定
+                if (FindAttribute(m.Attributes, "DomainControllerAttribute") != null)
+                {
+                    m.Type = MetaType.Controller;
+                    filteredList.Add(m);
+                    continue;
+                }
+
+                // 3. IDomainService 接口判定
                 if (ImplementsInterface(m, "IDomainService"))
                 {
-                    // 进一步判断是否为装饰器
-                    bool isDecoBase = (m.BaseType != null && m.BaseType.IndexOf("DomainControllerDecoratorBase", StringComparison.OrdinalIgnoreCase) >= 0)
-                                   || (m.BaseType != null && m.BaseType.IndexOf("ServiceDecoratorBase", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                    m.IsDecorator = isDecoBase;
-                    m.IsService = !m.IsDecorator;
+                    bool isDecoBase = (m.BaseType != null && m.BaseType.Contains("DecoratorBase"));
+                    m.Type = isDecoBase ? MetaType.Decorator : MetaType.Service;
                     filteredList.Add(m);
                     continue;
                 }
             }
 
-            // 更新列表，仅保留判定成功的类
             allMetadatas = filteredList;
+            var decorators = allMetadatas.Where(x => x.Type == MetaType.Decorator).ToDictionary(x => x.ClassName, x => x);
 
-            // 重新构建装饰器快速查找索引
-            var decorators = allMetadatas.Where(x => x.IsDecorator).ToDictionary(x => x.ClassName, x => x);
-
-            // --- 第二步：第二次循环，建立装饰器关联 (针对 IsController) ---
-            foreach (var m in allMetadatas)
+            // --- 第二步：建立关联与计算 Hash ---
+            using (var sha = SHA256.Create())
             {
-                if (m.IsController)
+                foreach (var m in allMetadatas.Where(x => x.Type == MetaType.Entity || x.Type == MetaType.View))
                 {
-                    string expectedDecoName = m.ClassName + "Decorator";
+                    // 检查是否存在匹配的 Service/Controller，存入 Settings 供模板使用
+                    var hasService = allMetadatas.Any(x => x.ClassName == $"{m.ClassName}Service" && x.Type == MetaType.Service);
+                    var hasController = allMetadatas.Any(x => x.ClassName == $"{m.ClassName}Service" && x.Type == MetaType.Controller);
+
+                    m.GenerateCodeSettings["HasService"] = hasService;
+                    m.GenerateCodeSettings["HasController"] = hasController;
+
+                    string expectedDecoName = $"{m.ClassName}ServiceDecorator";
                     if (decorators.TryGetValue(expectedDecoName, out var deco))
                     {
                         m.HasDecoratorCandidate = true;
-                        m.DecoratorTypeFullName = deco.FullName ?? $"{deco.Namespace}.{deco.ClassName}";
-                    }
-                }
-            }
-            // 缩小范围，仅对实体/视图进行 Hash 计算
-            var entities = allMetadatas.Where(m => m.IsEntity || m.IsView);
-            // --- 第三步：计算 Hash (不使用 JSON 序列化) ---
-            using (var sha = SHA256.Create())
-            {
-                foreach (var m in entities)
-                {
-                    // 复制值
-                    m.IsService = allMetadatas.Any(x => x.ClassName == $"{m.ClassName}Service" && x.IsService);
-                    m.IsController = allMetadatas.Any(x => x.ClassName == $"{m.ClassName}Service" && x.IsController);
-                    var decorator
-                        = allMetadatas.FirstOrDefault(x => x.ClassName == $"{m.ClassName}ServiceDecorator" && x.IsDecorator);
-                    if (decorator != null)
-                    {
-                        m.HasDecoratorCandidate = true;
-                        m.DecoratorTypeFullName = decorator.FullName ?? string.Empty;
+                        m.DecoratorTypeFullName = deco.FullName;
                     }
 
-                    // 手动拼接关键元数据以生成 Hash Source
+                    // 构造 Hash 源字符串
                     StringBuilder sb = new StringBuilder();
                     sb.Append(m.Namespace).Append("|")
                       .Append(m.ClassName).Append("|")
-                      .Append(m.IsService).Append("|")
-                      .Append(m.IsController).Append("|")
-                      .Append(m.IsDecorator).Append("|")
+                      .Append(m.Type).Append("|") // 使用 Type 代替多个布尔值
+                      .Append(hasService).Append("|")
+                      .Append(hasController).Append("|")
                       .Append(m.HasDecoratorCandidate).Append("|")
                       .Append(m.DecoratorTypeFullName);
 
-                    if (m.Methods != null)
-                    {
-                        foreach (var meth in m.Methods)
-                            sb.Append("|").Append(meth.Name).Append(":").Append(meth.ReturnType);
-                    }
-
                     byte[] bytes = Encoding.UTF8.GetBytes(sb.ToString());
-                    string hash = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
-
-                    m.SourceHash = hash;
-                    m.GenerateCodeSettings["MetadataHash"] = hash;
+                    m.SourceHash = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
                 }
             }
         }

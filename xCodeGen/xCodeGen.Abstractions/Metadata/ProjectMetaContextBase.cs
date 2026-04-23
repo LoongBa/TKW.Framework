@@ -26,17 +26,15 @@ namespace xCodeGen.Abstractions.Metadata
         public abstract string MetadataSchemaVersion { get; }
 
         public IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();
-        /// <summary>
-        /// 新增抽象属性：按角色筛选的集合（具体实现由生成的 ProjectMetaContext 提供）
-        /// </summary>
-        public IReadOnlyList<ClassMetadata> Entities => _allMetadatas.Where(m => m.GenerateCodeSettings.ContainsKey("IsEntity") && (bool)m.GenerateCodeSettings["IsEntity"]).ToList().AsReadOnly();
 
-        public IReadOnlyList<ClassMetadata> Services => _allMetadatas.Where(m => (m.ImplementedInterfaces != null && m.ImplementedInterfaces.Any(i => !string.IsNullOrEmpty(i) && i.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0)) || (!string.IsNullOrEmpty(m.ClassName) && m.ClassName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))).ToList().AsReadOnly();
+        public IReadOnlyList<ClassMetadata> Views => _allMetadatas.Where(m => m.Type == MetaType.View).ToList().AsReadOnly();
+        public IReadOnlyList<ClassMetadata> Entities => _allMetadatas.Where(m => m.Type == MetaType.Entity).ToList().AsReadOnly();
 
-        public IReadOnlyList<ClassMetadata> Controllers => _allMetadatas.Where(m => m.IsController).ToList().AsReadOnly();
+        public IReadOnlyList<ClassMetadata> Services => _allMetadatas.Where(m => m.Type == MetaType.Service).ToList().AsReadOnly();
 
-        public IReadOnlyList<ClassMetadata> Decorators => _allMetadatas.Where(m => !string.IsNullOrEmpty(m.DecoratorTypeFullName) || m.HasDecoratorCandidate).ToList().AsReadOnly();
+        public IReadOnlyList<ClassMetadata> Controllers => _allMetadatas.Where(m => m.Type == MetaType.Controller).ToList().AsReadOnly();
 
+        public IReadOnlyList<ClassMetadata> Decorators => _allMetadatas.Where(m => m.Type == MetaType.Decorator).ToList().AsReadOnly();
 
         public virtual ClassMetadata FindByClassName(string className)
             => AllMetadatas.FirstOrDefault(m => m.ClassName == className);

@@ -12,10 +12,7 @@ namespace xCodeGen.Abstractions.Metadata
         public string Summary { get; set; } = string.Empty;
         public bool IsView { get; set; } = false;
 
-        public bool IsEntity { get; set; } = false;
-        public bool IsService { get; set; } = false;
-        public bool IsController { get; set; } = false;
-        public bool IsDecorator { get; set; } = false;
+        public MetaType Type { get; set; } = MetaType.Other;
         public string DecoratorTypeFullName { get; set; } = string.Empty;
         public bool HasDecoratorCandidate { get; set; } = false;
 
@@ -47,5 +44,15 @@ namespace xCodeGen.Abstractions.Metadata
         public string TypeKind { get; set; } = "class";
 
         public ClassMetadata() { }
+    }
+
+    public enum MetaType
+    {
+        Other = 0,
+        Entity = 1,
+        View = 2,
+        Service = 3,
+        Controller = 4,
+        Decorator = 5,
     }
 }
