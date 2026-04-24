@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -24,6 +23,8 @@ namespace xCodeGen.Abstractions.Metadata
         public abstract MetadataChangeLog ChangeLog { get; }
 
         public abstract string MetadataSchemaVersion { get; }
+        public virtual IEnumerable<DomainServiceRegistration> GetServiceRegistrations()
+            => Enumerable.Empty<DomainServiceRegistration>();
 
         public IReadOnlyList<ClassMetadata> AllMetadatas => _allMetadatas.AsReadOnly();
 

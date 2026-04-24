@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Hosting;
 
 namespace TKW.Framework.Domain.Web.Hosting;
 

@@ -35,7 +35,7 @@ public class LoggingFilterAttribute<TUserInfo>(EnumDomainLogLevel level) : Domai
         var logger = context.Logger;
 
         var user = context.DomainUser;
-        var method = context.Invocation.Method.Name;
+        var method = context.Invocation.MethodName;
 
         // 根据级别决定是否记录参数
         var argsInfo = level >= EnumDomainLogLevel.Verbose
@@ -58,7 +58,7 @@ public class LoggingFilterAttribute<TUserInfo>(EnumDomainLogLevel level) : Domai
 
         var logger = context.Logger;
 
-        var method = context.Invocation.Method.Name;
+        var method = context.Invocation.MethodName;
         var durationMs = _Stopwatch.ElapsedMilliseconds;
 
         // 可根据级别决定日志级别（Warning for slow calls）

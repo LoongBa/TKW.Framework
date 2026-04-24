@@ -4,12 +4,11 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception;
 
-public abstract class DomainControllerDecoratorBase<TService, TUserInfo>(TService inner, DomainHost<TUserInfo> host)
-    where TService : class, IDomainService, IAopContract, new()
-    where TUserInfo : class, IUserInfo, new()
+public abstract class DomainControllerDecoratorBase<TService, TUserInfo>(TService inner, StaticDomainInterceptor<TUserInfo> invocation)
+    where TService : class, IDomainService, IAopContract
+    where TUserInfo: class, IUserInfo, new()
 {
     protected readonly TService Inner = inner ?? throw new ArgumentNullException(nameof(inner));
-    protected readonly DomainHost<TUserInfo> Host = host ?? throw new ArgumentNullException(nameof(host)); // 或泛型 TUserInfo，视实际生成器上下文而定
 
     // 辅助：在装饰器里调用 inner 前后可以复用的方法
     protected async Task<TResult> InvokeAsync<TResult>(Func<Task<TResult>> func, string methodName)

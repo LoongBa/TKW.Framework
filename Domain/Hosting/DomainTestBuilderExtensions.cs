@@ -1,11 +1,12 @@
-﻿using TKW.Framework.Domain.Interfaces;
+﻿using System;
+using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Hosting;
 
 public static class DomainTestBuilderExtensions
 {
     public static TestAppBuilder<TUserInfo, TInitializer> ConfigTestDomain<TUserInfo, TInitializer>(
-        this HostApplicationBuilderAdapter builder,
+        this HostApplicationBuilderAdapter<TUserInfo> builder,
         Action<DomainOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()

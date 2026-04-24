@@ -1,6 +1,4 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TKW.Framework.Domain.Hosting;
@@ -16,29 +14,19 @@ public static class WebApplicationExtensions
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        var options = new DomainWebOptions
-        {
-            IsDevelopment = builder.Environment.IsDevelopment(),
-        };
+        var options = new DomainWebOptions { IsDevelopment = builder.Environment.IsDevelopment() };
         configure?.Invoke(options);
 
         if (options.AutoAddHttpContextAccessor)
             builder.Services.AddHttpContextAccessor();
 
-        // 构建 DomainHost
-        builder.Host
-            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-            .ConfigureContainer<ContainerBuilder>(cb =>
-            {
-                DomainHost<TUserInfo>.Initialize<TInitializer>(options, cb, builder.Configuration);
-            });
-
-        // 返回构建器，它会在内部自动添加 WebExceptionMiddleware（如果 options 开启）
-        return new WebAppBuilder<TUserInfo>(new WebApplicationBuilderAdapter(builder), options);
+        // 使用 V4 统一的 AddDomain 扩展
+        return builder.Services.AddDomain<TUserInfo, TInitializer, WebAppBuilder<TUserInfo>, DomainWebOptions>(
+            builder.Configuration,
+            (adapter, opt) => new WebAppBuilder<TUserInfo>(adapter, opt));
     }
 
-    public static DomainConfigurationBinder BindOptions(
-        this DomainWebOptions cfg, WebApplicationBuilder builder)
+    public static DomainConfigurationBinder BindOptions(this DomainWebOptions cfg, WebApplicationBuilder builder)
     {
         return new DomainConfigurationBinder(builder, cfg);
     }

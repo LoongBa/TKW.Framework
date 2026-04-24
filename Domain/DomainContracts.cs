@@ -14,8 +14,15 @@ public class DomainContracts<TUserInfo> where TUserInfo : class, IUserInfo, new(
         MethodFlags = [];
         ControllerFlags = [];
     }
-    public List<DomainFilterAttribute<TUserInfo>> MethodFilters { get; }
-    public List<DomainFilterAttribute<TUserInfo>> ControllerFilters { get; }
-    public List<DomainFlagAttribute> MethodFlags { get; }
-    public List<DomainFlagAttribute> ControllerFlags { get; }
+    /// <summary>方法级过滤器</summary>
+    public List<DomainFilterAttribute<TUserInfo>> MethodFilters { get; set; }
+
+    /// <summary>控制器级过滤器</summary>
+    public List<DomainFilterAttribute<TUserInfo>> ControllerFilters { get; set; }
+
+    /// <summary>方法级标志特性</summary>
+    public List<DomainFlagAttribute> MethodFlags { get; set; }
+
+    /// <summary>控制器级标志特性</summary>
+    public List<DomainFlagAttribute> ControllerFlags { get; set; }
 }

@@ -72,7 +72,7 @@ public static class DomainDiExtensions
         return builder.RegisterType<TImplementer>()
             .As<TContract>()
             .EnableInterfaceInterceptors()
-            .InterceptedBy(typeof(DomainInterceptor<TUserInfo>))
+            .InterceptedBy(typeof(StaticDomainInterceptor<TUserInfo>))
             .PreserveExistingDefaults()
             .SingleInstance();
     }

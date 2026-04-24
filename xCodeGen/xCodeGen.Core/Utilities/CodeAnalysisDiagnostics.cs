@@ -1,7 +1,8 @@
-﻿using System;
-using System.Linq;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
+using System.Linq;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -41,32 +42,39 @@ namespace xCodeGen.SourceGenerator
         /// </summary>
         public static bool IsCandidateClass(SyntaxNode node)
         {
-            if (!(node is TypeDeclarationSyntax typeDeclaration))
+            if (!(node is TypeDeclarationSyntax type))
+                return false;
+            // 检查是否是抽象类
+            if (type.Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword)))
+                return false;
+            // 检查是否 public
+            if (!type.Modifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword)))
                 return false;
 
             // 1) 带 GenerateCodeAttribute 的类型（实体）
-            var hasGenerateAttr = typeDeclaration.AttributeLists
-                .SelectMany(al => al.Attributes)
-                .Any(attr => attr.Name.ToString().Contains("GenerateCode"));
+            var hasGenerateAttr = type.AttributeLists
+            .SelectMany(al => al.Attributes)
+            .Any(attr => attr.Name.ToString().Contains("GenerateCode"));
 
             if (hasGenerateAttr) return true;
 
             // 2) 基于名称或继承/实现列表的启发式判断，纳入 Service/Controller/Decorator
-            if (!string.IsNullOrEmpty(typeDeclaration.Identifier.Text) &&
-                typeDeclaration.Identifier.Text.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+            var name = type.Identifier.Text;
+            if (!string.IsNullOrEmpty(name) &&
+                name.EndsWith("Service", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("Decorator", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            if (typeDeclaration.BaseList != null)
+            if (type.BaseList != null)
             {
-                foreach (var bt in typeDeclaration.BaseList.Types)
+                foreach (var bt in type.BaseList.Types)
                 {
-                    var name = bt.Type.ToString();
+                    name = bt.Type.ToString();
                     if (string.IsNullOrEmpty(name)) continue;
 
-                    if (name.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        name.IndexOf("DomainController", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        name.IndexOf("Decorator", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        name.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                    if (name.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0
+                        || name.IndexOf("DomainController", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         return true;
                     }

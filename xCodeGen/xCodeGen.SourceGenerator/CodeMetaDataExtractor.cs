@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection;
 using xCodeGen.Abstractions.Attributes;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
@@ -16,7 +15,6 @@ namespace xCodeGen.SourceGenerator
     public partial class CodeMetaDataExtractor : IMetaDataExtractor, IIncrementalGenerator
     {
         public MetadataSource SourceType => MetadataSource.Code;
-
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var candidateTypes = context.SyntaxProvider
@@ -34,99 +32,34 @@ namespace xCodeGen.SourceGenerator
             {
                 var (infos, projectInfo) = combined;
 
-                // 按 FullName 去重，保证索引安全
-                var groupedInfos = infos.GroupBy(i => (i.Metadata.FullName ?? $"{i.Metadata.Namespace}.{i.Metadata.ClassName}"), StringComparer.Ordinal)
+                var groupedInfos = infos.GroupBy(i =>
+                        (i.Metadata.FullName ?? $"{i.Metadata.Namespace}.{i.Metadata.ClassName}"), StringComparer.Ordinal)
                     .Select(g => g.First())
                     .ToList();
 
                 var allMetadatas = groupedInfos.Select(i => i.Metadata).ToList();
 
-                // 核心：在增强逻辑中识别 Service/Controller 并计算 Hash
                 EnrichAndHashMetadatas(ref allMetadatas);
 
-                // 仅对实体和视图生成 Meta 文件
-                var outputMetadatas = allMetadatas.Where(m => m.Type == MetaType.Entity || m.Type == MetaType.View).ToList();
-
-                GenerateProjectMetaContext(spc, outputMetadatas, projectInfo, new MetadataChangeLog());
-
-                foreach (var metadata in outputMetadatas)
+                // 1. 生成 Meta 文件
+                foreach (var entity in allMetadatas.Where(m => m.Type == MetaType.Entity || m.Type == MetaType.View))
                 {
-                    try { GenerateMetaFile(spc, metadata); }
-                    catch (Exception ex) { ReportError(spc, $"生成 {metadata.ClassName} 失败: {ex.Message}"); }
-                }
-            });
-        }
-
-        private ClassGenerationInfo ExtractGenerationInfo(GeneratorSyntaxContext context)
-        {
-            var typeDecl = (TypeDeclarationSyntax)context.Node;
-            if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
-
-            // 识别 GenerateCode 特性或领域服务接口
-            var hasGenerateAttr = symbol.HasGenerateCodeAttribute();
-            var implementsDomainService = symbol.AllInterfaces.Any(i => i.ToDisplayString().IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
-
-            if (!hasGenerateAttr && !implementsDomainService &&
-                !symbol.Name.EndsWith("Service", StringComparison.OrdinalIgnoreCase) &&
-                !symbol.Name.Contains("Controller", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            var rawMetadata = ConvertToRawMetadata(typeDecl, context.SemanticModel);
-            var classMetadata = ConvertToClassMetadata(rawMetadata);
-
-            // 初步判定类型：如果是 GenerateCode 触发，默认为 Entity
-            if (hasGenerateAttr)
-            {
-                classMetadata.Type = MetaType.Entity;
-                var genAttrData = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName);
-                if (genAttrData != null)
-                {
-                    // 检查是否为 View
-                    if (genAttrData.NamedArguments.FirstOrDefault(kv => kv.Key == "IsView").Value.Value is bool isView && isView)
+                    try
                     {
-                        classMetadata.Type = MetaType.View;
+                        GenerateMetaFile(spc, entity);
+                        GenerateInterfaceFile(spc, entity);
                     }
+                    catch (Exception ex) { ReportError(spc, $"生成 {entity.ClassName} 失败: {ex.Message}"); }
                 }
-            }
 
-            return new ClassGenerationInfo
-            {
-                Metadata = classMetadata,
-                GenerateMode = GetGenerateMode(symbol),
-                TemplateName = DefaultTemplateName,
-                SemanticModel = context.SemanticModel
-            };
-        }
-
-        private RawMetadata ConvertToRawMetadata(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel)
-        {
-            if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
-                return new RawMetadata { SourceType = MetadataSource.Error };
-
-            var (summary, source) = GetNodeSummary(symbol, typeDecl);
-
-            return new RawMetadata
-            {
-                SourceId = symbol.Name,
-                SourceType = MetadataSource.Code,
-                Data = new Dictionary<string, object>
+                // 2. 生成 Decorator
+                foreach (var controller in allMetadatas.Where(m => m.Type == MetaType.Controller))
                 {
-                    { "Namespace", symbol.ContainingNamespace.ToString() },
-                    { "ClassName", symbol.Name },
-                    { "FullName", symbol.ToDisplayString() },
-                    { "Summary", summary },
-                    { "SummarySource", source },
-                    { "IsRecord", typeDecl is RecordDeclarationSyntax },
-                    { "TypeKind", symbol.TypeKind.ToString() },
-                    { "BaseType", symbol.BaseType?.ToDisplayString() ?? "object" },
-                    { "ImplementedInterfaces", symbol.AllInterfaces.Select(i => i.ToDisplayString()).ToList() },
-                    { "Methods", ExtractMethodMetadataList(symbol) },
-                    { "Properties", ExtractPropertyMetadataList(symbol) },
-                    { "Attributes", ExtractAttributeMetadataList(symbol.GetAttributes()) }
+                    GenerateDecoratorFile(spc, controller);
                 }
-            };
+
+                GenerateProjectMetaContext(spc, allMetadatas.ToArray(), projectInfo, new MetadataChangeLog());
+            });
         }
 
         private ClassMetadata ConvertToClassMetadata(RawMetadata rawMetadata)
@@ -144,10 +77,69 @@ namespace xCodeGen.SourceGenerator
                 BaseType = data["BaseType"] as string ?? string.Empty,
                 TypeKind = data["TypeKind"] as string ?? "Class",
                 ImplementedInterfaces = (data["ImplementedInterfaces"] as List<string>)?.ToList() ?? new List<string>(),
-                Attributes = ConvertToAttributeMetadataList(data["Attributes"] as List<Dictionary<string, object>>),
-                Methods = ConvertToMethodMetadataList(data["Methods"] as List<Dictionary<string, object>>),
-                Properties = ConvertToPropertyMetadataList(data["Properties"] as List<Dictionary<string, object>>)
+                // 使用 GetRawList 确保安全转换
+                Attributes = ConvertToAttributeMetadataList(GetRawList(data, "Attributes")),
+                Methods = ConvertToMethodMetadataList(GetRawList(data, "Methods")),
+                Properties = ConvertToPropertyMetadataList(GetRawList(data, "Properties"))
             };
+        }
+
+        private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)
+        {
+            return rawMethods?.Select(m => new MethodMetadata
+            {
+                Name = m["Name"] as string,
+                ReturnType = m["ReturnType"] as string,
+                IsAsync = (bool)m["IsAsync"],
+                Summary = m.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
+                AccessModifier = m["AccessModifier"] as string,
+                // 深度递归使用 GetRawList
+                Parameters = ConvertToParameterMetadataList(GetRawList(m, "Parameters")),
+                Attributes = ConvertToAttributeMetadataList(GetRawList(m, "Attributes"))
+            }).ToList() ?? new List<MethodMetadata>();
+        }
+
+        private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>> rawProps)
+        {
+            return rawProps?.Select(p => new PropertyMetadata
+            {
+                Name = p["Name"] as string,
+                TypeName = p["Type"] as string,
+                TypeFullName = p["TypeFullName"] as string,
+                IsNullable = (bool)p["IsNullable"],
+                Summary = p.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
+                Attributes = ConvertToAttributeMetadataList(GetRawList(p, "Attributes"))
+            }).ToList() ?? new List<PropertyMetadata>();
+        }
+
+        private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams)
+        {
+            return rawParams?.Select(p => new ParameterMetadata
+            {
+                Name = p["Name"] as string,
+                TypeName = p["Type"] as string,
+                IsNullable = (bool)p["IsNullable"],
+                Summary = p.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
+                Attributes = ConvertToAttributeMetadataList(GetRawList(p, "Attributes"))
+            }).ToList() ?? new List<ParameterMetadata>();
+        }
+
+        private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs)
+        {
+            return rawAttrs?.Select(a => new AttributeMetadata
+            {
+                Name = a["Name"] as string,
+                TypeFullName = a["TypeFullName"] as string,
+                Properties = a.TryGetValue("Properties", out var p) ? (Dictionary<string, object>)p : new Dictionary<string, object>(),
+                ConstructorArguments = a.TryGetValue("ConstructorArguments", out var c) ? (List<object>)c : new List<object>()
+            }).ToList() ?? new List<AttributeMetadata>();
+        }
+
+        private List<Dictionary<string, object>> GetRawList(Dictionary<string, object> data, string key)
+        {
+            if (data.TryGetValue(key, out var val) && val is List<Dictionary<string, object>> list)
+                return list;
+            return new List<Dictionary<string, object>>();
         }
 
         private (string Text, string Source) GetNodeSummary(ISymbol symbol, SyntaxNode node)
@@ -184,67 +176,77 @@ namespace xCodeGen.SourceGenerator
             return (string.Empty, "None");
         }
 
-
-        private List<Dictionary<string, object>> ExtractPropertyMetadataList(INamedTypeSymbol symbol)
+        private RawMetadata ConvertToRawMetadata(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel)
         {
-            return symbol.GetMembers().OfType<IPropertySymbol>()
-                .Select(prop =>
-                {
-                    var syntax = prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
-                    var (sum, _) = syntax != null ? GetNodeSummary(prop, syntax) : (string.Empty, "None");
-                    return new Dictionary<string, object>
-                    {
-                        { "Name", prop.Name },
-                        { "Type", prop.Type.ToDisplayString() },
-                        { "TypeFullName", prop.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) },
-                        { "IsNullable", CodeAnalysisDiagnostics.IsNullable(prop.Type) },
-                        { "Summary", sum },
-                        { "Attributes", ExtractAttributeMetadataList(prop.GetAttributes()) }
-                    };
-                }).ToList();
-        }
+            if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
+                return new RawMetadata { SourceType = MetadataSource.Error };
 
-        private List<Dictionary<string, object>> ExtractMethodMetadataList(INamedTypeSymbol symbol)
-        {
-            return symbol.GetMembers().OfType<IMethodSymbol>()
-                .Where(m => !m.IsImplicitlyDeclared && !CodeAnalysisDiagnostics.IsSpecialMethod(m))
-                .Select(method =>
-                {
-                    var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
-                    var (sum, _) = syntax != null ? GetNodeSummary(method, syntax) : (string.Empty, "None");
-                    return new Dictionary<string, object>
-                    {
-                        { "Name", method.Name },
-                        { "ReturnType", method.ReturnType.ToDisplayString() },
-                        { "IsAsync", method.IsAsync },
-                        { "Summary", sum },
-                        { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(method.DeclaredAccessibility) },
-                        { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() },
-                        { "Attributes", ExtractAttributeMetadataList(method.GetAttributes()) }
-                    };
-                }).ToList();
-        }
+            var (summary, source) = GetNodeSummary(symbol, typeDecl);
 
-        private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs) =>
-            rawAttrs?.Select(a => new AttributeMetadata
+            return new RawMetadata
             {
-                Name = a["Name"] as string,
-                TypeFullName = a["TypeFullName"] as string,
-                Properties = a.TryGetValue("Properties", out var p) ? (Dictionary<string, object>)p : new Dictionary<string, object>(),
-                ConstructorArguments = a.TryGetValue("ConstructorArguments", out var c) ? (List<object>)c : new List<object>()
-            }).ToList() ?? new List<AttributeMetadata>();
+                SourceId = symbol.Name,
+                SourceType = MetadataSource.Code,
+                Data = new Dictionary<string, object>
+                {
+                    { "Namespace", symbol.ContainingNamespace.ToString() },
+                    { "ClassName", symbol.Name },
+                    { "FullName", symbol.ToDisplayString() },
+                    { "Summary", summary },
+                    { "SummarySource", source },
+                    { "IsRecord", typeDecl is RecordDeclarationSyntax },
+                    { "TypeKind", symbol.TypeKind.ToString() },
+                    { "BaseType", symbol.BaseType?.ToDisplayString() ?? "object" },
+                    { "ImplementedInterfaces", symbol.AllInterfaces.Select(i => i.ToDisplayString()).ToList() },
+                    { "Methods", ExtractMethodMetadataList(symbol) },
+                    { "Properties", ExtractPropertyMetadataList(symbol) },
+                    { "Attributes", ExtractAttributeMetadataList(symbol.GetAttributes()) }
+                }
+            };
+        }
 
-        private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>> rawProps) =>
-            rawProps?.Select(p => new PropertyMetadata { Name = p["Name"] as string, TypeName = p["Type"] as string, TypeFullName = p["TypeFullName"] as string, IsNullable = (bool)p["IsNullable"], Summary = p.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty, Attributes = ConvertToAttributeMetadataList(p["Attributes"] as List<Dictionary<string, object>>) }).ToList() ?? new List<PropertyMetadata>();
+        private ClassGenerationInfo ExtractGenerationInfo(GeneratorSyntaxContext context)
+        {
+            var typeDecl = (TypeDeclarationSyntax)context.Node;
+            if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
 
-        private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods) =>
-            rawMethods?.Select(m => new MethodMetadata { Name = m["Name"] as string, ReturnType = m["ReturnType"] as string, IsAsync = (bool)m["IsAsync"], Summary = m.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty, AccessModifier = m["AccessModifier"] as string, Parameters = ConvertToParameterMetadataList(m["Parameters"] as List<Dictionary<string, object>>) }).ToList() ?? new List<MethodMetadata>();
+            // 识别 GenerateCode 特性或领域服务接口
+            var hasGenerateAttr = symbol.HasGenerateCodeAttribute();
+            var implementsDomainService = symbol.AllInterfaces.Any(i => i.ToDisplayString().IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
 
-        private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams) =>
-            rawParams?.Select(p => new ParameterMetadata { Name = p["Name"] as string, TypeName = p["Type"] as string, IsNullable = (bool)p["IsNullable"], Summary = p.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty }).ToList() ?? new List<ParameterMetadata>();
+            if (!hasGenerateAttr && !implementsDomainService &&
+                !symbol.Name.EndsWith("Service", StringComparison.OrdinalIgnoreCase) &&
+                symbol.Name?.IndexOf("Controller", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return null;
+            }
 
-        private Dictionary<string, object> ExtractParameterMetadata(IParameterSymbol parameter, MethodDeclarationSyntax methodSyntax) =>
-            new Dictionary<string, object> { { "Name", parameter.Name }, { "Type", parameter.Type.ToDisplayString() }, { "IsNullable", CodeAnalysisDiagnostics.IsNullable(parameter.Type) }, { "Summary", methodSyntax != null ? GetParamSummary(methodSyntax, parameter.Name) : string.Empty }, { "Attributes", ExtractAttributeMetadataList(parameter.GetAttributes()) } };
+            var rawMetadata = ConvertToRawMetadata(typeDecl, context.SemanticModel);
+            var classMetadata = ConvertToClassMetadata(rawMetadata);
+
+            // 初步判定类型：如果是 GenerateCode 触发，默认为 Entity
+            if (hasGenerateAttr)
+            {
+                classMetadata.Type = MetaType.Entity;
+                var genAttrData = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName);
+                if (genAttrData != null)
+                {
+                    // 检查是否为 View
+                    if (genAttrData.NamedArguments.FirstOrDefault(kv => kv.Key == "IsView").Value.Value is bool isView && isView)
+                    {
+                        classMetadata.Type = MetaType.View;
+                    }
+                }
+            }
+
+            return new ClassGenerationInfo
+            {
+                Metadata = classMetadata,
+                GenerateMode = GetGenerateMode(symbol),
+                TemplateName = DefaultTemplateName,
+                SemanticModel = context.SemanticModel
+            };
+        }
 
         /// <summary>
         /// 提取特性元数据列表
@@ -283,51 +285,63 @@ namespace xCodeGen.SourceGenerator
                 };
             }).ToList();
         }
-        /// <summary>
-        /// 通过反射动态获取已知特性的属性默认值
-        /// </summary>
-        private Dictionary<string, object> GetAttributeDefaults(string typeFullName)
+
+        private List<Dictionary<string, object>> ExtractPropertyMetadataList(INamedTypeSymbol symbol)
         {
-            var defaults = new Dictionary<string, object>();
-            if (string.IsNullOrEmpty(typeFullName)) return defaults;
-
-            try
-            {
-                // 1. 获取 Abstractions 程序集 (因为所有特性都在这里)
-                var assembly = typeof(GenerateCodeAttribute).Assembly;
-
-                // 2. 尝试从该程序集中获取对应的类型
-                var targetType = assembly.GetType(typeFullName);
-
-                // 3. 如果找到了该类型，且它确实是一个 Attribute
-                if (targetType != null && typeof(Attribute).IsAssignableFrom(targetType))
+            return symbol.GetMembers().OfType<IPropertySymbol>()
+                .Select(prop =>
                 {
-                    // 实例化特性类以触发其内部属性的默认值赋值
-                    var instance = Activator.CreateInstance(targetType);
-
-                    // 读取所有公共实例属性
-                    foreach (var prop in targetType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                    var syntax = prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+                    var (sum, _) = syntax != null ? GetNodeSummary(prop, syntax) : (string.Empty, "None");
+                    return new Dictionary<string, object>
                     {
-                        // 过滤掉内部/只写属性，以及系统自带的 TypeId 等
-                        if (prop.CanRead && prop.Name != "TypeId")
-                        {
-                            defaults[prop.Name] = prop.GetValue(instance);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // 忽略实例化异常（例如抽象类、无无参构造函数的类或不在该程序集中的特性）
-                // 安全降级为空字典
-            }
-
-            return defaults;
+                        { "Name", prop.Name },
+                        { "Type", prop.Type.ToDisplayString() },
+                        { "TypeFullName", prop.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) },
+                        { "IsNullable", CodeAnalysisDiagnostics.IsNullable(prop.Type) },
+                        { "Summary", sum },
+                        { "Attributes", ExtractAttributeMetadataList(prop.GetAttributes()) }
+                    };
+                }).ToList();
         }
-        private string GetParamSummary(MethodDeclarationSyntax method, string name) { var trivia = method.GetLeadingTrivia().FirstOrDefault(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)); if (trivia == default) return string.Empty; var xml = trivia.GetStructure() as DocumentationCommentTriviaSyntax; var param = xml?.Content.OfType<XmlElementSyntax>().FirstOrDefault(e => e.StartTag.Name.ToString().Equals("param", StringComparison.OrdinalIgnoreCase) && e.StartTag.Attributes.Any(a => a.ToString().Contains($"\"{name}\""))); return param != null ? CleanXmlText(param.Content.ToString()) : string.Empty; }
 
-        private string CleanXmlText(string text) => text.Replace("///", "").Replace("/**", "").Replace("*/", "").Replace("*", "").Trim();
+        private List<Dictionary<string, object>> ExtractMethodMetadataList(INamedTypeSymbol symbol)
+        {
+            return symbol.GetMembers().OfType<IMethodSymbol>()
+                .Where(m =>
+                {
+                    if (m.IsImplicitlyDeclared) return false;
+                    // 确保不要过滤掉接口的 Ordinary 方法
+                    if (symbol.TypeKind == TypeKind.Interface) return true;
+                    return !CodeAnalysisDiagnostics.IsSpecialMethod(m);
+                })
+                .Select(method =>
+                {
+                    var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+                    var (sum, _) = syntax != null ? GetNodeSummary(method, syntax) : (string.Empty, "None");
+                    return new Dictionary<string, object>
+                    {
+                        { "Name", method.Name },
+                        { "ReturnType", method.ReturnType.ToDisplayString() },
+                        { "IsAsync", method.IsAsync },
+                        { "Summary", sum },
+                        { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(method.DeclaredAccessibility) },
+                        { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() },
+                        { "Attributes", ExtractAttributeMetadataList(method.GetAttributes()) }
+                    };
+                }).ToList();
+        }
 
-        private static string GetGenerateMode(INamedTypeSymbol symbol) { var attr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName); return attr?.NamedArguments.FirstOrDefault(arg => arg.Key == "Type").Value.Value?.ToString() ?? "Full"; }
+        private Dictionary<string, object> ExtractParameterMetadata(IParameterSymbol parameter, MethodDeclarationSyntax methodSyntax)
+        {
+            return new Dictionary<string, object>
+            {
+                { "Name", parameter.Name },
+                { "Type", parameter.Type.ToDisplayString() },
+                { "IsNullable", CodeAnalysisDiagnostics.IsNullable(parameter.Type) },
+                { "Summary", methodSyntax != null ? GetParamSummary(methodSyntax, parameter.Name) : string.Empty },
+                { "Attributes", ExtractAttributeMetadataList(parameter.GetAttributes()) }
+            };
+        }
     }
 }

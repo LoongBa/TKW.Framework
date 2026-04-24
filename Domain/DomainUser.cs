@@ -1,11 +1,11 @@
-﻿using Autofac;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection; // 替换 Autofac
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.TKWConfig;
@@ -15,10 +15,16 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace TKW.Framework.Domain;
 
+/// <summary>
+/// 领域用户上下文：管理用户信息、服务解析及会话生命周期
+/// </summary>
+/// <typeparam name="TUserInfo">用户信息类型</typeparam>
 public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    // 支撑 AOP 作用域联动的异步上下文
-    internal static readonly AsyncLocal<ILifetimeScope?> _ActiveScope = new();
+    /// <summary>
+    /// 支撑 AOP 作用域联动的异步上下文，保存当前作用域的 IServiceProvider
+    /// </summary>
+    internal static readonly AsyncLocal<IServiceProvider?> _ActiveScope = new();
 
     [JsonConstructor]
     public DomainUser() { }
@@ -40,10 +46,10 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// <summary>
     /// 解析作用域优先级逻辑：
     /// 1. 优先使用 AOP 拦截器创建的子作用域（保证事务与对象一致性）
-    /// 2. 其次使用 Host 全局容器（作为保底）
+    /// 2. 其次使用 Host 全局 Provider（作为保底）
     /// </summary>
     [JsonIgnore]
-    private ILifetimeScope CurrentScope => _ActiveScope.Value ?? Host.Container
+    private IServiceProvider ServiceProvider => _ActiveScope.Value ?? Host.ServiceProvider
         ?? throw new InvalidOperationException("无法获取解析作用域，请确保容器已初始化。");
 
     [JsonInclude]
@@ -51,31 +57,36 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 
     #region 服务解析
 
+    /// <summary>
+    /// 解析普通领域服务，并自动注入当前用户上下文
+    /// </summary>
     public TDomainService Use<TDomainService>() where TDomainService : IDomainService
     {
-        // 解析时自动将当前 User 注入到 Service 的构造函数中
-        return CurrentScope.Resolve<TDomainService>(TypedParameter.From(this));
+        // V4 核心变更：使用 ActivatorUtilities 确保将当前实例 (this) 注入到 Service 的构造函数中
+        // 这解决了原生 DI 无法像 Autofac 那样通过 TypedParameter 传参的问题
+        return ActivatorUtilities.CreateInstance<TDomainService>(ServiceProvider, this);
     }
 
+    /// <summary>
+    /// 解析受 AOP 装饰的合约服务
+    /// </summary>
     public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
     {
-        return CurrentScope.Resolve<TAopContract>(TypedParameter.From(this));
+        // 装饰器本身已在 DI 注册，直接解析即可
+        return ServiceProvider.GetRequiredService<TAopContract>();
     }
 
     /// <summary>
     /// 创建日志记录器 
     /// </summary>
-    /// <param name="categoryName">日志类别名称</param>
-    /// <returns>日志记录器实例</returns>
     public ILogger CreateLogger(string categoryName)
     {
         return Host.LoggerFactory.CreateLogger(categoryName);
     }
 
     /// <summary>
-    /// 创建日志记录器，日志类别默认为领域服务类型名
+    /// 创建泛型日志记录器
     /// </summary>
-    /// <returns>日志记录器实例</returns>
     public ILogger<T> CreateLogger<T>()
     {
         return Host.LoggerFactory.CreateLogger<T>();
@@ -84,9 +95,13 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     #endregion
 
     #region 角色判断、登录、Claims 转换
+
     public bool IsInRole<T>(T role) where T : struct, Enum => UserInfo.IsInRole(role);
     public bool IsInRole(string role) => UserInfo.IsInRole(role);
 
+    /// <summary>
+    /// 将领域用户信息转换为标准 ClaimsPrincipal
+    /// </summary>
     public ClaimsPrincipal ToClaimsPrincipal()
     {
         var claims = new List<Claim>
@@ -98,15 +113,19 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
             new("LoginFrom", UserInfo.LoginFrom.ToString()),
             new("IsAuthenticated", IsAuthenticated.ToString().ToLowerInvariant()),
         };
-        // 关键点：将领域角色映射到标准 ClaimTypes.Role
+
+        // 将领域角色映射到标准 ClaimTypes.Role，以便 IsInRole 工作
         claims.AddRange(UserInfo.Roles
             .Where(r => !string.IsNullOrWhiteSpace(r))
             .Select(role => new Claim(ClaimTypes.Role, role)));
-        // 构造 Identity 时必须指定 RoleClaimType，这样 Principal.IsInRole() 才能正确工作
+
         var identity = new ClaimsIdentity(claims, "TKW.Domain", ClaimTypes.Name, ClaimTypes.Role);
         return new ClaimsPrincipal(identity);
     }
 
+    /// <summary>
+    /// 执行登录流程并更新会话
+    /// </summary>
     public async Task LoginAsUserAsync(string userName, string passwordHashed, EnumLoginFrom loginFrom)
     {
         var userInfo = await Host.UserHelper.UserLoginAsync(this, userName, passwordHashed, loginFrom);
@@ -115,6 +134,9 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
         await UpdateAndActiveSessionAsync();
     }
 
+    /// <summary>
+    /// 激活并同步当前会话状态
+    /// </summary>
     public async Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync()
     {
         var session = await Host.SessionManager!.GetSessionAsync(SessionKey);
@@ -125,20 +147,24 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 
     #endregion
 
+    #region 配置项访问
+
     /// <summary>
-    /// 返回 DomainOptions.ConfigDictionary 字典项的值，提供给领域服务访问配置项的能力。
+    /// 尝试从 DomainOptions 中获取配置
     /// </summary>
     public string? TryGetOption(string keyName)
     {
         Host.Options.ConfigDictionary.TryGetValue(keyName, out var value);
         return value;
     }
+
     /// <summary>
-    /// 返回 DomainOptions.ConfigDictionary 字典项的值，提供给领域服务访问配置项的能力。
+    /// 获取必须存在的配置，不存在则抛出异常
     /// </summary>
     public string GetRequiredOption(string keyName)
     {
         return TryGetOption(keyName) ?? throw new ConfigurationErrorException(keyName);
     }
 
+    #endregion
 }

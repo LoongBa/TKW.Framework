@@ -1,16 +1,11 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using Castle.DynamicProxy;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
@@ -19,320 +14,116 @@ using TKW.Framework.Domain.Session;
 namespace TKW.Framework.Domain;
 
 /// <summary>
-/// 领域主机类：管理领域服务的生命周期、AOP 拦截上下文及全局配置。
+/// V4 领域主机：管理领域服务的生命周期、AOP 拦截上下文及全局配置。
+/// 彻底摆脱 Autofac 依赖，拥抱标准 .NET DI。
 /// </summary>
 public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
-    /// <summary>
-    /// 全局静态入口（单例），提供给表现层快速访问。
-    /// </summary>
     public static DomainHost<TUserInfo>? Root { get; private set; }
 
-    public bool IsExternalContainer { get; private set; }
-    public DomainOptions Options { get; }
-    public bool IsDevelopment => Options.IsDevelopment;
+    // 替换原本的 IContainer，作为全局解析的保底入口
+    public IServiceProvider? ServiceProvider { get; private set; }
 
-    // 全局过滤器列表
+    public DomainOptions Options { get; }
+    public IConfiguration? Configuration { get; private set; }
+    public DomainUserHelperBase<TUserInfo> UserHelper { get; }
+
+    public ILoggerFactory LoggerFactory { get; internal set; } = new NullLoggerFactory();
+    public DefaultExceptionLoggerFactory? ExceptionLoggerFactory { get; internal set; }
+
     private readonly List<DomainFilterAttribute<TUserInfo>> _GlobalFilters = [];
     public IReadOnlyList<DomainFilterAttribute<TUserInfo>> GlobalFilters => _GlobalFilters.AsReadOnly();
 
     // 控制器/方法合同缓存，提升 AOP 拦截时的反射性能
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
 
-    #region 过滤器管理方法
-
     /// <summary>
-    /// 添加全局领域过滤器。
+    /// V4 启动入口：基于标准 IServiceCollection
     /// </summary>
-    internal void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        if (_GlobalFilters.Contains(filter)) return;
-        // 避免同类型的过滤器重复注入（例如重复注入两个日志过滤器）
-        if (_GlobalFilters.Any(f => f.GetType() == filter.GetType())) return;
-        _GlobalFilters.Add(filter);
-    }
-
-    /// <summary>
-    /// 批量添加全局领域过滤器。
-    /// </summary>
-    internal void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters)
-        => _GlobalFilters.AddRange(filters);
-
-    #endregion
-
-    /// <summary>
-    /// 领域主机构建入口。
-    /// </summary>
-    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(DomainOptions options,
-        ContainerBuilder? upLevelContainer = null,
+    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(
+        IServiceCollection services,
+        DomainOptions options,
         IConfiguration? configuration = null)
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        if (Root != null)
-            throw new InvalidOperationException("不能重复初始化 DomainHost");
+        if (Root != null) throw new InvalidOperationException("DomainHost 已初始化");
 
-        var isExternalContainer = upLevelContainer != null;
-        var containerBuilder = upLevelContainer ?? new ContainerBuilder();
+        // 注册 V4 静态拦截器和配置
+        services.AddSingleton<StaticDomainInterceptor<TUserInfo>>();
+        services.AddSingleton(options);
 
-        // 注册核心上下文与拦截器
-        containerBuilder.RegisterType<DomainContext<TUserInfo>>();
-        containerBuilder.RegisterType<DomainInterceptor<TUserInfo>>();
-        // 将 options 注册为 DomainOptions 基类，这样 SessionManager 才能通过构造函数拿到它
-        containerBuilder.RegisterInstance(options).As<DomainOptions>().AsSelf().SingleInstance();
-
-        IServiceCollection services = new ServiceCollection();
         var initializer = new TDomainInitializer();
+        var userHelper = initializer.InitializeDiContainer(services, configuration, options);
 
-        // 执行初始化器：表现层 Options -> 领域层修正 -> DI 注册
-        var userHelper = initializer.InitializeDiContainer(containerBuilder, services, configuration, options);
-
-        // 创建主机实例
-        Root = new DomainHost<TUserInfo>(userHelper, containerBuilder, services, options, configuration, isExternalContainer);
-
-        // 关键内聚点：将主机实例反向关联给 UserHelper，消除内部对静态 Root 的直接依赖
+        Root = new DomainHost<TUserInfo>(userHelper, options, configuration);
         userHelper.AttachHost(Root);
-
-        // 注册 DomainHost
-        containerBuilder.RegisterInstance(Root).AsSelf();
-        // 自动注册生成的服务（基于 ProjectMetaContext 中的 RegistrationDescriptor 列表）
-        AutoRegisterGeneratedServices(containerBuilder);
-        containerBuilder.RegisterBuildCallback(context =>
-        {
-            if (Root == null) return;
-
-            if (context is IContainer container)
-                Root.Container = container;
-
-            if (Root.Container != null)
-            {
-                // 回调 Initializer 处理 LoggerFactory 绑定与全局过滤器配置
-                initializer.ContainerBuiltCallback(Root, isExternalContainer);
-            }
-        });
-
-        if (!isExternalContainer) Root.Container = containerBuilder.Build();
 
         return Root;
     }
 
-    private DomainHost(DomainUserHelperBase<TUserInfo> userHelper, ContainerBuilder containerBuilder,
-        IServiceCollection services, DomainOptions options, IConfiguration? configuration = null, bool isExternalContainer = false)
+    private DomainHost(DomainUserHelperBase<TUserInfo> userHelper, DomainOptions options, IConfiguration? configuration)
     {
-        ArgumentNullException.ThrowIfNull(userHelper);
-        UserHelper = userHelper;
+        UserHelper = userHelper ?? throw new ArgumentNullException(nameof(userHelper));
         Options = options;
-        IsExternalContainer = isExternalContainer;
-
-        // 将外部或内置的 IServiceCollection Populate 进 Autofac 容器
-        containerBuilder.Populate(services);
         Configuration = configuration;
     }
 
-    #region 公共属性
-
-    public DomainUserHelperBase<TUserInfo> UserHelper { get; }
-    public IConfiguration? Configuration { get; private set; }
-
     /// <summary>
-    /// 全局日志工厂，由 Initializer 在容器构建后绑定。
+    /// 核心绑定：在 ServiceProvider 构建完成后，由初始化器回调。
     /// </summary>
-    public ILoggerFactory LoggerFactory { get; internal set; } = new NullLoggerFactory();
-    public DefaultExceptionLoggerFactory? ExceptionLoggerFactory { get; internal set; }
-    public IContainer? Container { get; private set; }
-
-    /// <summary>
-    /// 领域会话管理器，通过容器延迟解析。
-    /// </summary>
-    internal ISessionManager<TUserInfo>? SessionManager => field ??= Container?.Resolve<ISessionManager<TUserInfo>>();
-
-    #endregion
-
-    /// <summary>
-    /// AOP 拦截器专用：创建新的领域执行上下文。
-    /// </summary>
-    internal DomainContext<TUserInfo> NewDomainContext(IInvocation invocation, ILifetimeScope lifetimeScope)
+    internal void BindServiceProvider(IServiceProvider sp)
     {
-        // 1. 获取业务接口类型（排除框架基类接口）
-        var interfaceType = invocation.TargetType.GetInterfaces()
-            .First(i => !i.Name.StartsWith("IDomainService", StringComparison.OrdinalIgnoreCase));
-
-        // 2. 解析并缓存控制器与方法的 Attribute 合同（Filters & Flags）
-        var key = $"{invocation.TargetType.FullName}:{invocation.Method.Name}";
-        if (!_ControllerContracts.TryGetValue(key, out var methodContract))
-        {
-            // 此处实现逻辑保持原有的 Attribute 扫描与合并（控制器级 + 方法级）
-            methodContract = new DomainContracts<TUserInfo>();
-            // ... (逻辑同原始附件，此处已根据上下文通过缓存机制优化)
-            _ControllerContracts.TryAdd(key, methodContract);
-        }
-
-        // 3. 核心联动：更新当前线程的异步作用域（AsyncLocal），驱动 User.Use<T> 解析
-        DomainUser<TUserInfo>._ActiveScope.Value = lifetimeScope;
-
-        // 4. 构建上下文对象
-        return new DomainContext<TUserInfo>(
-            ((DomainServiceBase<TUserInfo>)invocation.InvocationTarget).User,
-            invocation,
-            methodContract,
-            lifetimeScope,
-            LoggerFactory);
+        ServiceProvider = sp;
+        LoggerFactory = sp.GetService<ILoggerFactory>() ?? new NullLoggerFactory();
     }
 
     /// <summary>
-    /// 游客会话创建逻辑。
+    /// 领域会话管理器，通过 ServiceProvider 延迟解析。
     /// </summary>
+    internal ISessionManager<TUserInfo>? SessionManager => ServiceProvider?.GetService<ISessionManager<TUserInfo>>();
+
+    /// <summary>
+    /// AOP 驱动：为当前拦截调用创建上下文，并将 IServiceProvider 绑定到 DomainUser。
+    /// </summary>
+    internal DomainContext<TUserInfo> NewDomainContext(InvocationContext invocation, IServiceProvider sp)
+    {
+        // 更新当前线程的异步作用域（AsyncLocal），驱动 User.Use<T> 解析
+        DomainUser<TUserInfo>._ActiveScope.Value = sp;
+
+        return new DomainContext<TUserInfo>(
+            ((DomainServiceBase<TUserInfo>)invocation.Target).User,
+            invocation,
+            _ControllerContracts.GetOrAdd($"{invocation.Target.GetType().FullName}:{invocation.MethodName}", _ => new DomainContracts<TUserInfo>()),
+            sp,
+            LoggerFactory);
+    }
+
+    #region 全局过滤器管理
+
+    internal void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter)
+    {
+        if (filter == null || _GlobalFilters.Any(f => f.GetType() == filter.GetType())) return;
+        _GlobalFilters.Add(filter);
+    }
+
+    internal void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters)
+    {
+        foreach (var filter in filters) AddGlobalFilter(filter);
+    }
+
+    #endregion
+
     public async Task<SessionInfo<TUserInfo>> NewGuestSessionAsync()
     {
         var session = await SessionManager!.NewSessionAsync();
-        // 委托 UserHelper 完成用户实例创建与 Host 关联
-        var newSession = await UserHelper.CreateNewGuestSessionAsync(session).ConfigureAwait(false);
+        var newSession = await UserHelper.CreateNewGuestSessionAsync(session);
         SessionManager.OnSessionCreated(newSession);
         return newSession;
     }
 
-    /// <summary>
-    /// 根据 SessionKey 获取已存在的领域用户。
-    /// </summary>
     internal async Task<DomainUser<TUserInfo>> GetDomainUserAsync(string sessionKey)
     {
-        var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey).ConfigureAwait(false);
+        var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey);
         return session.User!;
-    }
-
-    // 在 DomainHost<TUserInfo> 内部添加以下私有静态方法
-
-    private static void AutoRegisterGeneratedServices(ContainerBuilder containerBuilder)
-    {
-        try
-        {
-            // 在已加载程序集里寻找生成的 ProjectMetaContext，且要求具有静态 GetRegistrationDescriptors 方法
-            var metaType = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a =>
-                {
-                    try { return a.GetTypes(); } catch { return Array.Empty<Type>(); }
-                })
-                .FirstOrDefault(t => t.Name == "ProjectMetaContext" && t.GetMethod("GetRegistrationDescriptors", BindingFlags.Public | BindingFlags.Static) != null);
-
-            if (metaType == null) return;
-
-            var getMethod = metaType.GetMethod("GetRegistrationDescriptors", BindingFlags.Public | BindingFlags.Static);
-            var descriptorsEnum = getMethod?.Invoke(null, null) as IEnumerable;
-            if (descriptorsEnum == null) return;
-
-            foreach (var d in descriptorsEnum)
-            {
-                if (d == null) continue;
-                var dt = d.GetType();
-                var serviceName = dt.GetProperty("ServiceTypeFullName")?.GetValue(d) as string;
-                var implName = dt.GetProperty("ImplementationTypeFullName")?.GetValue(d) as string;
-                var decoratorName = dt.GetProperty("DecoratorTypeFullName")?.GetValue(d) as string;
-                var lifetime = dt.GetProperty("Lifetime")?.GetValue(d) as string ?? "InstancePerLifetimeScope";
-
-                var implType = ResolveTypeAcrossAssemblies(implName);
-                if (implType == null) continue;
-
-                var serviceType = ResolveTypeAcrossAssemblies(serviceName);
-                var decoratorType = ResolveTypeAcrossAssemblies(decoratorName);
-
-                // 1. 注册实现：AsSelf()，并尽可能同时 As(service)（这样装饰器构造函数无论注入 impl 还是 interface 都能解析）
-                dynamic implReg = containerBuilder.RegisterType(implType);
-                try
-                {
-                    // 先注册为接口（如果有的话）
-                    if (serviceType != null)
-                    {
-                        implReg = implReg.As(serviceType);
-                    }
-                }
-                catch { /* 忽略 */ }
-
-                try
-                {
-                    implReg = implReg.AsSelf();
-                }
-                catch { /* 忽略 */ }
-
-                // 应用生命周期
-                ApplyLifetime(implReg, lifetime);
-
-                // 2. 若存在装饰器类型并且 serviceType 可用，则把装饰器注册为接口（装饰器的构造应接受 inner impl 或接口）
-                if (decoratorType != null && serviceType != null)
-                {
-                    try
-                    {
-                        dynamic decoReg = containerBuilder.RegisterType(decoratorType).As(serviceType);
-                        ApplyLifetime(decoReg, lifetime);
-                    }
-                    catch
-                    {
-                        // 忽略单个装饰器注册错误，继续处理其余项
-                    }
-                }
-                // 若无装饰器但 serviceType 已注册为 impl 则无需额外动作（impl 已 As(serviceType)）
-            }
-        }
-        catch
-        {
-            // 容错：如果任何反射或加载异常出现，不阻止程序启动
-        }
-    }
-
-    private static Type? ResolveTypeAcrossAssemblies(string? fullName)
-    {
-        if (string.IsNullOrWhiteSpace(fullName)) return null;
-
-        // 首先尝试直接解析（能解析带 assembly-qualified name）
-        try
-        {
-            var t = Type.GetType(fullName);
-            if (t != null) return t;
-        }
-        catch
-        {
-            // ignored
-        }
-
-        // 其次遍历当前 AppDomain 中的程序集
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            try
-            {
-                var t = asm.GetType(fullName);
-                if (t != null) return t;
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-        return null;
-    }
-
-    private static void ApplyLifetime(dynamic reg, string lifetime)
-    {
-        if (reg == null) return;
-        try
-        {
-            switch (lifetime)
-            {
-                case "Singleton":
-                case "SingleInstance":
-                    reg.SingleInstance();
-                    break;
-                case "Transient":
-                case "InstancePerDependency":
-                    reg.InstancePerDependency();
-                    break;
-                default:
-                    // 默认与推荐：InstancePerLifetimeScope
-                    reg.InstancePerLifetimeScope();
-                    break;
-            }
-        }
-        catch
-        {
-            // 如果调用生命周期方法失败（不同 Autofac 版本或方法签名），忽略以保持注册继续
-        }
     }
 }

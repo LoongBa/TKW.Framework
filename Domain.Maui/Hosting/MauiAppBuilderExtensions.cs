@@ -1,8 +1,4 @@
-﻿using Autofac.Extensions.DependencyInjection;
-using TKW.Framework.Domain.Hosting;
-using TKW.Framework.Domain.Interfaces;
-
-// 引入 Session
+﻿using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Maui.Hosting;
 
@@ -17,10 +13,8 @@ public static class MauiAppBuilderExtensions
         var options = new DomainOptions();
         configure?.Invoke(options);
 
-        builder.ConfigureContainer(new AutofacServiceProviderFactory(), cb =>
-        {
-            DomainHost<TUserInfo>.Initialize<TInitializer>(options, cb, builder.Configuration);
-        });
+        // V4 变更：直接使用 builder.Services (IServiceCollection) 进行初始化，不再需要 Autofac 适配
+        DomainHost<TUserInfo>.Initialize<TInitializer>(builder.Services, options, builder.Configuration);
 
         return new MauiAppBuilder<TUserInfo, TInitializer>(
             new MauiAppBuilderAdapter(builder), options);

@@ -1,5 +1,5 @@
-﻿    using Microsoft.Extensions.Configuration;
-using TKW.Framework.Domain.Interfaces;
+﻿using Microsoft.Extensions.Configuration;
+using TKW.Framework.Domain.Hosting;
 
 namespace TKW.Framework.Domain.Maui.Hosting;
 

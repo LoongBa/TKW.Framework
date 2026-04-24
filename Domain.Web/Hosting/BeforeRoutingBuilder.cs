@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using TKW.Framework.Domain.Interfaces;
+using TKW.Framework.Domain.Hosting;
 
 namespace TKW.Framework.Domain.Web.Hosting;
 

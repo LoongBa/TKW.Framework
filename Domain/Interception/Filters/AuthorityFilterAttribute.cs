@@ -11,6 +11,7 @@ namespace TKW.Framework.Domain.Interception.Filters;
 /// 权限验证过滤器（核心 AOP 授权组件）
 /// 负责认证状态检查及基于 RoleLogic 的多组角色授权校验。
 /// </summary>
+[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = true)]
 public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
@@ -20,7 +21,7 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
     public override bool CanWeGo(DomainInvocationWhereType invocationWhere, DomainContext<TUserInfo> context)
     {
         // 1. 收集所有相关标记（合并方法和类/接口级）
-        var allFlags = context.MethodFlags.Cast<Attribute>().Concat(context.ControllerFlags.Cast<Attribute>());
+        var allFlags = context.MethodFlags.Concat(context.ControllerFlags.Cast<Attribute>());
 
         // 2. 优先级最高：显式禁用全局权限检查
         var attributes = allFlags as Attribute[] ?? allFlags.ToArray();
@@ -42,13 +43,14 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
         var user = context.DomainUser;
         var logger = context.Logger;
 
-        // 1. 认证强制性检查：未登录用户直接拦截
+        // 1. 认证强制性检查
         if (!user.IsAuthenticated)
         {
+            // 调整点：使用 context.Invocation.MethodName
             logger?.LogWarning("未认证访问拦截 - 方法: {Method} - 来源: {Where}",
-                context.Invocation.Method.Name, where);
+                context.Invocation.MethodName, where);
 
-            throw new AuthenticationException($"用户未登录或会话已过期，无法访问 {context.Invocation.Method.Name}");
+            throw new AuthenticationException($"用户未登录或会话已过期，无法访问 {context.Invocation.MethodName}");
         }
 
         // 2. 收集角色要求标记
@@ -56,30 +58,28 @@ public class AuthorityFilterAttribute<TUserInfo> : DomainFilterAttribute<TUserIn
             .OfType<RequireRoleFlagAttribute>()
             .ToList();
 
-        if (roleFlags.Count == 0) return; // 仅需登录，无角色限制
+        if (roleFlags.Count == 0) return;
 
         // 3. 逐组检查角色逻辑
-        // 注意：多组 RequireRole 标记之间是 "AND" 关系，组内按 Logic 判定
         foreach (var flag in roleFlags)
         {
             bool isPassed = flag.Logic switch
             {
-                RoleLogic.Any => flag.Roles.Any(r => user.IsInRole(r)), // 满足其一即可
-                RoleLogic.All => flag.Roles.All(r => user.IsInRole(r)), // 必须全部满足
+                RoleLogic.Any => flag.Roles.Any(r => user.IsInRole(r)),
+                RoleLogic.All => flag.Roles.All(r => user.IsInRole(r)),
                 _ => false
             };
 
             if (!isPassed)
             {
                 var roleInfo = string.Join(",", flag.Roles);
+                // 调整点：使用 context.Invocation.MethodName
                 logger?.LogWarning("角色授权失败 - 方法: {Method} - 用户: {UserName} - 缺少角色组({Logic}): [{Roles}]",
-                    context.Invocation.Method.Name, user.UserInfo.UserName, flag.Logic, roleInfo);
+                    context.Invocation.MethodName, user.UserInfo.UserName, flag.Logic, roleInfo);
 
                 throw new UnauthorizedAccessException($"权限不足。您的角色无法满足 '{flag.Logic}' 策略要求的：{roleInfo}");
             }
         }
-
-        await Task.CompletedTask;
     }
 
     public override async Task PostProceedAsync(DomainInvocationWhereType where, DomainContext<TUserInfo> context)

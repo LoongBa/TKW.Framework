@@ -1,27 +1,15 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using TKW.Framework.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
+using TKW.Framework.Domain.Hosting;
 
 namespace TKW.Framework.Domain.Web.Hosting;
 
+/// <summary>
+/// 适配 ASP.NET Core WebApplicationBuilder
+/// </summary>
 public class WebApplicationBuilderAdapter(WebApplicationBuilder builder) : IDomainAppBuilderAdapter
 {
-    private readonly WebApplicationBuilder _builder = builder ?? throw new ArgumentNullException(nameof(builder));
-    public IServiceCollection Services => _builder.Services;
-    public IConfiguration Configuration => _builder.Configuration;
-    public void ConfigureContainer<TBuilder>(IServiceProviderFactory<TBuilder> factory, Action<TBuilder>? configure = null) where TBuilder : notnull
-        => ((IHostApplicationBuilder)_builder).ConfigureContainer(factory, configure);
-
-    public void Build()
-    {
-        BuildServiceProvider();
-    }
-
-    public IServiceProvider BuildServiceProvider()
-    {
-        var app = _builder.Build();
-        return app.Services;
-    }
+    public IServiceCollection Services => builder.Services;
+    public IConfiguration Configuration => builder.Configuration;
 }

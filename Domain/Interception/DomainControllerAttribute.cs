@@ -6,4 +6,6 @@ namespace TKW.Framework.Domain.Interception;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 public sealed class DomainControllerAttribute : Attribute
 {
+        /// <summary>是否启用自动生成的装饰器，默认为 true</summary>
+        public bool EnableAutoDecorator { get; set; } = true;
 }

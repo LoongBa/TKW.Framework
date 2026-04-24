@@ -1,6 +1,7 @@
-﻿using Autofac;
-using TKW.Framework.Domain.Hosting;
+﻿using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace TKW.Framework.Domain.Testing.xUnit;
 
@@ -13,15 +14,15 @@ public static class DomainTestBuilderExtensions
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        builder.ConfigureContainer((cb, _) =>
+        // V4 变更：使用 IServiceCollection 的 RegisterServices 钩子替代 Autofac
+        builder.RegisterServices((services, _) =>
         {
-            // 1. 注入异步上下文桥接器（取代手动 new XunitTestWriter）
-            cb.RegisterType<XunitTestOutputBridge>().As<ITestWriter>().SingleInstance();
+            // 1. 注入异步上下文桥接器
+            services.AddSingleton<ITestWriter, XunitTestOutputBridge>();
 
             // 2. 注册测试日志工厂（会自动解析上面的 Bridge）
-            cb.RegisterType<TestOutputLoggerFactory>()
-                .As<Microsoft.Extensions.Logging.ILoggerFactory>()
-                .SingleInstance();
+            // 使用 Replace 确保在测试环境中，TestOutputLoggerFactory 具有最高优先级
+            services.Replace(ServiceDescriptor.Singleton<Microsoft.Extensions.Logging.ILoggerFactory, TestOutputLoggerFactory>());
         });
         return builder;
     }

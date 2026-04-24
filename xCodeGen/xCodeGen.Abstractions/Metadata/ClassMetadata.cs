@@ -10,8 +10,6 @@ namespace xCodeGen.Abstractions.Metadata
         public string ClassName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string Summary { get; set; } = string.Empty;
-        public bool IsView { get; set; } = false;
-
         public MetaType Type { get; set; } = MetaType.Other;
         public string DecoratorTypeFullName { get; set; } = string.Empty;
         public bool HasDecoratorCandidate { get; set; } = false;
@@ -21,6 +19,7 @@ namespace xCodeGen.Abstractions.Metadata
         public ICollection<string> ImplementedInterfaces { get; set; } = new Collection<string>();
         public ICollection<string> DependentTypes { get; set; } = new Collection<string>();
         public string BaseType { get; set; } = string.Empty;
+        public string BaseUserType { get; set; } = string.Empty;
 
         public MetadataSource SourceType { get; set; }
         public string TemplateName { get; set; } = string.Empty;
@@ -28,20 +27,13 @@ namespace xCodeGen.Abstractions.Metadata
         public ICollection<AttributeMetadata> Attributes { get; set; } = new Collection<AttributeMetadata>();
 
         public string SourceHash { get; set; } = string.Empty;
-        public string PreviousHash { get; set; } = string.Empty;
         public string Version { get; set; } = "1.0.0";
-        public string GeneratorVersion { get; set; } = string.Empty;
-        public bool IsIncrementalUpdate { get; set; }
-
-        public string SourceFilePath { get; set; } = string.Empty;
-        public int SourceLineNumber { get; set; }
-        public DateTime CreatedTime { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedTime { get; set; } = DateTime.UtcNow;
-
-        public string GeneratorId { get; set; } = string.Empty;
-        public string GeneratorDescription { get; set; } = string.Empty;
         public bool IsRecord { get; set; }
         public string TypeKind { get; set; } = "class";
+        public ClassMetadata Service { get; set; } = null;
+        public ClassMetadata Controller { get; set; } = null;
+        public ClassMetadata Entity { get; set; } = null;
+        public ClassMetadata Interface { get; set; } = null;
 
         public ClassMetadata() { }
     }
@@ -54,5 +46,31 @@ namespace xCodeGen.Abstractions.Metadata
         Service = 3,
         Controller = 4,
         Decorator = 5,
+        Interface
+    }
+
+    /// <summary>
+    /// 领域服务注册信息模型
+    /// </summary>
+    public class DomainServiceRegistration
+    {
+        public Type ServiceInterface { get; }
+        public Type Implementation { get; }
+        public Type ProxyType { get; }
+        public MetaType Type { get; }
+
+        /// <summary>
+        /// 领域服务注册信息模型
+        /// </summary>
+        public DomainServiceRegistration(Type serviceInterface,
+            Type implementation,
+            Type proxyType,
+            MetaType type)
+        {
+            ServiceInterface = serviceInterface;
+            Implementation = implementation;
+            ProxyType = proxyType;
+            Type = type;
+        }
     }
 }

@@ -1,5 +1,4 @@
 ﻿// IProjectMetaContext.cs - 兼容 C# 7.3
-
 using System.Collections.Generic;
 
 namespace xCodeGen.Abstractions.Metadata
@@ -16,6 +15,8 @@ namespace xCodeGen.Abstractions.Metadata
 
         ClassMetadata FindByClassName(string className);
         IEnumerable<ClassMetadata> FindByNamespace(string @namespace);
+        IEnumerable<DomainServiceRegistration> GetServiceRegistrations();
+
 
         /// <summary>
         /// 高性能获取属性字典的方法，供 ValidationCache 调用
