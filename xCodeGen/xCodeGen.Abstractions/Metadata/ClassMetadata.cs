@@ -19,7 +19,7 @@ namespace xCodeGen.Abstractions.Metadata
         public ICollection<string> ImplementedInterfaces { get; set; } = new Collection<string>();
         public ICollection<string> DependentTypes { get; set; } = new Collection<string>();
         public string BaseType { get; set; } = string.Empty;
-        public string BaseUserType { get; set; } = string.Empty;
+        public string UserType { get; set; } = string.Empty;
 
         public MetadataSource SourceType { get; set; }
         public string TemplateName { get; set; } = string.Empty;

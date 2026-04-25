@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.Logging;
-using System.Security.Claims;
+using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Blazor.Authentication;
@@ -29,68 +29,46 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
     /// 3. 与 TKWF.Domain 深度集成，无需额外 HttpContext
     /// </remarks>
     public DomainAuthenticationStateProvider(ProtectedLocalStorage protectedLocalStorage,
-        DomainHost<TUserInfo> domainHost, IServiceProvider serviceProvider)
+        DomainHost<TUserInfo> domainHost, IServiceProvider serviceProvider, DomainUserAccessor<TUserInfo> userAccessor)
     {
+        _DomainHost = domainHost.EnsureNotNull(nameof(domainHost));
         _Logger = domainHost.LoggerFactory.CreateLogger<DomainAuthenticationStateProvider<TUserInfo>>();
-        _DomainHost = domainHost ?? throw new ArgumentException();
-        _ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        _ProtectedLocalStorage = protectedLocalStorage ?? throw new ArgumentNullException(nameof(protectedLocalStorage));
+        _ServiceProvider = serviceProvider.EnsureNotNull(nameof(serviceProvider));
+        _ProtectedLocalStorage = protectedLocalStorage.EnsureNotNull(nameof(protectedLocalStorage));
+        _UserAccessor = userAccessor.EnsureNotNull(nameof(userAccessor));
     }
     private readonly ILogger<DomainAuthenticationStateProvider<TUserInfo>> _Logger;
     private readonly DomainHost<TUserInfo> _DomainHost;
     private readonly ProtectedLocalStorage _ProtectedLocalStorage;
     private readonly IServiceProvider _ServiceProvider; // 新增：用于作用域绑定
     private const string SessionKeyStorageName = "TKWF_SessionKey";
+    private readonly DomainUserAccessor<TUserInfo> _UserAccessor;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        try
-        {
-            // 2. 尝试从浏览器存储读取 SessionKey
-            var sessionKeyResult = await _ProtectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
-            var sessionKey = sessionKeyResult.Success ? sessionKeyResult.Value : null;
+        // 如果缓存里已经有了，直接返回
+        if (_UserAccessor.CurrentUser != null)
+            return new AuthenticationState(_UserAccessor.CurrentUser.ToClaimsPrincipal());
 
-            // 3. 统一使用 Host 的调度逻辑
-            // 内部已包含：尝试恢复会话 -> 失败则自动降级为游客
-            await using var scope = await _DomainHost.BeginSessionScopeAsync(_ServiceProvider, sessionKey);
-            var user = scope.User;
+        // 1. 从存储获取 Key
+        var sessionKey = await _ProtectedLocalStorage.GetAsync<string>("Key");
 
-            // 4. 关键：如果 Key 发生了变化（如新创建了游客），同步回存储
-            if (sessionKey != user.SessionKey)
-            {
-                await _ProtectedLocalStorage.SetAsync(SessionKeyStorageName, user.SessionKey);
-                _Logger.LogInformation("已为新游客分配 SessionKey: {SessionKey}", user.SessionKey);
-            }
+        // 2. 此时环境已经由 CircuitHandler 绑定好了
+        // 直接调用 Host 的 internal 恢复逻辑（或 BeginSessionScope）
+        var scope = await _DomainHost.BeginSessionScopeAsync(_ServiceProvider, sessionKey.Value);
+        var user = scope.User;
+        _UserAccessor.CurrentUser = user;
 
-            // 5. 转换为 ClaimsPrincipal
-            var principal = user.ToClaimsPrincipal();
-
-            _Logger.LogDebug("AuthenticationState 已更新 - 用户: {UserName}, 已认证: {IsAuthenticated}",
-                user.UserInfo.UserName, user.IsAuthenticated);
-
-            return new AuthenticationState(principal);
-        }
-        catch (Exception ex)
-        {
-            _Logger.LogError(ex, "获取认证状态失败");
-            // 降级：返回匿名状态并尝试清理绑定
-            DomainUser<TUserInfo>.UnBindScope();
-            return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
-        }
+        return new AuthenticationState(user.ToClaimsPrincipal());
     }
 
     /// <summary>
     /// 登录成功后手动刷新认证状态
     /// </summary>
-    public async Task NotifyLoginAsync()
+    public void NotifyUserChanged()
     {
-        // 可选：重新从 storage 读取最新 SessionKey
-        var sessionKeyResult = await _ProtectedLocalStorage.GetAsync<string>(SessionKeyStorageName);
-        if (sessionKeyResult.Success)
-        {
-            // 强制刷新
-            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-        }
+        // 只要身份变了（无论登录还是注销），就触发这个
+        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 
     /// <summary>
@@ -99,6 +77,11 @@ public class DomainAuthenticationStateProvider<TUserInfo> : AuthenticationStateP
     public async Task NotifyLogoutAsync()
     {
         await _ProtectedLocalStorage.DeleteAsync(SessionKeyStorageName);
-        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+        NotifyUserChanged();
     }
+}
+public class DomainUserAccessor<TUserInfo> where TUserInfo : class, IUserInfo, new()
+{
+    // 这里存储恢复好的 DomainUser 实例
+    public DomainUser<TUserInfo>? CurrentUser { get; set; }
 }

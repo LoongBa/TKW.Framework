@@ -14,7 +14,7 @@ namespace xCodeGen.Abstractions.Attributes
         public bool IsView { get; set; } = false;
 
         /// <summary> 业务用户标识类型（如 DmpUserInfo），必填 </summary>
-        public string BaseUserType { get; set; } = string.Empty;
+        public string UserType { get; set; } = string.Empty;
 
         /// <summary> 默认分页大小 </summary>
         public int DefaultPageSize { get; set; } = 20;

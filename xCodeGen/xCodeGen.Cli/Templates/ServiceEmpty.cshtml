@@ -6,7 +6,7 @@
 @{
     var className = Model.ClassName;
     var serviceName = $"{className}Service";
-    var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
+    var userType = CodeGenPolicy.GetStringProp(genAttr, "UserType");
     var namespaceName = Model.Namespace.Replace(".Models", ".Entities");
     var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
     bool isController = Model.Type == MetaType.Controller;

@@ -47,7 +47,6 @@ namespace xCodeGen.SourceGenerator
                     try
                     {
                         GenerateMetaFile(spc, entity);
-                        GenerateInterfaceFile(spc, entity);
                     }
                     catch (Exception ex) { ReportError(spc, $"生成 {entity.ClassName} 失败: {ex.Message}"); }
                 }
@@ -55,6 +54,7 @@ namespace xCodeGen.SourceGenerator
                 // 2. 生成 Decorator
                 foreach (var controller in allMetadatas.Where(m => m.Type == MetaType.Controller))
                 {
+                    GenerateInterfaceFile(spc, controller);
                     GenerateDecoratorFile(spc, controller);
                 }
 

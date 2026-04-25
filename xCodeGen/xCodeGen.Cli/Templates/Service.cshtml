@@ -15,7 +15,7 @@
     var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
     var interfaceNamespace = namespaceName.Replace(".Entities", ".Interfaces");
     var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DomainGenerateCodeAttribute"));
-    var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
+    var userType = CodeGenPolicy.GetStringProp(genAttr, "UserType");
     bool isView = Model.Type == MetaType.View;
 
     int defPageSize = genAttr != null && genAttr.Properties.TryGetValue("DefaultPageSize", out var ps) ? (int)ps : 20;

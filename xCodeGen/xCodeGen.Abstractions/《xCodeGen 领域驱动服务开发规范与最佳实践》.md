@@ -139,7 +139,7 @@
 
 ### 6.1 基础架构
 
-- **用户类型参数化**：通过 `DomainGenerateCode(BaseUserType = "...")` 动态指定 Service 的用户标识类型 。
+- **用户类型参数化**：通过 `DomainGenerateCode(UserType = "...")` 动态指定 Service 的用户标识类型 。
 
 - **分页模型**：`SelectPageAsync` 统一返回 `PageResult<T>` 对象（包含 `TotalCount`, `PageIndex`, `PageSize`） 。
 
@@ -191,7 +191,7 @@
 
 该特性挂载于实体类头部，定义了生成 Service 的物理底座：
 
-- **`BaseUserType` (必填)**：指定 Service 继承的泛型用户类型（如 `DmpUserInfo`），直接决定了 `User` 属性的强类型支持。
+- **`UserType` (必填)**：指定 Service 继承的泛型用户类型（如 `DmpUserInfo`），直接决定了 `User` 属性的强类型支持。
 
 - **`IsView` (默认为 false)**：若标记为 `true`，生成器将自动屏蔽所有写入操作（Create/Update/Delete），仅保留查询矩阵。
 
@@ -270,7 +270,7 @@
 **模型标注参考：**
 
 ```csharp
-[DomainGenerateCode(BaseUserType = nameof(DmpUserInfo), DefaultPageSize = 50)]
+[DomainGenerateCode(UserType = nameof(DmpUserInfo), DefaultPageSize = 50)]
 public partial class MerchantInfo
 {
     [DtoField(IsUnique = true, SearchGroup = "Keyword")]
