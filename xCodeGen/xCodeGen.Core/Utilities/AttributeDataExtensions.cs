@@ -99,25 +99,25 @@ namespace xCodeGen.SourceGenerator
         }
 
         /// <summary>
-        /// 检查类型是否具有 GenerateCode 特性
+        /// 检查类型是否具有 DomainGenerateCode 特性
         /// </summary>
         /// <param name="typeSymbol">类型符号</param>
-        /// <returns>如果类型具有 GenerateCode 特性返回 true，否则返回 false</returns>
+        /// <returns>如果类型具有 DomainGenerateCode 特性返回 true，否则返回 false</returns>
         public static bool HasGenerateCodeAttribute(this INamedTypeSymbol typeSymbol)
         {
             if (typeSymbol == null)
                 return false;
 
             return typeSymbol.GetAttributes()
-                .Any(attr => attr.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName);
+                .Any(attr => attr.AttributeClass?.ToDisplayString() == DomainGenerateCodeAttribute.TypeFullName);
         }
 
         /// <summary>
-        /// 检查类声明是否具有 GenerateCode 特性
+        /// 检查类声明是否具有 DomainGenerateCode 特性
         /// </summary>
         /// <param name="classDeclaration">类声明语法节点</param>
         /// <param name="semanticModel">语义模型</param>
-        /// <returns>如果类具有 GenerateCode 特性返回 true，否则返回 false</returns>
+        /// <returns>如果类具有 DomainGenerateCode 特性返回 true，否则返回 false</returns>
         public static bool HasGenerateCodeAttribute(this ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
         {
             if (classDeclaration == null)

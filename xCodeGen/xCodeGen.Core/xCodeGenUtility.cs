@@ -15,8 +15,8 @@ namespace xCodeGen.Core;
 public static class XCodeGenUtility
 {
     // 特性名称常量（字符串匹配）
-    public const string GenerateCodeAttributeName = "GenerateCode";
-    public const string GenerateCodeAttributeFullName = "xCodeGen.Abstractions.GenerateCode";
+    public const string GenerateCodeAttributeName = "DomainGenerateCode";
+    public const string GenerateCodeAttributeFullName = "xCodeGen.Abstractions.DomainGenerateCode";
 
     /// <summary>
     /// 生成元数据文件名
@@ -46,7 +46,7 @@ public static class XCodeGenUtility
     }
 
     /// <summary>
-    /// 检查是否为GenerateCode特性
+    /// 检查是否为 DomainGenerateCode 特性
     /// </summary>
     public static bool HasGenerateCodeAttribute(string attributeText)
     {
@@ -55,7 +55,7 @@ public static class XCodeGenUtility
     }
 
     /// <summary>
-    /// 提取GenerateCode特性的Mode参数
+    /// 提取 DomainGenerateCode 特性的 Mode 参数
     /// </summary>
     public static string GetGenerateCodeMode(string attributeText)
     {

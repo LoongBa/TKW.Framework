@@ -231,10 +231,10 @@ partial void OnBeforeCreate(MerchantEntity entity)
 
 ### 4.4 自定义搜索分组
 
-通过 [GenerateCode] 特性配置搜索分组：
+通过 [DomainGenerateCode] 特性配置搜索分组：
 
 ```
-[GenerateCode(SearchGroups = new[] { "Name,Code", "CreateTime" })]
+[DomainGenerateCode(SearchGroups = new[] { "Name,Code", "CreateTime" })]
 public class MerchantEntity { ... }
 ```
 

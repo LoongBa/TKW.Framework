@@ -14,14 +14,15 @@ using TKW.Framework.Domain.Session;
 namespace TKW.Framework.Domain;
 
 /// <summary>
-/// V4 领域主机：管理领域服务的生命周期、AOP 拦截上下文及全局配置。
-/// 彻底摆脱 Autofac 依赖，拥抱标准 .NET DI。
+/// 领域主机：管理领域元数据、全局配置及业务执行上下文的入口。
 /// </summary>
 public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     public static DomainHost<TUserInfo>? Root { get; private set; }
 
-    // 替换原本的 IContainer，作为全局解析的保底入口
+    /// <summary>
+    /// 全局根容器（通常为 Singleton 级），仅作为保底解析使用。
+    /// </summary>
     public IServiceProvider? ServiceProvider { get; private set; }
 
     public DomainOptions Options { get; }
@@ -34,21 +35,24 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     private readonly List<DomainFilterAttribute<TUserInfo>> _GlobalFilters = [];
     public IReadOnlyList<DomainFilterAttribute<TUserInfo>> GlobalFilters => _GlobalFilters.AsReadOnly();
 
-    // 控制器/方法合同缓存，提升 AOP 拦截时的反射性能
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
-
+    private ISessionManager<TUserInfo>? _SessionManager;
     /// <summary>
-    /// V4 启动入口：基于标准 IServiceCollection
+    /// 领域会话管理器（内部属性，不再通过 sp 动态解析）
     /// </summary>
+    internal ISessionManager<TUserInfo> SessionManager => _SessionManager
+            ?? throw new InvalidOperationException("DomainHost 尚未绑定 ServiceProvider。");
+
+    #region [ 初始化与绑定 ]
+
     public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(
         IServiceCollection services,
         DomainOptions options,
         IConfiguration? configuration = null)
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
     {
-        if (Root != null) throw new InvalidOperationException("DomainHost 已初始化");
+        if (Root != null) throw new InvalidOperationException("DomainHost 已重初始化");
 
-        // 注册 V4 静态拦截器和配置
         services.AddSingleton<StaticDomainInterceptor<TUserInfo>>();
         services.AddSingleton(options);
 
@@ -68,62 +72,118 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         Configuration = configuration;
     }
 
-    /// <summary>
-    /// 核心绑定：在 ServiceProvider 构建完成后，由初始化器回调。
-    /// </summary>
     internal void BindServiceProvider(IServiceProvider sp)
     {
         ServiceProvider = sp;
         LoggerFactory = sp.GetService<ILoggerFactory>() ?? new NullLoggerFactory();
+
+        // 关键：在绑定时完成唯一一次解析
+        // 此时 DI 会自动处理 SessionManager 内部的所有依赖（如缓存服务、配置等）
+        _SessionManager = sp.GetRequiredService<ISessionManager<TUserInfo>>();
+    }
+
+    #endregion
+
+    #region [ 会话与用户调度 ]
+
+    /// <summary>
+    /// 获取或还原用户：优先尝试从 SessionKey 恢复，失败则返回新创建的游客。
+    /// 供 Web 中间件使用，确保用户始终存在。
+    /// </summary>
+    internal async Task<DomainUser<TUserInfo>> GetOrRestoreUserAsync(IServiceProvider sp, string? sessionKey)
+    {
+        if (!string.IsNullOrWhiteSpace(sessionKey))
+        {
+            var session = await SessionManager.TryGetAndActiveSessionAsync(sessionKey);
+            if (session?.User != null) return session.User;
+        }
+
+        // 自动降级为游客
+        var guestSession = await CreateGuestUserAsync(sp);
+        return guestSession.User!;
     }
 
     /// <summary>
-    /// 领域会话管理器，通过 ServiceProvider 延迟解析。
+    /// 显式创建新的游客会话
     /// </summary>
-    internal ISessionManager<TUserInfo>? SessionManager => ServiceProvider?.GetService<ISessionManager<TUserInfo>>();
+    internal async Task<SessionInfo<TUserInfo>> CreateGuestUserAsync(IServiceProvider sp)
+    {
+        var session = await SessionManager.NewSessionAsync();
+        var guestSession = await UserHelper.CreateNewGuestSessionAsync(session);
+
+        SessionManager.OnSessionCreated(guestSession);
+        return guestSession;
+    }
+
+    #endregion
+
+    #region [ 执行上下文入口 ]
 
     /// <summary>
-    /// AOP 驱动：为当前拦截调用创建上下文，并将 IServiceProvider 绑定到 DomainUser。
+    /// AOP 拦截上下文创建
     /// </summary>
     internal DomainContext<TUserInfo> NewDomainContext(InvocationContext invocation, IServiceProvider sp)
     {
-        // 更新当前线程的异步作用域（AsyncLocal），驱动 User.Use<T> 解析
-        DomainUser<TUserInfo>._ActiveScope.Value = sp;
+        var currentUser = ((DomainServiceBase<TUserInfo>)invocation.Target).User;
+
+        // 确保拦截器内部的异步流解析正常
+        DomainUser<TUserInfo>.BindScope(sp);
 
         return new DomainContext<TUserInfo>(
-            ((DomainServiceBase<TUserInfo>)invocation.Target).User,
+            currentUser,
             invocation,
             _ControllerContracts.GetOrAdd($"{invocation.Target.GetType().FullName}:{invocation.MethodName}", _ => new DomainContracts<TUserInfo>()),
             sp,
             LoggerFactory);
     }
 
-    #region 全局过滤器管理
+    /// <summary>
+    /// 开启一个自动管理生命周期的业务作用域（适配 CLI/Job/Test）。
+    /// </summary>
+    public async Task<DomainSessionScope<TUserInfo>> CreateSessionScopeAsync(string? sessionKey = null)
+    {
+        if (ServiceProvider == null) throw new InvalidOperationException("DomainHost 尚未完成初始化绑定。");
 
-    internal void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter)
+        var scope = ServiceProvider.CreateScope();
+        try
+        {
+            // 关键：在获取用户前必须先绑定 Scope，因为恢复 User 可能需要解析数据库服务
+            DomainUser<TUserInfo>.BindScope(scope.ServiceProvider);
+
+            var user = await GetOrRestoreUserAsync(scope.ServiceProvider, sessionKey);
+            return new DomainSessionScope<TUserInfo>(scope, user);
+        }
+        catch
+        {
+            // 异常时物理释放并清理
+            DomainUser<TUserInfo>.UnBindScope();
+            scope.Dispose();
+            throw;
+        }
+    }
+    /// <summary>
+    /// 开启一个业务作用域（重用已有的 ServiceProvider）。
+    /// 适配：Web 中间件（传入 context.RequestServices）。
+    /// </summary>
+    public async Task<DomainSessionScope<TUserInfo>> BeginSessionScopeAsync(IServiceProvider sp, string? sessionKey = null)
+    {
+        // 绑定并获取用户
+        DomainUser<TUserInfo>.BindScope(sp);
+        var user = await GetOrRestoreUserAsync(sp, sessionKey);
+
+        // 返回“不拥有所有权”的作用域，DisposeAsync 时仅 UnBind 不物理释放 sp
+        return new DomainSessionScope<TUserInfo>(sp, user);
+    }
+
+    #endregion
+
+    #region [ 过滤器管理 ]
+
+    internal void AddGlobalFilter(DomainFilterAttribute<TUserInfo>? filter)
     {
         if (filter == null || _GlobalFilters.Any(f => f.GetType() == filter.GetType())) return;
         _GlobalFilters.Add(filter);
     }
 
-    internal void AddGlobalFilters(IEnumerable<DomainFilterAttribute<TUserInfo>> filters)
-    {
-        foreach (var filter in filters) AddGlobalFilter(filter);
-    }
-
     #endregion
-
-    public async Task<SessionInfo<TUserInfo>> NewGuestSessionAsync()
-    {
-        var session = await SessionManager!.NewSessionAsync();
-        var newSession = await UserHelper.CreateNewGuestSessionAsync(session);
-        SessionManager.OnSessionCreated(newSession);
-        return newSession;
-    }
-
-    internal async Task<DomainUser<TUserInfo>> GetDomainUserAsync(string sessionKey)
-    {
-        var session = await SessionManager!.GetAndActiveSessionAsync(sessionKey);
-        return session.User!;
-    }
 }

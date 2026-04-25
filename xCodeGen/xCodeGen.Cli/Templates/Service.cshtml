@@ -14,7 +14,7 @@
     var namespaceName = Model.Namespace.Replace(".Models", ".Entities");
     var servicesNamespace = namespaceName.Replace(".Entities", ".Services");
     var interfaceNamespace = namespaceName.Replace(".Entities", ".Interfaces");
-    var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("GenerateCodeAttribute"));
+    var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DomainGenerateCodeAttribute"));
     var userType = CodeGenPolicy.GetStringProp(genAttr, "BaseUserType");
     bool isView = Model.Type == MetaType.View;
 

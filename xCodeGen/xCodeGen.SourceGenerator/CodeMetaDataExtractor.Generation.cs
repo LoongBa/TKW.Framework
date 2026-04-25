@@ -218,10 +218,8 @@ namespace xCodeGen.SourceGenerator
         public void GenerateDecoratorFile(SourceProductionContext context, ClassMetadata controller)
         {
             if (controller == null || controller.Type != MetaType.Controller) return;
-            var attribute = FindAttribute(controller.Attributes, "DomainControllerAttribute");
-            if (attribute == null) return; // 忽略没有 DomainController 特性的类，确保只处理领域控制器
-            var generateCode = GetBoolProp(attribute, "EnableAutoDecorator", true);
-            if (!generateCode) return;  // 忽略没有启用自动生成装饰器的控制器
+            // 忽略没有定义接口的类，因为无法生成有效的装饰器
+            if (controller.Interface == null) return;
 
             var userType = controller.BaseUserType ?? "";
             var controllerName = controller.ClassName;
@@ -459,6 +457,8 @@ namespace xCodeGen.SourceGenerator
 
         private void EnrichAndHashMetadatas(ref List<ClassMetadata> allMetadatas)
         {
+            // 明确规则：以 Entity/View 为核心，优先建立与 Service/Controller 的关联关系，最后计算 Hash
+            // 以 Entity/View 为主建立关联与计算 Hash，Hash 计算基于核心属性和关联关系，确保同一实体的不同版本能正确识别
             if (allMetadatas == null || allMetadatas.Count == 0) return;
 
             var filteredList = new List<ClassMetadata>();
@@ -480,8 +480,8 @@ namespace xCodeGen.SourceGenerator
                     continue;
                 }
                 // 1. 优先判定 View/Entity
-                // 标记了 GenerateCodeAttribute 特性
-                var genCodeAttr = FindAttribute(m.Attributes, "GenerateCodeAttribute");
+                // 标记了 DomainGenerateCodeAttribute 特性
+                var genCodeAttr = FindAttribute(m.Attributes, "DomainGenerateCodeAttribute");
                 if (genCodeAttr != null)
                 {
                     m.BaseUserType = GetStringProp(genCodeAttr, "BaseUserType");
@@ -491,15 +491,18 @@ namespace xCodeGen.SourceGenerator
                     continue;
                 }
 
-                // 2. 判定 DomainController
-                // 标记了 DomainControllerAttribute 特性
-                // 或 继承自 DomainControllerBase（兼容老版本）
+                // 2. 判定 DataService 基于基类 DomainDataServiceBase
+                if (m.BaseType != null && m.BaseType.Equals("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase))
+                {
+                    m.Type = MetaType.DataService;
+                    filteredList.Add(m);
+                    continue;
+                }
+
+                // 3. 判定 DomainController
+                // 继承自 DomainControllerBase
                 // 或 同时实现 IDomainService 和 IAopContract（更广泛适配，如手写版本）
-                var controllerAttr = 
-                    FindAttribute(m.Attributes, "DomainControllerAttribute");
-                var hasControllerAttr = controllerAttr != null;
-                if (hasControllerAttr
-                    || (m.BaseType != null && m.BaseType.Equals("DomainControllerBase", StringComparison.OrdinalIgnoreCase))
+                if ((m.BaseType != null && m.BaseType.Equals("DomainControllerBase", StringComparison.OrdinalIgnoreCase))
                     || (ImplementsInterface(m, "IDomainService") 
                         && ImplementsInterface(m, "IAopContract")))
                 {
@@ -508,7 +511,8 @@ namespace xCodeGen.SourceGenerator
                     continue;
                 }
 
-                // 3. 判定 DomainService 或 Decorator
+
+                // 4. 判定 DomainService 或 Decorator
                 // 实现 IDomainService 接口的其余类
                 // 其中继承自 DomainControllerDecoratorBase 为 Decorator
                 if (ImplementsInterface(m, "IDomainService"))
@@ -520,7 +524,7 @@ namespace xCodeGen.SourceGenerator
                     if (m.Type != MetaType.Other) filteredList.Add(m);
                     continue;
                 }
-                // 4. 其他类归为 Other，且不加入后续处理列表 filteredList
+                // 5. 其他类归为 Other，且不加入后续处理列表 filteredList
                 m.Type = MetaType.Other;
             }
 

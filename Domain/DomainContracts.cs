@@ -4,6 +4,10 @@ using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;
 
+/// <summary>
+/// 用于承载领域服务的过滤器和标志特性集合，支持方法级和控制器级两种粒度。
+/// </summary>
+/// <typeparam name="TUserInfo"></typeparam>
 public class DomainContracts<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     /// <summary>Initializes a new instance of the <see cref="T:System.Object"></see> class.</summary>

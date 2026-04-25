@@ -11,7 +11,7 @@
     
     Model.GenerateCodeSettings["Type"] = "Dto";
 
-    var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("GenerateCodeAttribute"));
+    var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DomainGenerateCodeAttribute"));
     var customAutoFields = CodeGenPolicy.GetStringProp(genAttr, "CustomAutoFields")?.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
     // 过滤掉 explicitly ignored properties

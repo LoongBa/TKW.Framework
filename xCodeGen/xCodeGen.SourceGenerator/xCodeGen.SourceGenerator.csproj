@@ -21,7 +21,7 @@
     <Compile Remove="DtoGenerator.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\xCodeGen.Abstractions\Attributes\GenerateCodeAttribute.cs" Link="Attributes\GenerateCodeAttribute.cs" />
+    <Compile Include="..\xCodeGen.Abstractions\Attributes\DomainGenerateCodeAttribute.cs" Link="Attributes\DomainGenerateCodeAttribute.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Extractors\ExtractorOptions.cs" Link="Extractors\ExtractorOptions.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Extractors\IMetaDataExtractor.cs" Link="Extractors\IMetaDataExtractor.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\MetadataSources.cs" Link="Metadata\MetadataSources.cs" />
@@ -50,8 +50,8 @@
     <PackageReference Include="System.Text.Json" Version="10.0.7" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Metadata\" />
     <Folder Include="Attributes\" />
+    <Folder Include="Metadata\" />
     <Folder Include="Extractors\" />
   </ItemGroup>
   <Target Name="CopyDependencies" AfterTargets="Build">

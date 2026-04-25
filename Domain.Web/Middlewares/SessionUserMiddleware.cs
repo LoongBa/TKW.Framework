@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Domain.Interfaces;
-using TKW.Framework.Domain.Session;
 using TKW.Framework.Domain.Web.Session;
 
 namespace TKW.Framework.Domain.Web.Middlewares;
@@ -14,7 +13,6 @@ namespace TKW.Framework.Domain.Web.Middlewares;
 public class SessionUserMiddleware<TUserInfo>(
     RequestDelegate next,
     DomainHost<TUserInfo> domainHost,
-    ISessionManager<TUserInfo> sessionManager,
     WebSessionOptions options)
     where TUserInfo : class, IUserInfo, new()
 {
@@ -23,41 +21,28 @@ public class SessionUserMiddleware<TUserInfo>(
         = domainHost.LoggerFactory.CreateLogger<SessionUserMiddleware<TUserInfo>>();
 
     public const string ContextKeyName_DomainUser = "DomainUser";
-    
+
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            // 1. 尝试从请求中获取 SessionKey
             var sessionKey = GetSessionKeyFromRequest(context);
-            SessionInfo<TUserInfo>? session = null;
 
-            // 2. 如果存在 Key，尝试从缓存/数据库加载并激活会话
-            if (!string.IsNullOrWhiteSpace(sessionKey))
-                session = await sessionManager.TryGetAndActiveSessionAsync(sessionKey);
-
-            // 3. 如果会话无效，创建新的游客会话
-            if (session == null)
-            {
-                session = await domainHost.NewGuestSessionAsync();
-                // 将新的 SessionKey 写入响应（Cookie 和 Header）
-                SetSessionKeyToResponse(context, session.Key);
-                _Logger.LogInformation("创建新游客会话 - SessionKey: {SessionKey}", session.Key);
-            }
-
-            // 4. 将用户信息注入 HttpContext.Items，供后续管道使用
-            context.Items[ContextKeyName_DomainUser] = session.User!;
-            // 5. 构造 ClaimsPrincipal 并注入 HttpContext.User，供 [Authorize] 等特性使用
-            context.User = session.User!.ToClaimsPrincipal();
+            // 启用领域会话范围，自动加载用户信息：传入 context.RequestServices 重用当前容器
+            await using var scope = await domainHost.BeginSessionScopeAsync(context.RequestServices, sessionKey);
+            var user = scope.User;
+            
+            if (sessionKey != user.SessionKey)          // 如果生成了新游客，回写 Key
+                SetSessionKeyToResponse(context, user.SessionKey);
+            
+            context.Items["DomainUser"] = user;         // 写入上下文
+            context.User = user.ToClaimsPrincipal();    // 兼容 ASP.NET Core 的授权机制
 
             await next(context);
         }
         catch (Exception ex)
         {
-            _Logger.LogError(ex, "SessionUserMiddleware 执行异常");
-            // 注意：这里不再直接处理响应（WriteAsync），而是抛出异常。
-            // 这样做的好处是让外层的全局异常过滤器（如 WebExceptionMiddleware）统一处理错误格式，
-            // 保证 API 返回的 JSON 格式一致性，避免中间件直接写入文本导致的格式混乱。
+            _Logger.LogError(ex, "领域层执行异常");
             throw;
         }
     }

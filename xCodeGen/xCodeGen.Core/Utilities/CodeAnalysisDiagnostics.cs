@@ -38,7 +38,7 @@ namespace xCodeGen.SourceGenerator
         }
 
         /// <summary>
-        /// 检查语法节点是否是带有 GenerateCode 特性的类型声明（支持 class 和 record）
+        /// 检查语法节点是否是带有 DomainGenerateCode 特性的类型声明（支持 class 和 record）
         /// </summary>
         public static bool IsCandidateClass(SyntaxNode node)
         {
@@ -51,10 +51,10 @@ namespace xCodeGen.SourceGenerator
             if (!type.Modifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword)))
                 return false;
 
-            // 1) 带 GenerateCodeAttribute 的类型（实体）
+            // 1) 带 DomainGenerateCodeAttribute 的类型（实体）
             var hasGenerateAttr = type.AttributeLists
             .SelectMany(al => al.Attributes)
-            .Any(attr => attr.Name.ToString().Contains("GenerateCode"));
+            .Any(attr => attr.Name.ToString().Contains("DomainGenerateCode"));
 
             if (hasGenerateAttr) return true;
 

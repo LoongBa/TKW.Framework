@@ -139,7 +139,7 @@
 
 ### 6.1 基础架构
 
-- **用户类型参数化**：通过 `GenerateCode(BaseUserType = "...")` 动态指定 Service 的用户标识类型 。
+- **用户类型参数化**：通过 `DomainGenerateCode(BaseUserType = "...")` 动态指定 Service 的用户标识类型 。
 
 - **分页模型**：`SelectPageAsync` 统一返回 `PageResult<T>` 对象（包含 `TotalCount`, `PageIndex`, `PageSize`） 。
 
@@ -187,7 +187,7 @@
 
 ## 8. 特性配置深度指南（Annotation Guide）
 
-### 8.1 [GenerateCode] 服务全局配置
+### 8.1 [DomainGenerateCode] 服务全局配置
 
 该特性挂载于实体类头部，定义了生成 Service 的物理底座：
 
@@ -270,7 +270,7 @@
 **模型标注参考：**
 
 ```csharp
-[GenerateCode(BaseUserType = nameof(DmpUserInfo), DefaultPageSize = 50)]
+[DomainGenerateCode(BaseUserType = nameof(DmpUserInfo), DefaultPageSize = 50)]
 public partial class MerchantInfo
 {
     [DtoField(IsUnique = true, SearchGroup = "Keyword")]

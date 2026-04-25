@@ -38,7 +38,7 @@ namespace xCodeGen.SourceGenerator
                     .ToList();
 
                 var allMetadatas = groupedInfos.Select(i => i.Metadata).ToList();
-
+                //System.Diagnostics.Debugger.Launch();
                 EnrichAndHashMetadatas(ref allMetadatas);
 
                 // 1. 生成 Meta 文件
@@ -210,7 +210,7 @@ namespace xCodeGen.SourceGenerator
             var typeDecl = (TypeDeclarationSyntax)context.Node;
             if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
 
-            // 识别 GenerateCode 特性或领域服务接口
+            // 识别 DomainGenerateCode 特性或领域服务接口
             var hasGenerateAttr = symbol.HasGenerateCodeAttribute();
             var implementsDomainService = symbol.AllInterfaces.Any(i => i.ToDisplayString().IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
 
@@ -224,11 +224,11 @@ namespace xCodeGen.SourceGenerator
             var rawMetadata = ConvertToRawMetadata(typeDecl, context.SemanticModel);
             var classMetadata = ConvertToClassMetadata(rawMetadata);
 
-            // 初步判定类型：如果是 GenerateCode 触发，默认为 Entity
+            // 初步判定类型：如果是 DomainGenerateCode 触发，默认为 Entity
             if (hasGenerateAttr)
             {
                 classMetadata.Type = MetaType.Entity;
-                var genAttrData = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName);
+                var genAttrData = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == DomainGenerateCodeAttribute.TypeFullName);
                 if (genAttrData != null)
                 {
                     // 检查是否为 View

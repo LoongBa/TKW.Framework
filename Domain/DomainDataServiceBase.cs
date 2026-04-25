@@ -9,15 +9,20 @@ using TKW.Framework.Domain.Interfaces;
 using xCodeGen.Abstractions;
 
 namespace TKW.Framework.Domain;
-
-public abstract class DomainDataService<TUserInfo, TEntity, TDto> : DomainServiceBase<TUserInfo>
+/// <summary>
+/// 领域数据服务基类
+/// 用于实现基于领域实体的标准 CRUD 业务服务的抽象基类，
+/// 提供了公共的写操作实现和可重写的查询过滤钩子，
+/// 以及内部的原子级操作方法，适合大多数简单数据表的业务逻辑封装。
+/// </summary>
+public abstract class DomainDataServiceBase<TUserInfo, TEntity, TDto> : DomainServiceBase<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
     where TEntity : class, IDomainEntity, new()
     where TDto : class, IDomainDto<TEntity>
 {
     protected readonly IEntityDAC<TEntity> _dac;
 
-    protected DomainDataService(DomainUser<TUserInfo> user, IEntityDAC<TEntity> dac) : base(user)
+    protected DomainDataServiceBase(DomainUser<TUserInfo> user, IEntityDAC<TEntity> dac) : base(user)
     {
         _dac = dac;
         _dac.AttachUow(User.GetUow());

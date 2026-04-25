@@ -6,9 +6,9 @@ namespace xCodeGen.Abstractions.Attributes
     /// 标记需要生成代码的元数据配置
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, Inherited = false)]
-    public class GenerateCodeAttribute : Attribute
+    public class DomainGenerateCodeAttribute : Attribute
     {
-        public static string TypeFullName => typeof(GenerateCodeAttribute).FullName;
+        public static string TypeFullName => typeof(DomainGenerateCodeAttribute).FullName;
 
         /// <summary> 是否为只读视图 [New] </summary>
         public bool IsView { get; set; } = false;

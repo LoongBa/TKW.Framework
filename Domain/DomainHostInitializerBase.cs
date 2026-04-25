@@ -7,6 +7,7 @@ using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using xCodeGen.Abstractions.Metadata;
 
 namespace TKW.Framework.Domain;
 
@@ -34,7 +35,10 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
 
     private void RegisterInfrastructureInternal(IServiceCollection services, IConfiguration? configuration, DomainOptions options)
     {
-        OnRegisterInfrastructureServices(services, configuration, options);
+        var projectMetaContext = OnRegisterInfrastructureServices(services, configuration, options);
+        // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）
+        var serviceRegistrations = projectMetaContext.GetServiceRegistrations();
+
 
         // 使用 TryAdd 确保 PreserveExistingDefaults 逻辑：优先保留已有的自定义实现
         services.TryAddSingleton<ISessionManager<TUserInfo>, NoSessionManager<TUserInfo>>();
@@ -46,7 +50,8 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
         }
     }
 
-    protected abstract void OnRegisterInfrastructureServices(IServiceCollection services, IConfiguration? configuration, DomainOptions options);
+    protected abstract IProjectMetaContext OnRegisterInfrastructureServices(IServiceCollection services,
+        IConfiguration? configuration, DomainOptions options);
     protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(IServiceCollection services, IConfiguration? configuration);
 
     /// <summary>
@@ -76,7 +81,7 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
         }
     }
 
-    #region 辅助控制方法
+    #region 全局领域过滤器方法
 
     protected void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter) => Host?.AddGlobalFilter(filter);
     protected void EnableAuthorityFilter() => Host?.AddGlobalFilter(new AuthorityFilterAttribute<TUserInfo>());

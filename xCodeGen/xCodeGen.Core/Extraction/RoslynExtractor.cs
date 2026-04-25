@@ -47,8 +47,8 @@ public class RoslynExtractor : IMetaDataExtractor
             {
                 if (semanticModel.GetDeclaredSymbol(typeDecl) is not { } symbol) continue;
 
-                // 统一检查特性名称：GenerateCodeAttribute
-                if (!symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "GenerateCodeAttribute"))
+                // 统一检查特性名称：DomainGenerateCodeAttribute
+                if (!symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "DomainGenerateCodeAttribute"))
                     continue;
 
                 rawMetadataList.Add(new RawMetadata

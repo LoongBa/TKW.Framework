@@ -9,44 +9,51 @@ namespace TKW.Framework.Domain;
 
 public static class DomainServiceCollectionExtensions
 {
-    // 标准 Aop 服务注册
+    /// <summary>
+    /// 注册 Aop 服务（带装饰器代理）
+    /// </summary>
     public static IServiceCollection AddAopService<TInterface, TImplementation, TDecorator, TUserInfo>(this IServiceCollection services)
         where TInterface : class
         where TImplementation : class, TInterface
         where TDecorator : class, TInterface
         where TUserInfo : class, IUserInfo, new()
     {
-        services.AddScoped<TImplementation>(); // 原始实现
+        // 注册 DomainUser 以便装饰器和实现类可以自动注入
+        services.TryAddScoped<DomainUser<TUserInfo>>(sp =>
+            DomainUser<TUserInfo>._ActiveScope.Value?.GetRequiredService<DomainUser<TUserInfo>>()
+            ?? throw new InvalidOperationException("当前作用域未关联 DomainUser"));
+
+        services.AddScoped<TImplementation>();
         services.AddScoped<TInterface>(sp =>
         {
             var impl = sp.GetRequiredService<TImplementation>();
             var interceptor = sp.GetRequiredService<StaticDomainInterceptor<TUserInfo>>();
-            // 利用 SG 生成的构造函数完成静态注入
-            return (TDecorator)Activator.CreateInstance(typeof(TDecorator), impl, interceptor)!;
+            // 使用 ActivatorUtilities 避免装饰器的反射开销
+            return ActivatorUtilities.CreateInstance<TDecorator>(sp, impl, interceptor);
         });
         return services;
     }
 
-    // 普通服务注册
-    public static IServiceCollection AddService<TService, TImplementation>(this IServiceCollection services)
+    /// <summary>
+    /// 注册普通领域服务（不带 AOP）
+    /// </summary>
+    public static IServiceCollection AddService<TService, TImplementation, TUserInfo>(this IServiceCollection services)
         where TImplementation : class, TService
         where TService : class
+        where TUserInfo : class, IUserInfo, new()
     {
+        // 确保 DomainUser 可被注入
+        services.TryAddScoped<DomainUser<TUserInfo>>(sp =>
+             DomainUser<TUserInfo>._ActiveScope.Value?.GetService<DomainUser<TUserInfo>>()!);
+
         return services.AddScoped<TService, TImplementation>();
     }
 
-    /// <summary>
-    /// 注册日志工厂（可替换）：如果表现层未注册，则使用默认 LoggerFactory
-    /// </summary>
     public static void UseLogger(this IServiceCollection services)
     {
-        // TryAdd 确保了“可替换性”：如果容器中已存在 ILoggerFactory，则此注册无效
         services.TryAddSingleton<ILoggerFactory, LoggerFactory>();
     }
 
-    /// <summary>
-    /// 注册指定的日志工厂实例
-    /// </summary>
     public static void UseLogger(this IServiceCollection services, ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);

@@ -63,7 +63,7 @@ namespace xCodeGen.SourceGenerator
             return false;
         }
 
-        private static string GetGenerateMode(INamedTypeSymbol symbol) { var attr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == GenerateCodeAttribute.TypeFullName); return attr?.NamedArguments.FirstOrDefault(arg => arg.Key == "Type").Value.Value?.ToString() ?? "Full"; }
+        private static string GetGenerateMode(INamedTypeSymbol symbol) { var attr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == DomainGenerateCodeAttribute.TypeFullName); return attr?.NamedArguments.FirstOrDefault(arg => arg.Key == "Type").Value.Value?.ToString() ?? "Full"; }
 
         public static string GetStringProp(AttributeMetadata attr, string key) =>
             attr != null && attr.Properties.TryGetValue(key, out var val) ? val?.ToString() ?? string.Empty : string.Empty;
@@ -87,7 +87,7 @@ namespace xCodeGen.SourceGenerator
             try
             {
                 // 1. 获取 Abstractions 程序集 (因为所有特性都在这里)
-                var assembly = typeof(GenerateCodeAttribute).Assembly;
+                var assembly = typeof(DomainGenerateCodeAttribute).Assembly;
 
                 // 2. 尝试从该程序集中获取对应的类型
                 var targetType = assembly.GetType(typeFullName);

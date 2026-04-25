@@ -44,9 +44,10 @@ namespace xCodeGen.Abstractions.Metadata
         Entity = 1,
         View = 2,
         Service = 3,
-        Controller = 4,
-        Decorator = 5,
-        Interface
+        DataService = 4,
+        Controller = 5,
+        Decorator = 6,
+        Interface = 7
     }
 
     /// <summary>
