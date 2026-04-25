@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
@@ -38,7 +40,11 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
         var projectMetaContext = OnRegisterInfrastructureServices(services, configuration, options);
         // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）
         var serviceRegistrations = projectMetaContext.GetServiceRegistrations();
+        // 获取 SG 生成的元数据列表
+        var registrations = projectMetaContext.GetServiceRegistrations();
 
+        // 执行分流注册
+        RegisterGeneratedServices(services, registrations);
 
         // 使用 TryAdd 确保 PreserveExistingDefaults 逻辑：优先保留已有的自定义实现
         services.TryAddSingleton<ISessionManager<TUserInfo>, NoSessionManager<TUserInfo>>();
@@ -69,6 +75,29 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     }
 
     protected virtual void OnServiceProviderBuilt(IServiceProvider sp) { }
+    internal void RegisterGeneratedServices(IServiceCollection services, IEnumerable<DomainServiceRegistration> registrations)
+    {
+        foreach (var reg in registrations)
+        {
+            switch (reg)
+            {
+                // 判定：只有 Controller 且 具备代理类时才开启 AOP
+                case { Type: MetaType.Controller, ProxyType: not null, ServiceInterface: not null }:
+                    services.AddAopService(reg.ServiceInterface, reg.Implementation, reg.ProxyType, typeof(TUserInfo));
+                    break;
+                // 判定：类型为 Controller，但没有代理类或没有接口，抛出异常提示错误的注册配置
+                case { Type: MetaType.Controller }:
+                    throw new DomainException($"Controller 类型必须具备代理类和接口：{reg.Implementation.FullName}");
+                // 判定：Service 或 DataService，均采用 AsSelf 注册
+                case { Type: MetaType.Service or MetaType.DataService }:
+                    services.AddService(reg.Implementation);
+                    break;
+            }
+        }
+    }
+    #region 全局领域过滤器方法
+
+    protected void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter) => Host?.AddGlobalFilter(filter);
 
     protected virtual void ConfigGlobalFilters(IServiceProvider sp)
     {
@@ -81,9 +110,6 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
         }
     }
 
-    #region 全局领域过滤器方法
-
-    protected void AddGlobalFilter(DomainFilterAttribute<TUserInfo> filter) => Host?.AddGlobalFilter(filter);
     protected void EnableAuthorityFilter() => Host?.AddGlobalFilter(new AuthorityFilterAttribute<TUserInfo>());
     protected void EnableDomainLogging(EnumDomainLogLevel level = EnumDomainLogLevel.Normal)
         => Host?.AddGlobalFilter(new LoggingFilterAttribute<TUserInfo>(level));
