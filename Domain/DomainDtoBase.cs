@@ -9,14 +9,14 @@ namespace TKW.Framework.Domain;
 /// </summary>
 /// <typeparam name="TEntity">关联的领域实体类型</typeparam>
 public abstract record DomainDtoBase<TEntity> : IDomainDto<TEntity>
-    where TEntity : IDomainEntity
+    where TEntity : IDomainEntity, new()
 {
     /// <summary>
     /// 是否来自持久化来源（如数据库查询）
     /// 用于执行“策略一：持久化信任”，若为 true 则跳过物理校验
     /// </summary>
     [JsonIgnore]
-    public bool IsFromPersistentSource { get; init; } = false;
+    public bool IsFromPersistentSource { get; set; } = false;
 
     /// <summary>
     /// 应用 DTO 数据到实体 (由生成的代码实现)
@@ -29,4 +29,11 @@ public abstract record DomainDtoBase<TEntity> : IDomainDto<TEntity>
     /// 内部应调用 ValidateDataCore 并聚合 OnCustomValidate 结果
     /// </summary>
     public abstract void ValidateData(EnumSceneFlags scene);
+
+    /// <inheritdoc/>
+    public TEntity ToEntity(EnumSceneFlags scene)
+    {
+        var entity = new TEntity();
+        return ApplyToEntity(entity, scene);
+    }
 }

@@ -27,7 +27,7 @@ public static class HostApplicationBuilderExtensions
     }
 
     // 快捷方法示例
-    public static LocalAppBuilder<TUserInfo, TInitializer> ConfigConsoleAppDomain<TUserInfo, TInitializer>(
+    public static LocalAppBuilder<TUserInfo, TInitializer> ConfigConsoleDomain<TUserInfo, TInitializer>(
         this HostApplicationBuilder builder, Action<DomainOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo>, new()

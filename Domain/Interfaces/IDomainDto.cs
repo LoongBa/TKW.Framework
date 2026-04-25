@@ -12,14 +12,16 @@ public interface ISupportPersistenceState
     /// 用于帮助业务逻辑区分处理新数据和已存在数据的不同场景。
     /// </summary>
     [JsonIgnore]
-    bool IsFromPersistentSource { get; }
+    bool IsFromPersistentSource { get; set; }
 }
 
 public interface IDomainDto<TEntity> : ISupportPersistenceState where TEntity : IDomainEntity
 {
-    /// <summary> 应用 DTO 数据到实体 </summary>
+    /// <summary>应用 DTO 数据到实体 </summary>
     TEntity ApplyToEntity(TEntity entity, EnumSceneFlags scene = EnumSceneFlags.Update);
 
-    /// <summary> 执行业务预校验，返回所有校验结果 </summary>
+    /// <summary>执行业务预校验，返回所有校验结果 </summary>
     void ValidateData(EnumSceneFlags scene);
+    /// <summary>转换为新的 Entity 实例</summary>
+    TEntity ToEntity(EnumSceneFlags scene);
 }

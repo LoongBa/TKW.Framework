@@ -4,6 +4,7 @@
 @using TKW.Framework.Domain.xCodeGen
 @model xCodeGen.Abstractions.Metadata.ClassMetadata
 @{
+    var dtoName = Model.ClassName + "Dto";
     var generatedNs = Model.GenerateCodeSettings["GeneratedNamespace"].ToString();
     var metaHash = Model.GenerateCodeSettings.ContainsKey("MetadataHash") ? Model.GenerateCodeSettings["MetadataHash"]?.ToString() : "N/A";
     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -51,6 +52,11 @@ public partial class @Model.ClassName : IDomainEntity
         var results = new List<ValidationResult>();
         @{ await IncludeAsync("_InternalValidation.cshtml", Model); }
         return results;
+    }
+
+    internal DTOs.@(dtoName) ToDto()
+    {
+        return DTOs.@(dtoName).FromEntity(this);
     }
 
     partial void OnBusinessValidate(EnumSceneFlags scene, List<ValidationResult> results);

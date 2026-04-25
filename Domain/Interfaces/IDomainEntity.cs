@@ -7,6 +7,7 @@ namespace TKW.Framework.Domain.Interfaces;
 /// </summary>
 public interface IDomainEntity: ISupportPersistenceState
 {
+    long Id { get; set; }
     /// <summary> 执行业务预校验，返回所有校验结果 </summary>
     void Validate(EnumSceneFlags scene);
 }

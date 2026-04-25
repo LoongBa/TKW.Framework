@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection; // 替换 Autofac
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.TKWConfig;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -167,4 +168,14 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     }
 
     #endregion
+
+    public IDomainUnitOfWork GetUow()
+    {
+        // 从当前作用域解析管理器
+        var manager = ServiceProvider.GetService<IDomainUnitOfWorkManager>();
+        if (manager == null)
+            throw new DomainException("未注册 IDomainUnitOfWorkManager，无法提供 UoW 支持。");
+
+        return manager.GetUnitOfWork();
+    }
 }

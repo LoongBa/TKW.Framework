@@ -44,7 +44,6 @@ using TKW.Framework.Domain;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.xCodeGen;
 using TKW.Framework.Common.Exceptions;
-using @generatedNs;
 using @Model.Namespace;
 
 namespace @(Model.Namespace).DTOs;
@@ -116,15 +115,6 @@ public partial record @dtoClassName : DomainDtoBase<@Model.ClassName>
 }
         ;
         return entity;
-    }
-
-    /// <summary>
-    /// 将当前 DTO 转换为新的实体对象
-    /// </summary>
-    internal @(Model.ClassName) ToEntity(EnumSceneFlags scene = EnumSceneFlags.Create)
-    {
-        var entity = new @(Model.ClassName)();
-        return ApplyToEntity(entity, scene);
     }
 
     public override void ValidateData(EnumSceneFlags scene)

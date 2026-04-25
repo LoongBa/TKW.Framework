@@ -236,6 +236,7 @@ namespace xCodeGen.SourceGenerator
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Threading.Tasks;");
             sb.AppendLine("using TKW.Framework.Domain;");
+            sb.AppendLine("using TKW.Framework.Domain.Interfaces;");
             sb.AppendLine("using TKW.Framework.Domain.Interception;");
             sb.AppendLine($"using {controller.Namespace};");
             sb.AppendLine($"using {interfaceNamespace};");
@@ -243,7 +244,7 @@ namespace xCodeGen.SourceGenerator
             sb.AppendLine($"namespace {decoratorNamespace}");
             sb.AppendLine("{");
             sb.AppendLine($"    public class {decoratorClassName}");
-            sb.AppendLine($"        : DomainControllerDecoratorBase<{controllerName}, {userType}>, {interfaceName}");
+            sb.AppendLine($"        : DomainControllerDecoratorBase<{controllerName}, {userType}>, {interfaceName}, IGeneratedByxCodeGenSG");
             sb.AppendLine("    {");
             sb.AppendLine($"        private readonly {controllerName} _realService;");
             sb.AppendLine($"        private readonly StaticDomainInterceptor<{userType}> _interceptor;");
@@ -373,7 +374,7 @@ namespace xCodeGen.SourceGenerator
             sb.AppendLine($"using  TKW.Framework.Domain.Interfaces;");
             sb.AppendLine();
             sb.AppendLine($"namespace {interfaceNamespace};");
-            sb.AppendLine($"public partial interface {interfaceName} : IDomainService {{}}");
+            sb.AppendLine($"public partial interface {interfaceName} : IDomainService, IGeneratedByxCodeGenSG {{}}");
 
             context.AddSource($"{InterfaceFilePrefix}{interfaceName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
         }
@@ -398,7 +399,7 @@ namespace xCodeGen.SourceGenerator
                     var decoratorName = m.HasDecoratorCandidate
                         ? $"typeof(global::{m.DecoratorTypeFullName})"
                         : $"typeof(global::{m.Namespace}.Generated.{m.ClassName}Decorator)";
-                    var proxyExpr = (m.Type == MetaType.Controller)
+                    var proxyExpr = m.Type == MetaType.Controller && m.HasDecoratorCandidate
                         ? decoratorName
                         : "null";
 
@@ -465,18 +466,21 @@ namespace xCodeGen.SourceGenerator
             // --- 第一步：身份判定与 Type 归类 ---
             foreach (var m in allMetadatas)
             {
-                // 0. 过滤 interface
+                // 0. 过滤 interface ：只有实现了 IDomainService 的接口才加入列表
                 if (m.TypeKind.Equals("Interface", StringComparison.OrdinalIgnoreCase))
                 {
-                    m.Type = MetaType.Interface;
+                    // 其它接口也视为 Other，且不加入后续处理列表 filteredList
                     if (ImplementsInterface(m, "IDomainService")
                         && m.Namespace.IndexOf(".Interfaces", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        m.Type = MetaType.Interface;
                         if (filteredList.All(i => i.ClassName != m.ClassName))
-                            filteredList.Add(m);
+                            filteredList.Add(m);    // 防止重复
+                    }
                     continue;
                 }
                 // 1. 优先判定 View/Entity
-                // GenerateCode 特性
+                // 标记了 GenerateCodeAttribute 特性
                 var genCodeAttr = FindAttribute(m.Attributes, "GenerateCodeAttribute");
                 if (genCodeAttr != null)
                 {
@@ -488,12 +492,16 @@ namespace xCodeGen.SourceGenerator
                 }
 
                 // 2. 判定 DomainController
-                // DomainController 特性
+                // 标记了 DomainControllerAttribute 特性
                 // 或 继承自 DomainControllerBase（兼容老版本）
-                // 或 同时实现 IDomainService 和 IAopContract（更广泛适配）
-                if (FindAttribute(m.Attributes, "DomainControllerAttribute") != null
+                // 或 同时实现 IDomainService 和 IAopContract（更广泛适配，如手写版本）
+                var controllerAttr = 
+                    FindAttribute(m.Attributes, "DomainControllerAttribute");
+                var hasControllerAttr = controllerAttr != null;
+                if (hasControllerAttr
                     || (m.BaseType != null && m.BaseType.Equals("DomainControllerBase", StringComparison.OrdinalIgnoreCase))
-                    || (ImplementsInterface(m, "IDomainService") && ImplementsInterface(m, "IAopContract")))
+                    || (ImplementsInterface(m, "IDomainService") 
+                        && ImplementsInterface(m, "IAopContract")))
                 {
                     m.Type = MetaType.Controller;
                     filteredList.Add(m);
@@ -506,7 +514,7 @@ namespace xCodeGen.SourceGenerator
                 if (ImplementsInterface(m, "IDomainService"))
                 {
                     var isDecoBase = m.BaseType != null &&
-                                     m.BaseType.IndexOf("DomainControllerDecoratorBase", StringComparison.OrdinalIgnoreCase) >= 0;
+                        m.BaseType.IndexOf("DomainControllerDecoratorBase", StringComparison.OrdinalIgnoreCase) >= 0;
                     var isService = ImplementsInterface(m, "IDomainService");
                     m.Type = isDecoBase ? MetaType.Decorator : isService ? MetaType.Service : MetaType.Other;
                     if (m.Type != MetaType.Other) filteredList.Add(m);
