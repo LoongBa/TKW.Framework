@@ -1,11 +1,9 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Metadata;
-using System.Security.Cryptography;
 
 namespace xCodeGen.SourceGenerator
 {
@@ -197,13 +195,13 @@ namespace xCodeGen.SourceGenerator
 
                 codeBuilder.AppendLine($"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
                 codeBuilder.AppendLine("        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
-                codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.2\";");
+                codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.3\";");
                 codeBuilder.AppendLine();
 
                 // 筛选所有 Service 和 Controller
                 var services = allMetadatas
-                        .Where(m => m.Interface != null
-                            && (m.Type == MetaType.Service || m.Type == MetaType.DataService || m.Type == MetaType.Controller))
+                        .Where(m => m.Type == MetaType.Service
+                            || m.Type == MetaType.DataService || m.Type == MetaType.Controller)
                         .ToArray();
                 BuildRegistrationMethod(codeBuilder, services);
 
@@ -405,7 +403,7 @@ namespace xCodeGen.SourceGenerator
 
             void WriteContent(ClassMetadata m)
             {
-                var interfaceFullName = m.Interface.FullName;
+                var interfaceFullName = m.Interface?.FullName ?? m.InterfaceName;
 
                 var decoratorName = m.HasDecoratorCandidate
                     ? $"typeof(global::{m.DecoratorTypeFullName})"
@@ -414,7 +412,7 @@ namespace xCodeGen.SourceGenerator
                     ? decoratorName
                     : "null";
                 var interfaceParameter =
-                    m.Type == MetaType.Controller ? $"typeof(global::{interfaceFullName})" : "null";
+                    m.Type == MetaType.Controller && interfaceFullName != null ? $"typeof(global::{interfaceFullName})" : "null";
 
                 sb.AppendLine($@"            yield return new DomainServiceRegistration(
                 {interfaceParameter}, 
@@ -466,153 +464,5 @@ namespace xCodeGen.SourceGenerator
             ? "Unknown"
             : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
                 .ToArray());
-
-        private void EnrichAndHashMetadatas(ref List<ClassMetadata> allMetadatas)
-        {
-            // 明确规则：以 Entity/View 为核心，优先建立与 Service/Controller 的关联关系，最后计算 Hash
-            // 以 Entity/View 为主建立关联与计算 Hash，Hash 计算基于核心属性和关联关系，确保同一实体的不同版本能正确识别
-            if (allMetadatas == null || allMetadatas.Count == 0) return;
-
-            var filteredList = new List<ClassMetadata>();
-
-            // --- 第一步：身份判定与 Type 归类 ---
-            foreach (var m in allMetadatas)
-            {
-                // 0. 过滤 interface ：只有实现了 IDomainService 的接口才加入列表
-                if (m.TypeKind.Equals("Interface", StringComparison.OrdinalIgnoreCase))
-                {
-                    // 其它接口也视为 Other，且不加入后续处理列表 filteredList
-                    if (ImplementsInterface(m, "IDomainService")
-                        && m.Namespace.IndexOf(".Interfaces", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        m.Type = MetaType.Interface;
-                        if (filteredList.All(i => i.ClassName != m.ClassName))
-                            filteredList.Add(m);    // 防止重复
-                    }
-                    continue;
-                }
-                // 1. 优先判定 View/Entity
-                // 标记了 DomainGenerateCodeAttribute 特性
-                var genCodeAttr = FindAttribute(m.Attributes, "DomainGenerateCodeAttribute");
-                if (genCodeAttr != null)
-                {
-                    m.UserType = GetStringProp(genCodeAttr, "UserType");
-                    var isView = GetBoolProp(genCodeAttr, "IsView", false);
-                    m.Type = isView ? MetaType.View : MetaType.Entity;
-                    filteredList.Add(m);
-                    continue;
-                }
-
-                // 2. 判定 DataService 基于基类 DomainDataServiceBase
-                if (m.BaseType != null && m.BaseType.Equals("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase))
-                {
-                    m.Type = MetaType.DataService;
-                    filteredList.Add(m);
-                    continue;
-                }
-
-                // 3. 判定 DomainController
-                // 继承自 DomainControllerBase
-                // 或 实现 IAopContract（继承了 IDomainService 更广泛适配，如手写版本）
-                if ((m.BaseType != null && m.BaseType.Equals("DomainControllerBase", StringComparison.OrdinalIgnoreCase))
-                    || ImplementsInterface(m, "IAopContract"))
-                {
-                    m.Type = MetaType.Controller;
-                    filteredList.Add(m);
-                    continue;
-                }
-
-                // 4. 判定 DomainService 或 Decorator
-                // 实现 IDomainService 接口的其余类
-                // 其中继承自 DomainControllerDecoratorBase 为 Decorator
-                if (ImplementsInterface(m, "IDomainService"))
-                {
-                    var isDecoBase = m.BaseType != null &&
-                        m.BaseType.IndexOf("DomainControllerDecoratorBase", StringComparison.OrdinalIgnoreCase) >= 0;
-                    var isService = ImplementsInterface(m, "IDomainService");
-                    m.Type = isDecoBase ? MetaType.Decorator : isService ? MetaType.Service : MetaType.Other;
-                    if (m.Type != MetaType.Other) filteredList.Add(m);
-                    continue;
-                }
-                // 5. 其他类归为 Other，且不加入后续处理列表 filteredList
-                m.Type = MetaType.Other;
-            }
-
-            // 经过前期处理，梳理关联关系，便于后续使用
-            allMetadatas = filteredList;
-            var entities = allMetadatas
-                .Where(x => x.Type == MetaType.Entity || x.Type == MetaType.View);
-            var interfaces = allMetadatas
-                .Where(x => x.Type == MetaType.Interface)
-                .ToDictionary(x => x.ClassName, x => x);
-            var services = allMetadatas
-                .Where(x => x.Type == MetaType.Service)
-                .ToDictionary(x => x.ClassName, x => x);
-            var controllers = allMetadatas
-                .Where(x => x.Type == MetaType.Controller)
-                .ToDictionary(x => x.ClassName, x => x);
-            var decorators = allMetadatas
-                .Where(x => x.Type == MetaType.Decorator)
-                .ToDictionary(x => x.ClassName, x => x);
-
-            // --- 第二步：以 Entity/View 为主建立关联与计算 Hash ---
-            using var sha = SHA256.Create();
-            foreach (var entity in entities)
-            {
-                var entityName = entity.ClassName;
-                // 检查是否存在匹配的 Service/Controller，存入 Settings 供模板使用
-                var hasService = services.TryGetValue($"{entityName}Service", out var service);
-                var hasInterface = interfaces.TryGetValue($"I{entityName}Service", out var @interface);
-                var hasController = controllers.TryGetValue($"{entityName}Service", out var controller);
-                if (!hasController)
-                    hasController = controllers.TryGetValue($"{entityName}Controller", out controller);
-                // 关联服务和控制器
-                if (hasController)
-                {
-                    entity.Controller = controller;
-                    controller.Entity = entity;
-                    // 匹配接口：优先匹配 Controller 的接口，否则匹配 Service 的接口
-                    if (!hasInterface)
-                        hasInterface = interfaces.TryGetValue($"I{controller.ClassName}", out @interface);
-                    if (ImplementsInterface(controller, $"I{controller.ClassName}")
-                        && hasInterface)
-                        entity.Interface = controller.Interface = @interface;
-                    // 如果装饰器已经存在
-                    var expectedDecoName = $"{controller.ClassName}Decorator";
-                    if (decorators.TryGetValue(expectedDecoName, out var decorator))
-                    {
-                        entity.HasDecoratorCandidate = controller.HasDecoratorCandidate = true;
-                        entity.DecoratorTypeFullName = controller.DecoratorTypeFullName = decorator.FullName;
-                    }
-                }
-                else if (hasService)
-                {
-                    entity.Service = service;
-                    service.Entity = entity;
-                    // 匹配接口：仅匹配 Service 的接口
-                    if (ImplementsInterface(service, $"I{service.ClassName}")
-                        && hasInterface)
-                        entity.Interface = service.Interface = @interface;
-                }
-                // 修正可能错误的命名空间（如果接口存在且命名空间不正确）
-                entity.Interface?.Namespace = entity.Namespace.Replace(".Entities", ".Interfaces");
-                entity.Interface?.UserType = entity.UserType;
-                entity.Service?.UserType = entity.UserType;
-                entity.Controller?.UserType = entity.UserType;
-
-                // 构造 Hash 源字符串
-                var sb = new StringBuilder();
-                sb.Append(entity.Namespace).Append("|")
-                    .Append(entityName).Append("|")
-                    .Append(entity.Type).Append("|") // 使用 Type 代替多个布尔值
-                    .Append(hasService).Append("|")
-                    .Append(hasController).Append("|")
-                    .Append(entity.HasDecoratorCandidate).Append("|")
-                    .Append(entity.DecoratorTypeFullName);
-
-                var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-                entity.SourceHash = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
-            }
-        }
     }
 }

@@ -5,9 +5,16 @@ namespace TKW.Framework.Domain.Interfaces;
 /// <summary>
 /// Domain 实体标记接口
 /// </summary>
-public interface IDomainEntity: ISupportPersistenceState
+public interface IDomainEntity : ISupportPersistenceState
 {
     long Id { get; set; }
     /// <summary> 执行业务预校验，返回所有校验结果 </summary>
     void Validate(EnumSceneFlags scene);
+
+    TDto ToDto<TDto>();
+}
+
+public interface IEntitySoftDelete
+{
+    bool IsDeleted { get; set; }
 }

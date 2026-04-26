@@ -61,7 +61,8 @@ namespace xCodeGen.SourceGenerator
             // 2) 基于名称或继承/实现列表的启发式判断，纳入 Service/Controller/Decorator
             var name = type.Identifier.Text;
             if (!string.IsNullOrEmpty(name) &&
-                name.EndsWith("Service", StringComparison.OrdinalIgnoreCase)
+                name.EndsWith("DataService", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("Controller", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith("Decorator", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
                 return true;
@@ -74,7 +75,11 @@ namespace xCodeGen.SourceGenerator
                     if (string.IsNullOrEmpty(name)) continue;
 
                     if (name.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0
-                        || name.IndexOf("DomainController", StringComparison.OrdinalIgnoreCase) >= 0)
+                        || name.IndexOf("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
+                        || name.IndexOf("DomainReadOnlyDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
+                        || name.IndexOf("DomainServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
+                        || name.IndexOf("DomainControllerBase", StringComparison.OrdinalIgnoreCase) >= 0
+                        )
                     {
                         return true;
                     }
