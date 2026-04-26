@@ -4,26 +4,63 @@ using TKW.Framework.Domain.Interfaces;
 namespace TKW.Framework.Domain.Blazor.Handlers;
 
 /// <summary>
-/// 领域电路处理器：适配 Blazor Server 的长连接生命周期
+/// 领域电路处理器基类：全生命周期自动管理
 /// </summary>
-public class DomainCircuitHandler<TUserInfo>(
-    IServiceProvider serviceProvider,
-    DomainHost<TUserInfo> domainHost) : CircuitHandler
+public abstract class DomainCircuitHandlerBase<TUserInfo>(IServiceProvider serviceProvider) : CircuitHandler
     where TUserInfo : class, IUserInfo, new()
 {
-    // 电路开启：相当于中间件的入口
-    public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
+    protected readonly IServiceProvider ServiceProvider = serviceProvider;
+
+    /// <summary>电路生命周期 (逻辑层)：电缆接入：最先执行</summary>
+    public sealed override async Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        // 绑定当前电路的 Scoped 容器到异步插座
-        DomainUser<TUserInfo>.BindScope(serviceProvider);
-        return base.OnCircuitOpenedAsync(circuit, cancellationToken);
+        DomainUser<TUserInfo>.BindScope(ServiceProvider);
+        await OnDomainCircuitOpenedAsync(circuit, cancellationToken);
+        await base.OnCircuitOpenedAsync(circuit, cancellationToken);
     }
 
-    // 电路关闭：相当于中间件的 finally 块
-    public override Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
+    /// <summary>电路生命周期 (逻辑层)：电缆切断：最后执行</summary>
+    public sealed override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        // 物理清理：拔掉插座，防止线程污染
-        DomainUser<TUserInfo>.UnBindScope();
-        return base.OnCircuitClosedAsync(circuit, cancellationToken);
+        try
+        {
+            await OnDomainCircuitClosedAsync(circuit, cancellationToken);
+        }
+        finally
+        {
+            // 电缆切断：最后清理
+            DomainUser<TUserInfo>.UnBindScope();
+        }
+        await base.OnCircuitClosedAsync(circuit, cancellationToken);
     }
+
+    /// <summary>连接生命周期 (物理层)：链路恢复：重新加固插座绑定</summary>
+    public sealed override async Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        // 应对断网重连后，线程上下文切换可能导致的 AsyncLocal 丢失
+        DomainUser<TUserInfo>.BindScope(ServiceProvider);
+        await OnDomainConnectionUpAsync(circuit, cancellationToken);
+        await base.OnConnectionUpAsync(circuit, cancellationToken);
+    }
+
+    /// <summary>连接生命周期 (物理层)：链路中断：清理当前线程上下文，防止线程回池后的污染</summary>
+    public sealed override async Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await OnDomainConnectionDownAsync(circuit, cancellationToken);
+        }
+        finally
+        {
+            // 链路中断：清理当前线程上下文，防止线程回池后的污染
+            DomainUser<TUserInfo>.UnBindScope();
+        }
+        await base.OnConnectionDownAsync(circuit, cancellationToken);
+    }
+
+    // --- 3. 模板方法模式：供子类使用的受保护钩子 ---
+    protected virtual Task OnDomainCircuitOpenedAsync(Circuit circuit, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task OnDomainCircuitClosedAsync(Circuit circuit, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task OnDomainConnectionUpAsync(Circuit circuit, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task OnDomainConnectionDownAsync(Circuit circuit, CancellationToken ct) => Task.CompletedTask;
 }
