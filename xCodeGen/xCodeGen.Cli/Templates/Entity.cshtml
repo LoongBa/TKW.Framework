@@ -5,6 +5,8 @@
 @model xCodeGen.Abstractions.Metadata.ClassMetadata
 @{
     var dtoName = Model.ClassName + "Dto";
+    var entityNS = Model.Namespace;
+    var interfaceNS = entityNS.Replace(".Entities", ".Interfaces");
     var generatedNs = Model.GenerateCodeSettings["GeneratedNamespace"].ToString();
     var metaHash = Model.GenerateCodeSettings.ContainsKey("MetadataHash") ? Model.GenerateCodeSettings["MetadataHash"]?.ToString() : "N/A";
     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -28,6 +30,7 @@ using xCodeGen.Abstractions.Metadata;
 using TKW.Framework.Common.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.xCodeGen;
+using @(Model.Namespace).DTOs;
 using @generatedNs;
 
 namespace @Model.Namespace;

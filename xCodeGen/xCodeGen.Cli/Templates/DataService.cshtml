@@ -55,7 +55,6 @@ using TKW.Framework.Common.Entity;
 using TKW.Framework.Domain.xCodeGen;
 using @(entityNS);
 using @(entityNS).DTOs;
-using @(interfaceNS);
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 
@@ -72,7 +71,7 @@ namespace @(servicesNS);
 }
 /// </summary>
 // 【修改】：使用 @(baseClassName) 动态继承
-public partial class @(serviceName) : IGeneratedByxCodeGenCli
+@Model.Accessibility partial class @(serviceName) : IGeneratedByxCodeGenCli
 {
     #region [ 自动化业务查询 (双轨制：Internal Entity / Public DTO) ]
 
