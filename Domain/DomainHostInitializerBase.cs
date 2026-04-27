@@ -38,14 +38,11 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     private void RegisterInfrastructureInternal(IServiceCollection services, IConfiguration? configuration, DomainOptions options)
     {
         var projectMetaContext = OnRegisterInfrastructureServices(services, configuration, options);
-        // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）
-        var serviceRegistrations = projectMetaContext.GetServiceRegistrations();
-        // 获取 SG 生成的元数据列表
-        var registrations = projectMetaContext.GetServiceRegistrations();
-
-        // 执行分流注册
-        RegisterGeneratedServices(services, registrations);
-
+        // 注册 IProjectMetaContext 供后续查询
+        // 此时 Host 尚未创建，需要在 BindServiceProvider 中处理
+        services.AddSingleton(projectMetaContext);
+        // 自动注册 DomainService/DomainDataService/Controller：基于 SG 生成的注册方法
+        RegisterGeneratedServices(services, projectMetaContext);
         // 使用 TryAdd 确保 PreserveExistingDefaults 逻辑：优先保留已有的自定义实现
         services.TryAddSingleton<ISessionManager<TUserInfo>, NoSessionManager<TUserInfo>>();
 
@@ -75,8 +72,13 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     }
 
     protected virtual void OnServiceProviderBuilt(IServiceProvider sp) { }
-    internal void RegisterGeneratedServices(IServiceCollection services, IEnumerable<DomainServiceRegistration> registrations)
+    internal void RegisterGeneratedServices(IServiceCollection services, IProjectMetaContext projectMetaContext)
     {
+        // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）
+        var serviceRegistrations = projectMetaContext.GetServiceRegistrations();
+        // 获取 SG 生成的元数据列表
+        var registrations = projectMetaContext.GetServiceRegistrations();
+
         foreach (var reg in registrations)
         {
             switch (reg)

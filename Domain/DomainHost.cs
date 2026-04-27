@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using xCodeGen.Abstractions.Metadata;
 
 namespace TKW.Framework.Domain;
 
@@ -36,6 +37,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     public IReadOnlyList<DomainFilterAttribute<TUserInfo>> GlobalFilters => _GlobalFilters.AsReadOnly();
 
     private readonly ConcurrentDictionary<string, DomainContracts<TUserInfo>> _ControllerContracts = new();
+    public IProjectMetaContext? ProjectMetaContext { get; internal set; }
     private ISessionManager<TUserInfo>? _SessionManager;
     /// <summary>
     /// 领域会话管理器（内部属性，不再通过 sp 动态解析）
@@ -80,6 +82,8 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         // 关键：在绑定时完成唯一一次解析
         // 此时 DI 会自动处理 SessionManager 内部的所有依赖（如缓存服务、配置等）
         _SessionManager = sp.GetRequiredService<ISessionManager<TUserInfo>>();
+        // 在绑定时，尝试从容器获取元数据上下文（由初始化器注入）
+        ProjectMetaContext = sp.GetService<IProjectMetaContext>();
     }
 
     #endregion

@@ -16,7 +16,7 @@ namespace xCodeGen.Abstractions.Metadata
         ClassMetadata FindByClassName(string className);
         IEnumerable<ClassMetadata> FindByNamespace(string @namespace);
         IEnumerable<DomainServiceRegistration> GetServiceRegistrations();
-
+        MethodMetadata GetMethodMeta(string classFullName, string methodName);
 
         /// <summary>
         /// 高性能获取属性字典的方法，供 ValidationCache 调用

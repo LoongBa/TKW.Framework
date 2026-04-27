@@ -13,6 +13,7 @@ using TKW.Framework.Common.TKWConfig;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using xCodeGen.Abstractions.Metadata;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace TKW.Framework.Domain;
@@ -92,6 +93,17 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     #endregion
 
     #region AOP 上下文透传
+    /// <summary>
+    /// 获取当前正在执行的方法的元数据信息（通过 AOP 上下文获取），在 IProjectMetaContext 中查询
+    /// </summary>
+    public MethodMetadata? GetCurrentMethodMeta()
+    {
+        var call = this.CurrentInvocation;
+        if (call == null || Host.ProjectMetaContext == null) return null;
+
+        // 通过接口调用，解决命名空间问题
+        return Host.ProjectMetaContext.GetMethodMeta(call.Target.GetType().FullName, call.MethodName);
+    }
 
     /// <summary>
     /// 获取当前正在执行的 AOP 领域上下文

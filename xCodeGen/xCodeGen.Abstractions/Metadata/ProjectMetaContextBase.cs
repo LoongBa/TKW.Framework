@@ -44,6 +44,15 @@ namespace xCodeGen.Abstractions.Metadata
             => AllMetadatas.Where(m => m.Namespace == @namespace);
 
         /// <summary>
+        /// 按类全名和方法名检索方法元数据（高性能，无反射）
+        /// </summary>
+        public MethodMetadata GetMethodMeta(string classFullName, string methodName)
+        {
+            var classMeta = _allMetadatas.FirstOrDefault(m => m.FullName == classFullName);
+            return classMeta?.Methods.FirstOrDefault(m => m.Name == methodName);
+        }
+
+        /// <summary>
         /// 高性能获取属性字典的方法，供 ValidationCache 调用
         /// </summary>
         public IReadOnlyDictionary<string, PropertyMetadata> GetPropertyMap(string className)
