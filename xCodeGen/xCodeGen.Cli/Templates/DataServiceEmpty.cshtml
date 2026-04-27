@@ -1,0 +1,59 @@
+﻿@using System.Linq
+@using xCodeGen.Abstractions
+@using xCodeGen.Abstractions.Metadata
+@using TKW.Framework.Domain.xCodeGen
+@model xCodeGen.Abstractions.Metadata.ClassMetadata
+@{
+    bool isView = Model.Type == MetaType.View;
+    var entity = Model.ClassName;
+    var dtoName = $"{entity}Dto";
+    var summary = Raw(Model.Summary);
+    var serviceName = $"{entity}DataService";
+    var entityNS = Model.Namespace;
+    var dtoNS = entityNS.Replace(".Entities", ".Entities.DTOs");
+    var servicesNS = entityNS.Replace(".Entities", ".DataServices");
+    
+    var genAttr = Model.Attributes.FirstOrDefault(a => a.TypeFullName.Contains("DomainGenerateCodeAttribute"));
+    var userType = CodeGenPolicy.GetStringProp(genAttr, "UserType");
+    // 扫描实体属性，决定是否生成特定的构造函数注入标记
+    var hasIsDeleted = Model.Properties.Any(p => p.Name == "IsDeleted");
+    var hasEnableStatus = Model.Properties.Any(p => p.Name == "IsEnabled" || p.Name == "IsVisible" || p.Name == "Status");
+
+    // 根据 isView 动态决定基类名称 
+    var baseName = isView ? "DomainReadOnlyDataServiceBase" : "DomainDataServiceBase";
+}
+using TKW.Framework.Domain;
+using TKW.Framework.Domain.Interfaces;
+using @(entityNS);
+using @(dtoNS);
+
+namespace @(servicesNS);
+
+/// <summary>数据服务：@(summary)</summary>
+// 提示：标准 CRUD 逻辑和构造函数已由 @(serviceName).g.cs 承载。
+// 这里的分部类仅用于手动干预过滤条件、重写钩子或编写特定的业务查询方法。
+// 【关于控制器 Controller 的提示】
+// 自动生成的数据服务，将不会用于 AOP 拦截
+// 如果需要实现控制器，请创建新类继承自该类，如 CouponReconLogController，保存到 Controllers 文件夹中
+// 并为该类添加契约接口，如 ICouponReconLogDataService 并继承 IAopContract 接口，
+// 随后在契约接口中定义需要暴露的方法、AOP拦截器等，领域框架将自动生成代理类并注入到容器中。
+public partial class @(serviceName)(DomainUser<@(userType)> user, IEntityDAC<@(entity)> dac)
+        : @(baseName)<@(userType), @(entity), @(dtoName)>(user, dac, hasSoftDelete:@(hasIsDeleted.ToString().ToLower()), hasEnableStatus: @(hasEnableStatus.ToString().ToLower())) 
+{
+    // 场景1：手动干预过滤条件
+    protected override void OnQueryFiltering(ref IQueryable<@(entity)> query)
+    {
+        // 示例：某些特殊角色可以看到已删除的数据 
+        // if (User.IsInRole("Admin")) { ... }
+    }
+
+@if (!isView)
+{
+    @: // 场景2：业务驱动的硬删除 (仅适用于非视图实体) 
+    @: public async Task<bool> AdminHardDeleteAsync(long id, CancellationToken ct)
+    @: {
+    @:     // 直接调用基类的内部原子逻辑
+    @:     return await InternalHardDeleteAsync(id, ct);
+    @: }
+}
+}

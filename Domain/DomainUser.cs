@@ -54,19 +54,32 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     /// </summary>
     public TDomainService Use<TDomainService>() where TDomainService : IDomainService
     {
+#if DEBUG
+        // 守卫：防止在领域层内部不小心绕过 AOP 直接解析控制器类
+        if (typeof(IAopContract).IsAssignableFrom(typeof(TDomainService)))
+            throw new InvalidOperationException(
+                $"[V4 架构守卫] 检测到直接解析控制器类 {typeof(TDomainService).Name}。请改用 UseAop<接口>()。");
+#endif
         var type = typeof(TDomainService);
         var factory = _FactoryCache.GetOrAdd(type, t =>
-            // 预编译构造函数逻辑：指定第一个参数必须是 DomainUser 类型
             ActivatorUtilities.CreateFactory(t, [typeof(DomainUser<TUserInfo>)]));
 
-        // 执行工厂委托，将当前实例 (this) 传入
         return (TDomainService)factory(ServiceProvider, [this]);
     }
 
     /// <summary>
-    /// 绑定当前异步执行流的解析作用域
+    /// 解析 AOP 契约服务
     /// </summary>
-    public static void BindScope(IServiceProvider? provider) => _ActiveScope.Value = provider;
+    public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
+    {
+        // 核心限制：UseAop 必须针对接口调用，否则无法解析出装饰器代理
+        if (!typeof(TAopContract).IsInterface)
+            throw new InvalidOperationException(
+                $"[V4 架构守卫] UseAop 仅支持解析接口契约。若要解析实现类 {typeof(TAopContract).Name}，请改用接口。");
+
+        // AOP 装饰器已在 DI 注册到接口，直接解析即可获得代理实例
+        return ServiceProvider.GetRequiredService<TAopContract>();
+    }
 
     /// <summary>
     /// 解除绑定（清理上下文）
@@ -74,18 +87,14 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
     public static void UnBindScope() => _ActiveScope.Value = null;
 
     /// <summary>
+    /// 绑定当前异步执行流的解析作用域
+    /// </summary>
+    public static void BindScope(IServiceProvider? provider) => _ActiveScope.Value = provider;
+
+    /// <summary>
     /// 获取当前执行流中的 ServiceProvider
     /// </summary>
     public static IServiceProvider? GetCurrentScope() => _ActiveScope.Value;
-
-    /// <summary>
-    /// 解析 AOP 契约服务
-    /// </summary>
-    public TAopContract UseAop<TAopContract>() where TAopContract : IAopContract, IDomainService
-    {
-        // AOP 装饰器已在 DI 注册，直接解析
-        return ServiceProvider.GetRequiredService<TAopContract>();
-    }
 
     public ILogger CreateLogger(string categoryName) => Host.LoggerFactory.CreateLogger(categoryName);
     public ILogger<T> CreateLogger<T>() => Host.LoggerFactory.CreateLogger<T>();

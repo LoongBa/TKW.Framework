@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 
@@ -18,16 +19,23 @@ public static class DomainServiceCollectionExtensions
         where TDecorator : class, TInterface
         where TUserInfo : class, IUserInfo, new()
     {
+        // 守卫：确保实现类是可实例化的具体类
+        if (typeof(TImplementation).IsInterface || typeof(TImplementation).IsAbstract)
+            throw new DomainException($"[注册守卫] 实现类 {typeof(TImplementation).Name} 不能是接口或抽象类。");
+
+        // 1. 注册原始实现类 (AsSelf)，供装饰器构造函数调用
         services.TryAddScoped<TImplementation>();
+
+        // 2. 注册接口映射到装饰器工厂
         services.AddScoped<TInterface>(sp =>
         {
-            // 解析原始实现实例
             var impl = sp.GetRequiredService<TImplementation>();
-            // 获取全局 AOP 拦截器
             var interceptor = sp.GetRequiredService<StaticDomainInterceptor<TUserInfo>>();
-            // 使用 ActivatorUtilities 避免装饰器的反射开销
+
+            // 使用 ActivatorUtilities 实例化生成的装饰器 (TDecorator)
             return ActivatorUtilities.CreateInstance<TDecorator>(sp, impl, interceptor);
         });
+
         return services;
     }
 
@@ -35,28 +43,27 @@ public static class DomainServiceCollectionExtensions
     /// 非泛型重载：注册 Aop 服务（带装饰器代理）
     /// </summary>
     public static IServiceCollection AddAopService(
-        this IServiceCollection services,
-        Type serviceInterface,
-        Type implementation,
-        Type proxyType,
-        Type userInfoType)
+        this IServiceCollection services, Type serviceInterface, 
+        Type implementation, Type proxyType, Type userInfoType)
     {
-        // 1. 注册原始实现类 (AsSelf)，供装饰器构造函数调用
+        // 守卫 1：确保实现类是真正的类
+        if (implementation.IsInterface || implementation.IsAbstract)
+            throw new DomainException($"实现类 {implementation.Name} 不能是接口或抽象类。");
+
+        // 守卫 2：确保装饰器确实实现了指定的契约接口
+        if (!serviceInterface.IsAssignableFrom(proxyType))
+            throw new DomainException($"生成的装饰器 {proxyType.Name} 未实现契约接口 {serviceInterface.Name}。");
+
+        // 1. 注册原始实现类 (AsSelf)
         services.TryAddScoped(implementation);
 
-        // 2. 注册接口映射到代理类的工厂
+        // 2. 注册接口映射到代理工厂
         services.AddScoped(serviceInterface, sp =>
         {
-            // A. 解析原始实现
             var impl = sp.GetRequiredService(implementation);
-
-            // B. 动态构建拦截器类型：StaticDomainInterceptor<TUserInfo>
-            // 因为 StaticDomainInterceptor 是在 Initialize 时注册的单例
             var interceptorType = typeof(StaticDomainInterceptor<>).MakeGenericType(userInfoType);
             var interceptor = sp.GetRequiredService(interceptorType);
 
-            // C. 实例化生成的装饰器 (ProxyType)
-            // ActivatorUtilities 会自动处理装饰器构造函数中除 impl 和 interceptor 之外的其他依赖（如 ILogger）
             return ActivatorUtilities.CreateInstance(sp, proxyType, impl, interceptor);
         });
 
@@ -70,9 +77,18 @@ public static class DomainServiceCollectionExtensions
         where TImplementation : class, TService
         where TService : class
     {
-        // 直接作为类本身注册，不映射接口，等价于 AsSelf
-        // 这确保了 User.Use<Implementation>() 能在 DI 链条中正确处理依赖
-        return services.AddScoped<TService, TImplementation>();
+        // 守卫：严禁将控制器（AOP契约类）作为普通 Service 注册
+        if (typeof(IAopContract).IsAssignableFrom(typeof(TImplementation)))
+            throw new DomainException($"[注册守卫] 类型 {typeof(TImplementation).Name} 属于 AOP 契约类，请改用 AddAopService 注册。");
+
+        // 确保实现类自身也被注册 (AsSelf)，方便 User.Use<T>() 解析
+        services.TryAddScoped<TImplementation>();
+
+        // 注册映射关系
+        if (typeof(TService) != typeof(TImplementation)) 
+            services.AddScoped<TService, TImplementation>();
+
+        return services;
     }
 
     /// <summary>
@@ -80,6 +96,9 @@ public static class DomainServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddService(this IServiceCollection services, Type implementation)
     {
+        // 架构守卫：不允许将控制器作为普通 Service 注册
+        if (typeof(IAopContract).IsAssignableFrom(implementation))
+            throw new DomainException($"[注册守卫] 类型 {implementation.Name} 属于控制器契约类，必须通过 AddAopService 注册以启用拦截器。");
         // 直接作为类本身注册，不映射接口
         // 确保了 User.Use<Implementation>() 能解析到单例化的 Scoped 实例
         services.TryAddScoped(implementation);

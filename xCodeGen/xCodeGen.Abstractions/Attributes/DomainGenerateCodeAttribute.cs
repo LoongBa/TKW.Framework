@@ -27,5 +27,8 @@ namespace xCodeGen.Abstractions.Attributes
 
         /// <summary> 用于覆盖类元数据的命名空间 </summary>
         public string Namespace { get; set; } = string.Empty;
+
+        /// <summary>生成的数据服务的可访问性：默认值为 internal</summary>
+        public bool IsPublicService { get; set; } = false;
     }
 }

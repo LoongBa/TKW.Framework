@@ -1,0 +1,24 @@
+//.vscode/tkwfdomain-v4.code-snippets
+{
+  "TKWD V4 Controller": {
+    "prefix": "tkwd-controller",
+    "body": [
+      "using System;",
+      "using System.Threading.Tasks;",
+      "using TKW.Framework.Domain;",
+      "using TKW.Framework.Domain.Interfaces;",
+      "",
+      "namespace ${1:Namespace}.Controllers;",
+      "",
+      "/// <summary>",
+      "/// ${2:EntityName} 业务控制器",
+      "/// </summary>",
+      "public partial class ${2:EntityName}Controller(DomainUser<${3:TUserInfo}> user) ",
+      "    : DomainControllerBase<${3:TUserInfo}>(user)",
+      "{",
+      "    $0",
+      "}"
+    ],
+    "description": "创建 TKWF.Domain V4 控制器模板"
+  }
+}

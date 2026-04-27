@@ -54,9 +54,21 @@ public partial class @Model.ClassName : IDomainEntity
         return results;
     }
 
-    internal DTOs.@(dtoName) ToDto()
+    TDto IDomainEntity.ToDto<TDto>()
     {
-        return DTOs.@(dtoName).FromEntity(this);
+        // 尝试将结果转换为请求的类型
+        // 这通常意味着你需要一个转换器，或者简单地抛出异常如果不支持
+        var dto = DTOs.@(dtoName).FromEntity(this);
+
+        if (dto is TDto result)
+            return result;
+
+        throw new InvalidCastException($"无法将 {nameof(DTOs.@(dtoName))} 转换为请求的 {typeof(TDto)}");
+    }
+
+    public @dtoName ToDto()
+    {
+        return @(dtoName).FromEntity(this);
     }
 
     partial void OnBusinessValidate(EnumSceneFlags scene, List<ValidationResult> results);

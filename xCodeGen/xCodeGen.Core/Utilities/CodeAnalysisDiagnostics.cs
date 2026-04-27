@@ -38,48 +38,56 @@ namespace xCodeGen.SourceGenerator
         }
 
         /// <summary>
-        /// 检查语法节点是否是带有 DomainGenerateCode 特性的类型声明（支持 class 和 record）
+        /// 检查语法节点是否是候选类型声明（支持 public/internal 的 class 和 record）
         /// </summary>
         public static bool IsCandidateClass(SyntaxNode node)
         {
             if (!(node is TypeDeclarationSyntax type))
                 return false;
-            // 检查是否是抽象类
+
+            // 1. 依然排除抽象类
             if (type.Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword)))
                 return false;
-            // 检查是否 public
-            if (!type.Modifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword)))
+
+            // 2. --- 核心修改：允许 public 或 internal ---
+            // 这样控制器声明为 internal partial 才能被 SG 探测到
+            bool isVisible = type.Modifiers.Any(m =>
+                m.IsKind(SyntaxKind.PublicKeyword) || m.IsKind(SyntaxKind.InternalKeyword));
+
+            if (!isVisible)
                 return false;
 
-            // 1) 带 DomainGenerateCodeAttribute 的类型（实体）
+            // 3. 检查 DomainGenerateCodeAttribute (实体/视图)
             var hasGenerateAttr = type.AttributeLists
-            .SelectMany(al => al.Attributes)
-            .Any(attr => attr.Name.ToString().Contains("DomainGenerateCode"));
+                .SelectMany(al => al.Attributes)
+                .Any(attr => attr.Name.ToString().Contains("DomainGenerateCode"));
 
             if (hasGenerateAttr) return true;
 
-            // 2) 基于名称或继承/实现列表的启发式判断，纳入 Service/Controller/Decorator
+            // 4. 基于名称的启发式判断 (Service/Controller/Decorator)
             var name = type.Identifier.Text;
-            if (!string.IsNullOrEmpty(name) &&
-                name.EndsWith("DataService", StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith("Controller", StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith("Decorator", StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(name) && (
+                name.EndsWith("DataService", StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith("Controller", StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith("Decorator", StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith("Service", StringComparison.OrdinalIgnoreCase)))
+            {
                 return true;
+            }
 
+            // 5. 基于基类列表的判断
             if (type.BaseList != null)
             {
                 foreach (var bt in type.BaseList.Types)
                 {
-                    name = bt.Type.ToString();
-                    if (string.IsNullOrEmpty(name)) continue;
+                    var baseName = bt.Type.ToString();
+                    if (string.IsNullOrEmpty(baseName)) continue;
 
-                    if (name.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0
-                        || name.IndexOf("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
-                        || name.IndexOf("DomainReadOnlyDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
-                        || name.IndexOf("DomainServiceBase", StringComparison.OrdinalIgnoreCase) >= 0
-                        || name.IndexOf("DomainControllerBase", StringComparison.OrdinalIgnoreCase) >= 0
-                        )
+                    if (baseName.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("DomainReadOnlyDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("DomainServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("DomainControllerBase", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         return true;
                     }

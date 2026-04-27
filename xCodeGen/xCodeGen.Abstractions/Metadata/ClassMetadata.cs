@@ -35,6 +35,7 @@ namespace xCodeGen.Abstractions.Metadata
         public ClassMetadata Entity { get; set; } = null;
         public ClassMetadata Interface { get; set; } = null;
         public string InterfaceName { get; set; } = null;
+        public string Accessibility { get; set; }
 
         public ClassMetadata() { }
     }

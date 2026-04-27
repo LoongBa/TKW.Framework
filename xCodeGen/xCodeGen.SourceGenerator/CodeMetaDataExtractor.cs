@@ -60,6 +60,7 @@ namespace xCodeGen.SourceGenerator
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && (bool)ir,
                 BaseType = data["BaseType"] as string ?? string.Empty,
                 TypeKind = data["TypeKind"] as string ?? "Class",
+                Accessibility = data["Accessibility"] as string ?? "internal",
                 ImplementedInterfaces = (data["ImplementedInterfaces"] as List<string>)?.ToList() ?? new List<string>(),
                 Attributes = ConvertToAttributeMetadataList(GetRawList(data, "Attributes")),
                 Methods = ConvertToMethodMetadataList(GetRawList(data, "Methods")),
@@ -166,6 +167,7 @@ namespace xCodeGen.SourceGenerator
                     { "IsRecord", typeDecl is RecordDeclarationSyntax },
                     { "TypeKind", symbol.TypeKind.ToString() },
                     { "BaseType", symbol.BaseType?.ToDisplayString() ?? "object" },
+                    { "Accessibility", symbol.DeclaredAccessibility == Accessibility.Public ? "public" : "internal"},
                     { "ImplementedInterfaces", symbol.AllInterfaces.Select(i => i.ToDisplayString()).ToList() },
                     { "Methods", ExtractMethodMetadataList(symbol) },
                     { "Properties", ExtractPropertyMetadataList(symbol) },
@@ -254,6 +256,7 @@ namespace xCodeGen.SourceGenerator
                     { "TypeFullName", prop.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) },
                     { "IsNullable", CodeAnalysisDiagnostics.IsNullable(prop.Type) },
                     { "Summary", sum },
+                    { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(prop.DeclaredAccessibility) },
                     { "Attributes", ExtractAttributeMetadataList(prop.GetAttributes()) }
                 };
             }).ToList();
@@ -319,6 +322,7 @@ namespace xCodeGen.SourceGenerator
                 {
                     m.UserType = TrimNamespace(GetStringProp(genCodeAttr, "UserType"));
                     m.Type = GetBoolProp(genCodeAttr, "IsView", false) ? MetaType.View : MetaType.Entity;
+                    m.Accessibility = GetBoolProp(genCodeAttr, "IsPublicService", false) ? "public" : "internal";
                     filteredList.Add(m);
                     continue;
                 }

@@ -75,8 +75,6 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     internal void RegisterGeneratedServices(IServiceCollection services, IProjectMetaContext projectMetaContext)
     {
         // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）
-        var serviceRegistrations = projectMetaContext.GetServiceRegistrations();
-        // 获取 SG 生成的元数据列表
         var registrations = projectMetaContext.GetServiceRegistrations();
 
         foreach (var reg in registrations)
