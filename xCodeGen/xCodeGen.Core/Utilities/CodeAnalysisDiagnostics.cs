@@ -93,16 +93,25 @@ namespace xCodeGen.SourceGenerator
         {
             if (method == null) throw new ArgumentNullException(nameof(method));
 
+            // 检查是否为构造函数、属性访问器、事件访问器或运算符
             if (method.MethodKind == MethodKind.Constructor ||
                 method.MethodKind == MethodKind.StaticConstructor ||
                 method.MethodKind == MethodKind.PropertyGet ||
                 method.MethodKind == MethodKind.PropertySet ||
                 method.MethodKind == MethodKind.EventAdd ||
                 method.MethodKind == MethodKind.EventRemove ||
-                method.ExplicitInterfaceImplementations != null ||
                 method.MethodKind == MethodKind.UserDefinedOperator ||
                 method.MethodKind == MethodKind.BuiltinOperator)
             {
+                return true;
+            }
+
+            // 只有当你真的想排除“显式接口实现”（如 IInterface.Method）时才检查这个
+            // 对于 AOP 契约生成，通常建议保留它们，或者使用 .Length > 0 判断
+            if (!method.ExplicitInterfaceImplementations.IsEmpty)
+            {
+                // 如果你需要拦截显式实现的方法，这里应该返回 false
+                // 如果不需要，则返回 true
                 return true;
             }
 

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Metadata;
@@ -40,30 +41,23 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"            Namespace = \"{EscapeString(metadata.Namespace)}\",");
             codeBuilder.AppendLine($"            ClassName = \"{EscapeString(metadata.ClassName)}\",");
             codeBuilder.AppendLine($"            FullName = \"{EscapeString(metadata.FullName)}\",");
-            codeBuilder.AppendLine($"            Type = MetaType.{metadata.Type},"); // 核心：使用统一的 Type 属性
+            codeBuilder.AppendLine($"            Type = MetaType.{metadata.Type},");
             codeBuilder.AppendLine($"            Summary = {FormatStringValue(metadata.Summary)},");
             codeBuilder.AppendLine($"            IsRecord = {metadata.IsRecord.ToString().ToLower()},");
             codeBuilder.AppendLine($"            TypeKind = \"{EscapeString(metadata.TypeKind)}\",");
             codeBuilder.AppendLine($"            BaseType = \"{EscapeString(metadata.BaseType)}\",");
-
-            // 记录装饰器关联信息
             codeBuilder.AppendLine($"            DecoratorTypeFullName = {(string.IsNullOrEmpty(metadata.DecoratorTypeFullName) ? "null" : $"\"{EscapeString(metadata.DecoratorTypeFullName)}\"")},");
             codeBuilder.AppendLine($"            HasDecoratorCandidate = {metadata.HasDecoratorCandidate.ToString().ToLower()},");
             codeBuilder.AppendLine($"            SourceHash = \"{EscapeString(metadata.SourceHash)}\",");
 
-            // --- 序列化 Class 级别的 Attributes ---
             codeBuilder.AppendLine("            Attributes = new Collection<AttributeMetadata>");
             codeBuilder.AppendLine("            {");
             if (metadata.Attributes != null)
             {
-                foreach (var attr in metadata.Attributes)
-                {
-                    BuildAttributeInitialization(codeBuilder, attr, "                ");
-                }
+                foreach (var attr in metadata.Attributes) BuildAttributeInitialization(codeBuilder, attr, "                ");
             }
             codeBuilder.AppendLine("            },");
 
-            // Properties
             codeBuilder.AppendLine("            Properties = new Collection<PropertyMetadata>");
             codeBuilder.AppendLine("            {");
             foreach (var prop in metadata.Properties)
@@ -75,18 +69,15 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    TypeFullName = \"{EscapeString(prop.TypeFullName)}\",");
                 codeBuilder.AppendLine($"                    IsNullable = {prop.IsNullable.ToString().ToLower()},");
                 codeBuilder.AppendLine($"                    Summary = {FormatStringValue(prop.Summary)},");
+                // 修复：生成 List 防止集合隐式转换异常
                 codeBuilder.AppendLine("                    Attributes = new List<AttributeMetadata>");
                 codeBuilder.AppendLine("                    {");
-                foreach (var attr in prop.Attributes)
-                {
-                    BuildAttributeInitialization(codeBuilder, attr, "                        ");
-                }
+                foreach (var attr in prop.Attributes) BuildAttributeInitialization(codeBuilder, attr, "                        ");
                 codeBuilder.AppendLine("                    }");
                 codeBuilder.AppendLine("                },");
             }
             codeBuilder.AppendLine("            },");
 
-            // Methods (包括方法级 Attributes)
             codeBuilder.AppendLine("            Methods = new Collection<MethodMetadata>");
             codeBuilder.AppendLine("            {");
             foreach (var method in metadata.Methods)
@@ -105,15 +96,12 @@ namespace xCodeGen.SourceGenerator
                     codeBuilder.AppendLine($"                        new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
                 }
                 codeBuilder.AppendLine("                    },");
-                // 方法级 Attributes（如果有）
-                codeBuilder.AppendLine("                    Attributes = new Collection<AttributeMetadata>");
+                // 修复：生成 List 防止集合隐式转换异常
+                codeBuilder.AppendLine("                    Attributes = new List<AttributeMetadata>");
                 codeBuilder.AppendLine("                    {");
                 if (method is MethodMetadata mm && mm.Attributes != null)
                 {
-                    foreach (var attr in mm.Attributes)
-                    {
-                        BuildAttributeInitialization(codeBuilder, attr, "                        ");
-                    }
+                    foreach (var attr in mm.Attributes) BuildAttributeInitialization(codeBuilder, attr, "                        ");
                 }
                 codeBuilder.AppendLine("                    }");
                 codeBuilder.AppendLine("                },");
@@ -122,13 +110,9 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine("        };");
             codeBuilder.AppendLine("    }");
             codeBuilder.AppendLine("}");
-
             return codeBuilder.ToString();
         }
 
-        /// <summary>
-        /// 内部辅助：构建 AttributeMetadata 的 C# 初始化代码
-        /// </summary>
         private void BuildAttributeInitialization(StringBuilder codeBuilder, AttributeMetadata attr, string indent)
         {
             codeBuilder.AppendLine($"{indent}new AttributeMetadata");
@@ -136,35 +120,21 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"{indent}    Name = \"{EscapeString(attr.Name)}\",");
             codeBuilder.AppendLine($"{indent}    TypeFullName = \"{EscapeString(attr.TypeFullName)}\",");
 
-            // 序列化构造函数参数
             codeBuilder.AppendLine($"{indent}    ConstructorArguments = new Collection<object>");
             codeBuilder.AppendLine($"{indent}    {{");
-            foreach (var arg in attr.ConstructorArguments)
-            {
-                codeBuilder.AppendLine($"{indent}        {GetLiteralValue(arg)},");
-            }
-
+            foreach (var arg in attr.ConstructorArguments) codeBuilder.AppendLine($"{indent}        {GetLiteralValue(arg)},");
             codeBuilder.AppendLine($"{indent}    }},");
 
-            // 序列化命名参数字典 (Properties & NamedArguments)
             codeBuilder.AppendLine($"{indent}    Properties = new Dictionary<string, object>");
             codeBuilder.AppendLine($"{indent}    {{");
-            foreach (var prop in attr.Properties)
-            {
-                codeBuilder.AppendLine(
-                    $"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
-            }
-
+            foreach (var prop in attr.Properties) codeBuilder.AppendLine($"{indent}        {{ \"{EscapeString(prop.Key)}\", {GetLiteralValue(prop.Value)} }},");
             codeBuilder.AppendLine($"{indent}    }},");
-
             codeBuilder.AppendLine($"{indent}}},");
         }
 
         public void GenerateProjectMetaContext(SourceProductionContext context, ClassMetadata[] allMetadatas, ProjectInfo projectInfo, MetadataChangeLog changeLog)
         {
-            var entities = allMetadatas
-                .Where(m => m.Type == MetaType.Entity);
-
+            var entities = allMetadatas.Where(m => m.Type == MetaType.Entity);
             try
             {
                 var codeBuilder = new StringBuilder();
@@ -177,10 +147,8 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine($"namespace {projectInfo.GeneratedNamespace}");
                 codeBuilder.AppendLine("{");
-
                 codeBuilder.AppendLine("    public class ProjectMetaContext : ProjectMetaContextBase");
                 codeBuilder.AppendLine("    {");
-
                 codeBuilder.AppendLine("        static ProjectMetaContext()");
                 codeBuilder.AppendLine("        {");
                 codeBuilder.AppendLine("            Instance = new ProjectMetaContext();");
@@ -192,50 +160,88 @@ namespace xCodeGen.SourceGenerator
                     codeBuilder.AppendLine($"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
                 codeBuilder.AppendLine("        }");
                 codeBuilder.AppendLine();
-
                 codeBuilder.AppendLine($"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
                 codeBuilder.AppendLine("        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
                 codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.3\";");
                 codeBuilder.AppendLine();
 
-                // 筛选所有 Service 和 Controller
-                var services = allMetadatas
-                        .Where(m => m.Type == MetaType.Service
-                            || m.Type == MetaType.DataService || m.Type == MetaType.Controller)
-                        .ToArray();
+                var services = allMetadatas.Where(m => m.Type == MetaType.Service || m.Type == MetaType.DataService || m.Type == MetaType.Controller).ToArray();
                 BuildRegistrationMethod(codeBuilder, services);
 
                 codeBuilder.AppendLine("    }");
                 codeBuilder.AppendLine("}");
-
                 context.AddSource("ProjectMetaContext.g.cs", SourceText.From(codeBuilder.ToString(), Encoding.UTF8));
             }
             catch (Exception ex) { ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}"); }
         }
 
+        private void BuildRegistrationMethod(StringBuilder sb, ClassMetadata[] services)
+        {
+            sb.AppendLine("        /// <summary> 获取所有领域服务注册映射 </summary>");
+            sb.AppendLine("        public override IEnumerable<DomainServiceRegistration> GetServiceRegistrations()");
+            sb.AppendLine("        {");
+
+            if (services.Length == 0)
+            {
+                sb.AppendLine("            yield break;");
+            }
+            else
+            {
+                sb.AppendLine("           // Services");
+                foreach (var m in services.Where(s => s.Type == MetaType.Service)) WriteContent(m);
+                sb.AppendLine("           // Data Services");
+                foreach (var m in services.Where(s => s.Type == MetaType.DataService)) WriteContent(m);
+                sb.AppendLine("           // Controllers");
+                foreach (var m in services.Where(s => s.Type == MetaType.Controller)) WriteContent(m);
+            }
+            sb.AppendLine("        }");
+
+            void WriteContent(ClassMetadata m)
+            {
+                var interfaceFullName = m.Interface?.FullName ?? m.InterfaceName;
+                var decoratorName = m.HasDecoratorCandidate ? $"typeof(global::{m.DecoratorTypeFullName})" : $"typeof(global::{m.Namespace}.Generated.{m.ClassName}Decorator)";
+                var proxyExpr = m.Type == MetaType.Controller && m.HasDecoratorCandidate ? decoratorName : "null";
+                var interfaceParameter = m.Type == MetaType.Controller && interfaceFullName != null ? $"typeof(global::{interfaceFullName})" : "null";
+                sb.AppendLine($@"            yield return new DomainServiceRegistration(
+                {interfaceParameter}, 
+                typeof(global::{m.FullName}), 
+                {proxyExpr}, 
+                MetaType.{m.Type});");
+            }
+        }
+
         public void GenerateDecoratorFile(SourceProductionContext context, ClassMetadata controller)
         {
             if (controller == null || controller.Type != MetaType.Controller) return;
-            // 忽略没有定义接口的类，因为无法生成有效的装饰器
-            if (controller.Interface == null) return;
 
-            var userType = controller.UserType ?? "";
+            var userType = string.IsNullOrEmpty(controller.UserType) ? "object" : controller.UserType;
             var controllerName = controller.ClassName;
-            var interfaceName = controller.Interface.ClassName;
-            var interfaceNamespace = controller.Interface.Namespace;
+            var interfaceName = $"I{controllerName}";
             var decoratorNamespace = $"{controller.Namespace}.Generated";
             var decoratorClassName = $"{controllerName}Decorator";
-            var decoratorTypeFullName = $"{decoratorNamespace}.{decoratorClassName}";
+            var fullDecoratorName = $"{decoratorNamespace}.{decoratorClassName}";
 
             var sb = new StringBuilder();
             sb.AppendFormat(AutoGeneratedHeader, DateTime.UtcNow);
-            sb.AppendLine("using System;");
-            sb.AppendLine("using System.Threading.Tasks;");
-            sb.AppendLine("using TKW.Framework.Domain;");
-            sb.AppendLine("using TKW.Framework.Domain.Interfaces;");
-            sb.AppendLine("using TKW.Framework.Domain.Interception;");
-            sb.AppendLine($"using {controller.Namespace};");
-            sb.AppendLine($"using {interfaceNamespace};");
+
+            // 核心功能：汇聚固定 using 和来自源控制器提取的 using
+            var usings = new HashSet<string>
+            {
+                "using System;",
+                "using System.Threading.Tasks;",
+                "using TKW.Framework.Domain;",
+                "using TKW.Framework.Domain.Interfaces;",
+                "using TKW.Framework.Domain.Interception;",
+                $"using {controller.Namespace};"
+            };
+
+            if (controller.GenerateCodeSettings.TryGetValue("Usings", out var uObj) && uObj is List<string> controllerUsings)
+            {
+                foreach (var u in controllerUsings) usings.Add(u.Trim());
+            }
+
+            foreach (var u in usings) sb.AppendLine(u);
+
             sb.AppendLine();
             sb.AppendLine($"namespace {decoratorNamespace}");
             sb.AppendLine("{");
@@ -251,218 +257,132 @@ namespace xCodeGen.SourceGenerator
             sb.AppendLine("            _interceptor = interceptor;");
             sb.AppendLine("        }");
 
-            // 遍历方法并生成拦截逻辑
-            foreach (var method in controller.Interface.Methods)
+            foreach (var method in controller.Methods)
             {
-                // 判定逻辑：仅当方法带有 DomainFilter 派生特性时才拦截
-                var hasFilter = method.Attributes.Any(a => a.TypeFullName.IndexOf("FilterAttribute", StringComparison.OrdinalIgnoreCase) >= 0);
-                var shouldIntercept = hasFilter;
+                // 现在能正确拦截了，因为前面兜底策略找到了 Filter
+                var hasFilter = method.Attributes.Any(a => GetBoolProp(a, "IsDomainFilter", false));
 
+                // 移除 Replace 暴力替换，类型已经是短名称 (如 Task<DmpUserInfo>)
                 var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.TypeName} {p.Name}"));
                 var argList = string.Join(", ", method.Parameters.Select(p => p.Name));
 
-                // 精确判定方法的返回特征
-                var isTask = method.ReturnType == "Task" || method.ReturnType == "System.Threading.Tasks.Task";
-                var isGenericTask = method.ReturnType.StartsWith("Task<") || method.ReturnType.StartsWith("System.Threading.Tasks.Task<");
                 var isVoid = method.ReturnType == "void";
+                var isGenericTask = method.ReturnType.Contains("Task<");
+                var isPlainTask = method.ReturnType == "Task";
 
-                var isAsync = isTask || isGenericTask || method.IsAsync;
-                var hasReturnValue = !isVoid && !isTask;
+                var isAsync = isPlainTask || isGenericTask || method.IsAsync;
+                var hasReturnValue = !isVoid && !isPlainTask;
 
-                // 提取真正的返回值类型 (例如从 Task<string> 中提取 string)
                 var actualReturnType = method.ReturnType;
                 if (isGenericTask)
                 {
-                    var start = method.ReturnType.IndexOf('<') + 1;
-                    var length = method.ReturnType.LastIndexOf('>') - start;
-                    if (start > 0 && length > 0)
-                    {
-                        actualReturnType = method.ReturnType.Substring(start, length);
-                    }
+                    var start = actualReturnType.IndexOf('<') + 1;
+                    var length = actualReturnType.LastIndexOf('>') - start;
+                    if (start > 0 && length > 0) actualReturnType = actualReturnType.Substring(start, length);
                 }
 
                 sb.AppendLine();
                 sb.AppendLine($"        public {(isAsync ? "async " : "")}{method.ReturnType} {method.Name}({paramList})");
                 sb.AppendLine("        {");
 
-                if (shouldIntercept)
+                if (hasFilter)
                 {
                     sb.AppendLine($"            var context = new InvocationContext(this, _realService, \"{method.Name}\", new object[] {{ {argList} }});");
-
                     if (isAsync)
                     {
-                        // --- 异步方法拦截 ---
                         sb.AppendLine("            await _interceptor.InterceptAsync(context, async () => {");
-                        var callCode = $"await _realService.{method.Name}({argList})";
-
-                        if (hasReturnValue)
-                            // 核心修复：拿到结果塞进上下文
-                            sb.AppendLine($"                context.ReturnValue = {callCode};");
-                        else
-                            sb.AppendLine($"                {callCode};");
+                        sb.AppendLine($"                {(hasReturnValue ? "context.ReturnValue = " : "")}await _realService.{method.Name}({argList});");
                         sb.AppendLine("            });");
-
-                        if (hasReturnValue)
-                            // 从上下文拆箱出真正的类型 (actualReturnType)
-                            sb.AppendLine($"            return (context.ReturnValue is null) ? default : ({actualReturnType})context.ReturnValue;");
+                        if (hasReturnValue) sb.AppendLine($"            return (context.ReturnValue is null) ? default : ({actualReturnType})context.ReturnValue;");
                     }
                     else
                     {
-                        // --- 同步方法拦截 ---
-                        // 必须使用 .GetAwaiter().GetResult() 防止 Fire and Forget
                         sb.AppendLine("            _interceptor.InterceptAsync(context, () => {");
-                        var callCode = $"_realService.{method.Name}({argList})";
-
-                        if (hasReturnValue)
-                        {
-                            sb.AppendLine($"                context.ReturnValue = {callCode};");
-                            sb.AppendLine("                return Task.CompletedTask;");
-                        }
-                        else
-                        {
-                            sb.AppendLine($"                {callCode};");
-                            sb.AppendLine("                return Task.CompletedTask;");
-                        }
+                        sb.AppendLine($"                {(hasReturnValue ? "context.ReturnValue = " : "")}_realService.{method.Name}({argList});");
+                        sb.AppendLine("                return Task.CompletedTask;");
                         sb.AppendLine("            }).GetAwaiter().GetResult();");
-
                         if (hasReturnValue) sb.AppendLine($"            return (context.ReturnValue is null) ? default : ({actualReturnType})context.ReturnValue;");
                     }
                 }
                 else
                 {
-                    // --- 穿透逻辑：零损耗直接调用 ---
-                    if (isAsync)
-                    {
-                        if (hasReturnValue)
-                            sb.AppendLine($"            return await _realService.{method.Name}({argList});");
-                        else
-                            sb.AppendLine($"            await _realService.{method.Name}({argList});");
-                    }
-                    else
-                    {
-                        if (hasReturnValue)
-                            sb.AppendLine($"            return _realService.{method.Name}({argList});");
-                        else
-                            sb.AppendLine($"            _realService.{method.Name}({argList});");
-                    }
+                    var awaitStr = isAsync ? "await " : "";
+                    var returnStr = hasReturnValue ? "return " : "";
+                    sb.AppendLine($"            {returnStr}{awaitStr}_realService.{method.Name}({argList});");
                 }
                 sb.AppendLine("        }");
             }
 
             sb.AppendLine("    }");
             sb.AppendLine("}");
-
             context.AddSource($"{DecoratorFilePrefix}{decoratorClassName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
-            controller.DecoratorTypeFullName = decoratorTypeFullName;
-            controller.HasDecoratorCandidate = true;
+            // 同步装饰器状态，触发 ProjectMetaContext 中的代理注册
+                controller.HasDecoratorCandidate = true;
+            controller.DecoratorTypeFullName = fullDecoratorName;
         }
 
-        public void GenerateInterfaceFile(SourceProductionContext context, ClassMetadata entity)
+        public void GenerateInterfaceFile(SourceProductionContext context, ClassMetadata controller)
         {
-            if (entity == null || entity.Type != MetaType.Controller) return;
+            if (controller == null || controller.Type != MetaType.Controller) return;
 
-            var userType = entity.UserType ?? "";
-            var interfaceName = $"I{entity.ClassName}Controller";
-            var interfaceNamespace = entity.Namespace.Replace(".Controllers", ".Interfaces");
+            var interfaceName = $"I{controller.ClassName}";
+            var interfaceNamespace = controller.Namespace;
 
             var sb = new StringBuilder();
             sb.AppendFormat(AutoGeneratedHeader, DateTime.UtcNow);
-            sb.AppendLine($"using  TKW.Framework.Domain.Interfaces;");
+
+            // 加入 Usings
+            var usings = new HashSet<string>
+            {
+                "using System;",
+                "using System.Collections.Generic;",
+                "using System.Threading.Tasks;",
+                "using TKW.Framework.Domain.Interfaces;"
+            };
+
+            if (controller.GenerateCodeSettings.TryGetValue("Usings", out var uObj) && uObj is List<string> controllerUsings)
+            {
+                foreach (var u in controllerUsings) usings.Add(u.Trim());
+            }
+
+            foreach (var u in usings) sb.AppendLine(u);
+
             sb.AppendLine();
             sb.AppendLine($"namespace {interfaceNamespace};");
-            sb.AppendLine($"public partial interface {interfaceName} : IAopContract, IGeneratedByxCodeGenSG {{}}");
+            sb.AppendLine();
+            sb.AppendLine($"public partial interface {interfaceName} : IAopContract, IGeneratedByxCodeGenSG");
+            sb.AppendLine("{");
 
+            foreach (var method in controller.Methods)
+            {
+                if (method.Attributes != null)
+                {
+                    // 统一使用过滤完内部属性并去除了 global:: 和长后缀的 FormatAttributeForCode
+                    foreach (var attr in method.Attributes) sb.AppendLine($"    {FormatAttributeForCode(attr)}");
+                }
+                var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.TypeName} {p.Name}"));
+                sb.AppendLine($"    {method.ReturnType} {method.Name}({paramList});");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("}");
             context.AddSource($"{InterfaceFilePrefix}{interfaceName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
-        }
-
-        private void BuildRegistrationMethod(StringBuilder sb, ClassMetadata[] services)
-        {
-            sb.AppendLine("        /// <summary> 获取所有领域服务注册映射 </summary>");
-            sb.AppendLine("        public override IEnumerable<DomainServiceRegistration> GetServiceRegistrations()");
-            sb.AppendLine("        {");
-
-            if (services.Length == 0)
+            // 更新元数据关联，以便 ProjectMetaContext 注册时使用
+            controller.Interface = new ClassMetadata
             {
-                // 核心修复：如果没有服务，显式中断迭代器
-                sb.AppendLine("            yield break;");
-            }
-            else
-            {
-                sb.AppendLine("           // Services");
-                foreach (var m in services.Where(s => s.Type == MetaType.Service))
-                    WriteContent(m);
-                sb.AppendLine("           // Data Services");
-                foreach (var m in services.Where(s => s.Type == MetaType.DataService))
-                    WriteContent(m);
-                sb.AppendLine("           // Controllers");
-                foreach (var m in services.Where(s => s.Type == MetaType.Controller))
-                    WriteContent(m);
-            }
-
-            sb.AppendLine("        }");
-
-            void WriteContent(ClassMetadata m)
-            {
-                var interfaceFullName = m.Interface?.FullName ?? m.InterfaceName;
-
-                var decoratorName = m.HasDecoratorCandidate
-                    ? $"typeof(global::{m.DecoratorTypeFullName})"
-                    : $"typeof(global::{m.Namespace}.Generated.{m.ClassName}Decorator)";
-                var proxyExpr = m.Type == MetaType.Controller && m.HasDecoratorCandidate
-                    ? decoratorName
-                    : "null";
-                var interfaceParameter =
-                    m.Type == MetaType.Controller && interfaceFullName != null ? $"typeof(global::{interfaceFullName})" : "null";
-
-                sb.AppendLine($@"            yield return new DomainServiceRegistration(
-                {interfaceParameter}, 
-                typeof(global::{m.FullName}), 
-                {proxyExpr}, 
-                MetaType.{m.Type});");
-            }
+                ClassName = interfaceName,
+                Namespace = interfaceNamespace,
+                FullName = $"{interfaceNamespace}.{interfaceName}",
+                Type = MetaType.Interface
+            };
+            controller.InterfaceName = interfaceName;
         }
 
         private void ReportError(SourceProductionContext context, string message)
         {
             context.ReportDiagnostic(Diagnostic.Create(
-                new DiagnosticDescriptor("CMD001", "元数据生成错��", message, "CodeMeta", DiagnosticSeverity.Error, true),
+                new DiagnosticDescriptor("CMD001", "元数据生成错误", message, "CodeMeta", DiagnosticSeverity.Error, true),
                 Location.None));
         }
-
-        private string EscapeString(string value)
-        {
-            if (value == null) return string.Empty;
-            return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n");
-        }
-
-        private string FormatStringValue(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return "\"\"";
-            return "@\"" + value.Replace("\"", "\"\"") + "\"";
-        }
-
-        /// <summary>
-        /// 获取值的字面量表示，确保类型安全
-        /// </summary>
-        private string GetLiteralValue(object value)
-        {
-            if (value == null) return "null";
-            if (value is string s) return $"\"{EscapeString(s)}\"";
-            if (value is bool b) return b.ToString().ToLower();
-            if (value is int i) return i.ToString();
-            if (value is long l) return l.ToString() + "L";
-            if (value is Enum e) return $"{e.GetType().Name}.{e}";
-
-            // 处理 typeof() 情况
-            var strVal = value.ToString();
-            if (strVal.Contains("typeof(")) return strVal;
-
-            return $"\"{EscapeString(strVal)}\""; // 默认作为字符串回退，防止生成非法代码
-        }
-
-        private string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName)
-            ? "Unknown"
-            : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
-                .ToArray());
     }
 }

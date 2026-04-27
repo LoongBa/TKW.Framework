@@ -1,21 +1,17 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.CSharp;
 using xCodeGen.Abstractions.Attributes;
-using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
 
 namespace xCodeGen.SourceGenerator
 {
     public partial class CodeMetaDataExtractor
     {
-        // 代码生成常量定义
         public const string GeneratedFileExtension = ".g.cs";
         public const string MetaFilePrefix = "Meta/";
         public const string InterfaceFilePrefix = "Interfaces/";
@@ -28,102 +24,133 @@ namespace xCodeGen.SourceGenerator
 #nullable enable
 ";
 
-        /// <summary>
-        /// 异步提取元数据（源生成器环境中建议使用同步Extract方法，此方法仅为接口兼容）
-        /// </summary>
-        public Task<IEnumerable<RawMetadata>> ExtractAsync(ExtractorOptions options, CancellationToken cancellationToken = default)
+        #region --- Helper Functions ---
+
+        public static string EscapeString(string value) => value?.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n") ?? string.Empty;
+
+        public static string FormatStringValue(string value) => string.IsNullOrEmpty(value) ? "\"\"" : "@\"" + value.Replace("\"", "\"\"") + "\"";
+
+        public static string GetLiteralValue(object value)
         {
-            // 源生成器环境下不推荐使用文件系统操作
-            throw new NotImplementedException("源生成器环境建议使用同步Extract(Compilation)方法");
+            if (value == null) return "null";
+            if (value is string s) return $"\"{EscapeString(s)}\"";
+            if (value is bool b) return b.ToString().ToLower();
+            if (value is int i) return i.ToString();
+            if (value is long l) return l.ToString() + "L";
+            if (value is Enum e) return $"{e.GetType().Name}.{e}";
+            var strVal = value.ToString();
+            return strVal.Contains("typeof(") ? strVal : $"\"{EscapeString(strVal)}\"";
         }
 
-        #region --- Helper Functions (Std 2.0 兼容) ---
+        public static string SanitizeFileName(string fileName) => string.IsNullOrEmpty(fileName) ? "Unknown" : new string(fileName.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
 
-        private AttributeMetadata FindAttribute(IEnumerable<AttributeMetadata> attrs, string targetName)
+        public static string CleanXmlText(string text) => text.Replace("///", "").Replace("/**", "").Replace("*/", "").Replace("*", "").Trim();
+
+        public static string TrimNamespace(string typeName)
         {
-            if (attrs == null) return null;
-            foreach (var a in attrs)
+            if (string.IsNullOrEmpty(typeName)) return typeName;
+            var lastDot = typeName.LastIndexOf('.');
+            return lastDot >= 0 ? typeName.Substring(lastDot + 1) : typeName;
+        }
+
+        public static string GetGenericArgument(string typeName, int index = 0)
+        {
+            if (string.IsNullOrWhiteSpace(typeName) || !typeName.Contains("<")) return null;
+            try
             {
-                if (!string.IsNullOrEmpty(a.TypeFullName) &&
-                    a.TypeFullName.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0)
-                    return a;
+                var start = typeName.IndexOf('<') + 1;
+                var end = typeName.LastIndexOf('>');
+                if (start <= 0 || end <= start) return null;
+
+                var content = typeName.Substring(start, end - start);
+                var arguments = new List<string>();
+                var depth = 0;
+                var lastPos = 0;
+
+                for (var i = 0; i < content.Length; i++)
+                {
+                    if (content[i] == '<') depth++;
+                    else if (content[i] == '>') depth--;
+                    else if (content[i] == ',' && depth == 0)
+                    {
+                        arguments.Add(content.Substring(lastPos, i - lastPos).Trim());
+                        lastPos = i + 1;
+                    }
+                }
+                arguments.Add(content.Substring(lastPos).Trim());
+                return (index >= 0 && index < arguments.Count) ? arguments[index] : null;
             }
-            return null;
+            catch { return null; }
         }
 
-        private bool ImplementsInterface(ClassMetadata m, string interfaceName)
+        public static AttributeMetadata FindAttribute(IEnumerable<AttributeMetadata> attrs, string targetName) => attrs?.FirstOrDefault(a => !string.IsNullOrEmpty(a.TypeFullName) && a.TypeFullName.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        public static bool ImplementsInterface(ClassMetadata m, string interfaceName) => m.ImplementedInterfaces != null && m.ImplementedInterfaces.Any(i => !string.IsNullOrEmpty(i) && i.IndexOf(interfaceName, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        public static string GetGenerateMode(INamedTypeSymbol symbol)
         {
-            if (m.ImplementedInterfaces == null) return false;
-            foreach (var i in m.ImplementedInterfaces)
-            {
-                if (!string.IsNullOrEmpty(i) &&
-                    i.IndexOf(interfaceName, StringComparison.OrdinalIgnoreCase) >= 0)
-                    return true;
-            }
-            return false;
+            var attr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == DomainGenerateCodeAttribute.TypeFullName);
+            return attr?.NamedArguments.FirstOrDefault(arg => arg.Key == "Type").Value.Value?.ToString() ?? "Full";
         }
 
-        private static string GetGenerateMode(INamedTypeSymbol symbol) { var attr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == DomainGenerateCodeAttribute.TypeFullName); return attr?.NamedArguments.FirstOrDefault(arg => arg.Key == "Type").Value.Value?.ToString() ?? "Full"; }
-
-        public static string GetStringProp(AttributeMetadata attr, string key) =>
-            attr != null && attr.Properties.TryGetValue(key, out var val) ? val?.ToString() ?? string.Empty : string.Empty;
+        public static string GetStringProp(AttributeMetadata attr, string key) => attr != null && attr.Properties.TryGetValue(key, out var val) ? val?.ToString() ?? string.Empty : string.Empty;
 
         public static bool GetBoolProp(AttributeMetadata attr, string key, bool defaultValue)
         {
             if (attr != null && attr.Properties.TryGetValue(key, out var val))
-                return val is bool b ? b : (val != null && val.ToString() != null && val.ToString().Equals("true", StringComparison.OrdinalIgnoreCase));
+                return val is bool b ? b : (val != null && val.ToString().Equals("true", StringComparison.OrdinalIgnoreCase));
             return defaultValue;
         }
 
-
-        /// <summary>
-        /// 通过反射动态获取已知特性的属性默认值
-        /// </summary>
-        private Dictionary<string, object> GetAttributeDefaults(string typeFullName)
+        public static Dictionary<string, object> GetAttributeDefaults(string typeFullName)
         {
             var defaults = new Dictionary<string, object>();
             if (string.IsNullOrEmpty(typeFullName)) return defaults;
-
             try
             {
-                // 1. 获取 Abstractions 程序集 (因为所有特性都在这里)
                 var assembly = typeof(DomainGenerateCodeAttribute).Assembly;
-
-                // 2. 尝试从该程序集中获取对应的类型
                 var targetType = assembly.GetType(typeFullName);
-
-                // 3. 如果找到了该类型，且它确实是一个 Attribute
                 if (targetType != null && typeof(Attribute).IsAssignableFrom(targetType))
                 {
-                    // 实例化特性类以触发其内部属性的默认值赋值
                     var instance = Activator.CreateInstance(targetType);
-
-                    // 读取所有公共实例属性
                     foreach (var prop in targetType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                     {
-                        // 过滤掉内部/只写属性，以及系统自带的 TypeId 等
-                        if (prop.CanRead && prop.Name != "TypeId")
-                        {
-                            defaults[prop.Name] = prop.GetValue(instance);
-                        }
+                        if (prop.CanRead && prop.Name != "TypeId") defaults[prop.Name] = prop.GetValue(instance);
                     }
                 }
             }
-            catch
-            {
-                // 忽略实例化异常（例如抽象类、无无参构造函数的类或不在该程序集中的特性）
-                // 安全降级为空字典
-            }
-
+            catch { }
             return defaults;
         }
-        private string GetParamSummary(MethodDeclarationSyntax method, string name) { var trivia = method.GetLeadingTrivia().FirstOrDefault(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)); if (trivia == default) return string.Empty; var xml = trivia.GetStructure() as DocumentationCommentTriviaSyntax; var param = xml?.Content.OfType<XmlElementSyntax>().FirstOrDefault(e => e.StartTag.Name.ToString().Equals("param", StringComparison.OrdinalIgnoreCase) && e.StartTag.Attributes.Any(a => a.ToString().Contains($"\"{name}\""))); return param != null ? CleanXmlText(param.Content.ToString()) : string.Empty; }
 
-        private string CleanXmlText(string text)
+        public static string FormatAttributeForCode(AttributeMetadata attr)
         {
-            return text.Replace("///", "").Replace("/**", "").Replace("*/", "").Replace("*", "").Trim();
+            var args = new List<string>();
+            if (attr.ConstructorArguments != null) args.AddRange(attr.ConstructorArguments.Select(GetLiteralValue));
+            if (attr.Properties != null)
+            {
+                foreach (var kv in attr.Properties)
+                {
+                    // 核心修复 1：过滤掉内部用于标记的 IsDomainFilter，不输出到生成的接口
+                    if (kv.Key == "IsDomainFilter") continue;
+                    args.Add($"{kv.Key} = {GetLiteralValue(kv.Value)}");
+                }
+            }
+            var attrContent = args.Count > 0 ? $"({string.Join(", ", args)})" : "";
+            // 核心修复 2：统一使用短名称，去掉结尾的 Attribute 后缀使代码更干净
+            var shortName = attr.Name.EndsWith("Attribute") ? attr.Name.Substring(0, attr.Name.Length - 9) : attr.Name;
+            return $"[{shortName}{attrContent}]";
         }
 
-        #endregion    
+        public static string GetParamSummary(MethodDeclarationSyntax method, string name)
+        {
+            var trivia = method.GetLeadingTrivia().FirstOrDefault(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia));
+            if (trivia == default) return string.Empty;
+            var xml = trivia.GetStructure() as DocumentationCommentTriviaSyntax;
+            var param = xml?.Content.OfType<XmlElementSyntax>().FirstOrDefault(e => e.StartTag.Name.ToString().Equals("param", StringComparison.OrdinalIgnoreCase) && e.StartTag.Attributes.Any(a => a.ToString().Contains($"\"{name}\"")));
+            return param != null ? CleanXmlText(param.Content.ToString()) : string.Empty;
+        }
+
+        #endregion
     }
 }
