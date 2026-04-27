@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,10 +8,9 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using TKW.Framework.Common.Enumerations;
 using TKW.Framework.Common.TKWConfig;
+using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -87,6 +88,22 @@ public class DomainUser<TUserInfo> where TUserInfo : class, IUserInfo, new()
 
     public ILogger CreateLogger(string categoryName) => Host.LoggerFactory.CreateLogger(categoryName);
     public ILogger<T> CreateLogger<T>() => Host.LoggerFactory.CreateLogger<T>();
+
+    #endregion
+
+    #region AOP 上下文透传
+
+    /// <summary>
+    /// 获取当前正在执行的 AOP 领域上下文
+    /// </summary>
+    [JsonIgnore]
+    public DomainContext<TUserInfo>? CurrentContext => StaticDomainInterceptor<TUserInfo>.CurrentContext;
+
+    /// <summary>
+    /// 获取当前拦截的方法、参数等详细信息
+    /// </summary>
+    [JsonIgnore]
+    public InvocationContext? CurrentInvocation => CurrentContext?.Invocation;
 
     #endregion
 

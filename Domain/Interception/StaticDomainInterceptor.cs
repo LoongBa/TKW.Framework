@@ -12,7 +12,9 @@ namespace TKW.Framework.Domain.Interception;
 public class StaticDomainInterceptor<TUserInfo>(DomainHost<TUserInfo> domainHost, IServiceScopeFactory scopeFactory)
     where TUserInfo : class, IUserInfo, new()
 {
-    private static readonly AsyncLocal<DomainContext<TUserInfo>?> _currentContext = new();
+    // 改为 internal，允许 DomainUser 访问，但不向业务层暴露可修改权
+    internal static readonly AsyncLocal<DomainContext<TUserInfo>?> _currentContext = new();
+
     public static DomainContext<TUserInfo>? CurrentContext => _currentContext.Value;
 
     public async Task InterceptAsync(InvocationContext context, Func<Task> proceed)
@@ -20,9 +22,14 @@ public class StaticDomainInterceptor<TUserInfo>(DomainHost<TUserInfo> domainHost
         // 使用标准 .NET Scope 替代 Autofac LifetimeScope
         using var scope = scopeFactory.CreateScope();
 
+        // 【核心修改】：保存外层的上下文（应对 AOP 嵌套调用）
+        var previousContext = _currentContext.Value;
+
         try
         {
             var domainContext = domainHost.NewDomainContext(context, scope.ServiceProvider);
+
+            // 压入当前上下文
             _currentContext.Value = domainContext;
 
             await PreProceedAsync(domainContext);
@@ -36,7 +43,8 @@ public class StaticDomainInterceptor<TUserInfo>(DomainHost<TUserInfo> domainHost
         }
         finally
         {
-            _currentContext.Value = null; // 确保清理上下文
+            // 【核心修改】：恢复外层上下文，防止嵌套拦截退出时把外层的环境清空
+            _currentContext.Value = previousContext;
         }
     }
 
@@ -87,7 +95,6 @@ public class StaticDomainInterceptor<TUserInfo>(DomainHost<TUserInfo> domainHost
 
         if (domainHost.ExceptionLoggerFactory == null) return;
 
-        // 这里需要你适配一下原有的 InterceptorExceptionContext，使其接受新的 InvocationContext
         var ctx = new InterceptorExceptionContext(invContext, ex)
         {
             ErrorMessage = ex.Message,

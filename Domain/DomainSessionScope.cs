@@ -36,22 +36,12 @@ public sealed class DomainSessionScope<TUserInfo> : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        try
-        {
-            // 无论哪种模式，退出业务块都必须解除异步上下文绑定
-            DomainUser<TUserInfo>.UnBindScope(); //
+        // 1. 解除异步上下文绑定 (UnBind)
+        DomainUser<TUserInfo>.UnBindScope();
 
-            // 只有自己创建的作用域才负责物理释放
-            if (_ownsScope)
-            {
-                _scope?.Dispose();
-            }
+        // 2. 只有拥有所有权时才物理释放 IServiceScope
+        if (_ownsScope) _scope?.Dispose();
 
-            return ValueTask.CompletedTask;
-        }
-        catch (Exception exception)
-        {
-            return ValueTask.FromException(exception);
-        }
+        return ValueTask.CompletedTask;
     }
 }
