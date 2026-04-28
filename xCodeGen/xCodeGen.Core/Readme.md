@@ -103,7 +103,7 @@ graph TD
 - 代码生成：TemplateExecutor 渲染（阶段二）。
 - 调试输出：_Debug/ 目录下输出元数据 JSON 和日志。
 
-# 二、配置示例（xCodeGen.config.json）
+# 二、配置示例（xCodeGen.json）
 
 ```json
 {
@@ -143,7 +143,7 @@ MyProject/
 │   └── Repositories/
 │       └── IUserRepository.generated.cs
 │       └── IUserRepository.cs  // 手动扩展
-└── xcodegen.config.json
+└── xCodeGen.json
 ```
 
 ## 2. 示例 Entities/User.cs（标记特性 + XML 注释）
@@ -237,7 +237,7 @@ public partial interface I@Model.Class.Name Repository
 - **检验点**：编译项目，检查源生成器是否生成 .Meta.cs（在 obj/ 目录下）。如果失败，验证 RoslynExtractor.cs 的 SemanticModel 使用。
 - **最佳实践完善**：如果 .Meta.cs 未生成，添加警告日志（DebugLogger.LogWarning("No artifacts marked")）。
 
-### 步骤 2：配置 xcodegen.config.json（检验灵活性）
+### 步骤 2：配置 xCodeGen.json（检验灵活性）
 
 - 在项目根创建 config.json（如上示例）。
 - 添加 TKWF.Domain 特定规则：NamingRules 中增加 { "ArtifactType": "Repository", "Pattern": "Domain{Name}Repository" }。
@@ -315,7 +315,7 @@ xCodeGen/
 
 说明：未列出辅助文件（如 .csproj、README）。Templates/ 实际包含 .cshtml 文件，但作为运行时资源不列在结构中。结构支持扩展（如添加 xCodeGen.Tests/ 测试项目）。
 
-# 四、详细配置（xcodegen.config.json）
+# 四、详细配置（xCodeGen.json）
 
 ```json
 {

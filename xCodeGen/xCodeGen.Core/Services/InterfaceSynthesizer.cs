@@ -15,7 +15,7 @@ namespace xCodeGen.Core.Services
         public string Synthesize(string className, string serviceNamespace, string manualText, string generatedText)
             => Synthesize(className, serviceNamespace, manualText, generatedText, attributeWhitelist: null);
 
-        public string Synthesize(string className, string serviceNamespace, string manualText, string generatedText, IEnumerable<string> attributeWhitelist)
+        public string Synthesize(string className, string serviceNamespace, string manualText, string generatedText, IEnumerable<string>? attributeWhitelist)
         {
             var interfaceName = $"I{className}Service";
             var interfaceNamespace = serviceNamespace.Replace(".Services", ".Interfaces");
@@ -32,13 +32,13 @@ namespace xCodeGen.Core.Services
             return BuildFinalCode(interfaceNamespace, interfaceName, usings, allMethods);
         }
 
-        private List<string> ExtractMethods(string source, bool isGenerated, IEnumerable<string> attributeWhitelist)
+        private List<string> ExtractMethods(string source, bool isGenerated, IEnumerable<string>? attributeWhitelist)
         {
             var tree = CSharpSyntaxTree.ParseText(source);
             var root = tree.GetCompilationUnitRoot();
             var result = new List<string>();
 
-            HashSet<string> whitelist = null;
+            HashSet<string>? whitelist = null;
             if (attributeWhitelist != null)
             {
                 whitelist = new HashSet<string>(attributeWhitelist
@@ -59,7 +59,7 @@ namespace xCodeGen.Core.Services
 
             foreach (var method in methods)
             {
-                bool hasIncludedAttribute = MethodHasIncludedAttribute(method, whitelist);
+                var hasIncludedAttribute = MethodHasIncludedAttribute(method, whitelist);
                 if (isGenerated && !IsDtoRelatedMethod(method) && !hasIncludedAttribute)
                     continue;
 
@@ -107,7 +107,7 @@ namespace xCodeGen.Core.Services
             return result;
         }
 
-        private bool MethodHasIncludedAttribute(MethodDeclarationSyntax method, HashSet<string> whitelist)
+        private bool MethodHasIncludedAttribute(MethodDeclarationSyntax method, HashSet<string>? whitelist)
         {
             if (!method.AttributeLists.Any())
             {
@@ -155,7 +155,7 @@ namespace xCodeGen.Core.Services
             return name;
         }
 
-        private List<string> BuildFilteredAttributeListLines(SyntaxList<AttributeListSyntax> attributeLists, HashSet<string> whitelist)
+        private List<string> BuildFilteredAttributeListLines(SyntaxList<AttributeListSyntax> attributeLists, HashSet<string>? whitelist)
         {
             var lines = new List<string>();
             foreach (var al in attributeLists)
@@ -176,14 +176,14 @@ namespace xCodeGen.Core.Services
             return lines;
         }
 
-        private bool ShouldIncludeAttribute(AttributeSyntax attr, HashSet<string> whitelist)
+        private bool ShouldIncludeAttribute(AttributeSyntax attr, HashSet<string>? whitelist)
         {
             if (whitelist == null || whitelist.Count == 0) return true;
             var name = GetAttributeSimpleName(attr).ToLowerInvariant();
             return whitelist.Contains(name);
         }
 
-        private string BuildFilteredParameterListText(ParameterListSyntax parameterList, HashSet<string> whitelist)
+        private string BuildFilteredParameterListText(ParameterListSyntax parameterList, HashSet<string>? whitelist)
         {
             var paramStrs = new List<string>();
             foreach (var p in parameterList.Parameters)

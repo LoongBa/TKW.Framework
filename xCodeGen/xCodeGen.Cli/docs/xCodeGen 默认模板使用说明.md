@@ -36,7 +36,7 @@ dotnet tool install -g TKWF.xCodeGen.Cli
 
 ### 2.2 配置生成参数
 
-在项目根目录创建 xcodegen.config.json 配置文件：
+在项目根目录创建 xCodeGen.json 配置文件：
 
 ```json
 {
@@ -79,13 +79,13 @@ dotnet tool install -g TKWF.xCodeGen.Cli
 命令行执行生成：
 
 ```powershell
-tkw-codegen generate --config xcodegen.config.json
+tkw-codegen generate --config xCodeGen.json
 ```
 
 或指定单表生成：
 
 ```powershell
-tkw-codegen generate --table Merchant --config xcodegen.config.json
+tkw-codegen generate --table Merchant --config xCodeGen.json
 ```
 
 ---
@@ -638,7 +638,7 @@ xCodeGen 采用 Razor 模板引擎（.cshtml 文件），支持以下语法：
 
 ### 4.1 配置文件结构
 
-xCodeGen 通过项目根目录下的 xcodegen.config.json 文件进行全局配置。
+xCodeGen 通过项目根目录下的 xCodeGen.json 文件进行全局配置。
 
 ### 4.2 核心配置项
 
@@ -720,17 +720,17 @@ OutputDirectories：输出子目录配置
 dotnet tool install -g TKWF.xCodeGen.Cli
 ```
 
-在项目根目录创建 xcodegen.config.json 配置文件（参考第 4 节）。
+在项目根目录创建 xCodeGen.json 配置文件（参考第 4 节）。
 
 ### 5.2 执行代码生成
 
 命令行执行生成：
 
-    tkw-codegen generate --config xcodegen.config.json
+    tkw-codegen generate --config xCodeGen.json
 
 或指定单表生成：
 
-    tkw-codegen generate --table Merchant --config xcodegen.config.json
+    tkw-codegen generate --table Merchant --config xCodeGen.json
 
 ### 5.3 增量生成
 
@@ -981,7 +981,7 @@ public partial class @Model.ClassName : IEntity
 
 ### 3.4 配置模板路径
 
-修改 xcodegen.config.json 中的 TemplatesPath 配置：
+修改 xCodeGen.json 中的 TemplatesPath 配置：
 
 ```csharp
 {
@@ -1070,7 +1070,7 @@ public class MerchantEntity { ... }
 
 ### 5.1 启用详细日志
 
-在 xcodegen.config.json 中设置：
+在 xCodeGen.json 中设置：
 
 ```json
 {
@@ -1082,19 +1082,19 @@ public class MerchantEntity { ... }
 
 或在命令行添加 --verbose 参数：
 
-    tkw-codegen generate --config xcodegen.config.json --verbose
+    tkw-codegen generate --config xCodeGen.json --verbose
 
 ### 5.2 预览模式
 
 使用 --preview 参数预览生成结果而不写入文件：
 
-    tkw-codegen generate --config xcodegen.config.json --preview
+    tkw-codegen generate --config xCodeGen.json --preview
 
 ### 5.3 单表测试
 
 使用 --table 参数指定单表进行快速迭代测试：
 
-    tkw-codegen generate --table Merchant --config xcodegen.config.json
+    tkw-codegen generate --table Merchant --config xCodeGen.json
 
 ### 5.4 检查生成哈希
 
@@ -1148,7 +1148,7 @@ public interface I@Model.ClassNameRepository
 }
 ```
 
-在 xcodegen.config.json 中添加映射：
+在 xCodeGen.json 中添加映射：
 
 ```json
 {
@@ -1241,7 +1241,7 @@ public class @Model.ClassNameDtoValidator : AbstractValidator<@Model.ClassNameDt
 
 ### 9.1 模板修改后不生效？
 
-- 检查 xcodegen.config.json 中的 TemplatesPath 配置是否正确
+- 检查 xCodeGen.json 中的 TemplatesPath 配置是否正确
 - 清除生成目录后重新执行生成命令
 - 检查模板语法是否有错误（启用 EnableLogging 查看详细日志）
 

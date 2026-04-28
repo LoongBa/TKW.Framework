@@ -24,7 +24,7 @@ public class IncrementalChecker(IFileWriter fileWriter)
         {
             using var reader = new StreamReader(targetFilePath);
             // 扫描前 10 行寻找指纹标记
-            for (int i = 0; i < 10; i++)
+            for (var i = 0; i < 10; i++)
             {
                 var line = reader.ReadLine();
                 if (line == null) break;

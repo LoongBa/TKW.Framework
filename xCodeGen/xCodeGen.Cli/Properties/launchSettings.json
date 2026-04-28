@@ -2,7 +2,7 @@
   "profiles": {
     "xCodeGen.Cli": {
       "commandName": "Project",
-      "commandLineArgs": "gen"
+      "commandLineArgs": "-j D:\\_Dev_\\_Repos_\\Github\\_LoongBa_\\_DotNet_\\_Blazor_\\DMP-Lite\\DMP-Lite_Domain\\_xCodeGen\\xCodeGen.json"
     }
   }
 }

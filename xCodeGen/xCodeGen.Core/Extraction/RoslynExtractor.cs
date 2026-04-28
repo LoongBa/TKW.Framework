@@ -3,10 +3,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.MSBuild;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
 
@@ -91,7 +91,7 @@ public class RoslynExtractor : IMetaDataExtractor
     /// <summary>
     /// 提取方法级的元数据
     /// </summary>
-    private Dictionary<string, object> ExtractMethodData(IMethodSymbol methodSymbol, SemanticModel model)
+    private Dictionary<string, object> ExtractMethodData(IMethodSymbol methodSymbol, SemanticModel? model = null)
     {
         var methodSyntax = methodSymbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
 
@@ -108,7 +108,7 @@ public class RoslynExtractor : IMetaDataExtractor
     /// <summary>
     /// 提取参数级的元数据（语义化提取）
     /// </summary>
-    private Dictionary<string, object> ExtractParameterData(IParameterSymbol parameterSymbol, MethodDeclarationSyntax methodSyntax)
+    private Dictionary<string, object> ExtractParameterData(IParameterSymbol parameterSymbol, MethodDeclarationSyntax? methodSyntax)
     {
         return new Dictionary<string, object>
         {
@@ -165,10 +165,41 @@ public class RoslynExtractor : IMetaDataExtractor
 
     private async Task<Compilation> CreateCompilationAsync(string projectPath, CancellationToken ct)
     {
-        using var workspace = MSBuildWorkspace.Create();
-        var project = await workspace.OpenProjectAsync(projectPath, null, ct);
-        var compilation = await project.GetCompilationAsync(ct);
-        if (compilation == null) throw new Exception($"无法解析项目编译对象: {projectPath}");
+        var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectPath))!;
+
+        // 1. 扫描所有源码文件 (排除 bin/obj 目录)
+        var sourceFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") &&
+                        !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+        var syntaxTrees = new List<SyntaxTree>();
+        foreach (var file in sourceFiles)
+        {
+            var code = await File.ReadAllTextAsync(file, ct);
+            syntaxTrees.Add(CSharpSyntaxTree.ParseText(code, cancellationToken: ct));
+        }
+
+        // 2. 收集必要的元数据引用 (MetadataReference)
+        // 关键：必须包含核心库和目标项目的依赖 DLL，否则语义分析会失败
+        var references = new List<MetadataReference>();
+
+        // 添加当前进程加载的基础库引用 (如 System.Runtime, mscorlib 等)
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrWhiteSpace(a.Location));
+
+        foreach (var assembly in assemblies)
+        {
+            references.Add(MetadataReference.CreateFromFile(assembly.Location));
+        }
+
+        // 3. 创建编译对象
+        var compilation = CSharpCompilation.Create(
+            assemblyName: Path.GetFileNameWithoutExtension(projectPath),
+            syntaxTrees: syntaxTrees,
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        );
+
         return compilation;
     }
 }

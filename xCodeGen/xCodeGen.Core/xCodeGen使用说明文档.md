@@ -25,7 +25,7 @@
 
 **最新**：支持 dotnet tool install --local（manifest 创建）。
 
-## 2. 配置说明 (xcodegen.config.json)
+## 2. 配置说明 (xCodeGen.json)
 
 系统一切行为受根目录 config.json 驱动。示例如设计文档中所示。 
 

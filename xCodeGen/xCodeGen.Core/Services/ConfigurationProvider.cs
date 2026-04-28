@@ -5,32 +5,52 @@ using xCodeGen.Core.Configuration;
 namespace xCodeGen.Core.Services;
 
 /// <summary>
-/// 负责加载、验证和持久化 xCodeGen.config.json
+/// 负责加载、验证和持久化 xCodeGen.json
 /// </summary>
 public class ConfigurationProvider
 {
-    private const string ConfigFileName = "xCodeGen.config.json";
+    public const string ConfigFileName = "xCodeGen.json";
 
     /// <summary>
     /// 从指定目录加载配置文件
     /// </summary>
-    public CodeGenConfig Load(string searchDirectory = null)
+    public CodeGenConfig Load(string? searchDirectory = null, string? explicitPath = null)
     {
-        searchDirectory ??= AppContext.BaseDirectory;
-        var configPath = Path.Combine(searchDirectory, ConfigFileName);
+        string finalPath;
 
-        if (!File.Exists(configPath))
-            throw new FileNotFoundException($"找不到配置文件: {configPath}");
+        // 1. 确定配置文件的绝对路径
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            // 如果指定了 -j，直接定位到该文件
+            finalPath = Path.GetFullPath(explicitPath);
+        }
+        else
+        {
+            // 否则在搜索目录下找默认文件
+            searchDirectory ??= Directory.GetCurrentDirectory();
+            finalPath = Path.Combine(searchDirectory, ConfigFileName);
+        }
 
-        var json = File.ReadAllText(configPath);
+        if (!File.Exists(finalPath))
+            throw new FileNotFoundException($"找不到配置文件: {finalPath}");
+
+        // 2. 加载内容
+        var json = File.ReadAllText(finalPath);
         var config = CodeGenConfig.FromJson(json);
 
-        // 1. 处理基础目录绝对化
+        // 3. 处理路径绝对化
+        // 基础参考点是配置文件所在的文件夹
+        var referenceDir = Path.GetDirectoryName(finalPath) ?? AppContext.BaseDirectory;
+
         if (!Path.IsPathRooted(config.OutputRoot))
-            config.OutputRoot = Path.GetFullPath(Path.Combine(searchDirectory, config.OutputRoot));
+            config.OutputRoot = Path.GetFullPath(Path.Combine(referenceDir, config.OutputRoot));
 
         if (!Path.IsPathRooted(config.TemplatesPath))
-            config.TemplatesPath = Path.GetFullPath(Path.Combine(searchDirectory, config.TemplatesPath));
+            config.TemplatesPath = Path.GetFullPath(Path.Combine(referenceDir, config.TemplatesPath));
+
+        // 针对 TargetProject (csproj) 也要处理，方便后续 Roslyn 分析
+        if (!string.IsNullOrEmpty(config.TargetProject) && !Path.IsPathRooted(config.TargetProject))
+            config.TargetProject = Path.GetFullPath(Path.Combine(referenceDir, config.TargetProject));
 
         return config;
     }

@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿#nullable disable
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -24,17 +25,20 @@ namespace xCodeGen.SourceGenerator
             "Stack"
         ];
 
-        public static bool HasAttribute(this INamedTypeSymbol type, string attributeFullName)
+        extension(INamedTypeSymbol type)
         {
-            return type?.GetAttributes()
-                .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName) ?? false;
-        }
+            public bool HasAttribute(string attributeFullName)
+            {
+                return type?.GetAttributes()
+                    .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName) ?? false;
+            }
 
-        public static T GetAttribute<T>(this INamedTypeSymbol type) where T : Attribute
-        {
-            return type?.GetAttributes()
-                .FirstOrDefault(attr => attr.AttributeClass?.ToDisplayString() == typeof(T).FullName)?
-                .ApplyToConstructor<T>();
+            public T GetAttribute<T>() where T : Attribute
+            {
+                return type?.GetAttributes()
+                    .FirstOrDefault(attr => attr.AttributeClass?.ToDisplayString() == typeof(T).FullName)?
+                    .ApplyToConstructor<T>();
+            }
         }
 
         /// <summary>
@@ -51,7 +55,7 @@ namespace xCodeGen.SourceGenerator
 
             // 2. --- 核心修改：允许 public 或 internal ---
             // 这样控制器声明为 internal partial 才能被 SG 探测到
-            bool isVisible = type.Modifiers.Any(m =>
+            var isVisible = type.Modifiers.Any(m =>
                 m.IsKind(SyntaxKind.PublicKeyword) || m.IsKind(SyntaxKind.InternalKeyword));
 
             if (!isVisible)

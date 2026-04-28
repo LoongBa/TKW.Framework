@@ -163,7 +163,7 @@ public partial class @Model.ClassName : IEntity
 
 ### 3.4 配置模板路径
 
-修改 xcodegen.config.json 中的 TemplatesPath 配置：
+修改 xCodeGen.json 中的 TemplatesPath 配置：
 
 ```
 {
@@ -252,7 +252,7 @@ public class MerchantEntity { ... }
 
 ### 5.1 启用详细日志
 
-在 xcodegen.config.json 中设置：
+在 xCodeGen.json 中设置：
 
 ```
 {
@@ -265,7 +265,7 @@ public class MerchantEntity { ... }
 或在命令行添加 --verbose 参数：
 
 ```
-tkw-codegen generate --config xcodegen.config.json --verbose
+tkw-codegen generate --config xCodeGen.json --verbose
 ```
 
 ### 5.2 预览模式
@@ -273,7 +273,7 @@ tkw-codegen generate --config xcodegen.config.json --verbose
 使用 --preview 参数预览生成结果而不写入文件：
 
 ```
-tkw-codegen generate --config xcodegen.config.json --preview
+tkw-codegen generate --config xCodeGen.json --preview
 ```
 
 ### 5.3 单表测试
@@ -281,7 +281,7 @@ tkw-codegen generate --config xcodegen.config.json --preview
 使用 --table 参数指定单表进行快速迭代测试：
 
 ```
-tkw-codegen generate --table Merchant --config xcodegen.config.json
+tkw-codegen generate --table Merchant --config xCodeGen.json
 ```
 
 ### 5.4 检查生成哈希
@@ -340,7 +340,7 @@ public interface I@Model.ClassNameRepository
 }
 ```
 
-在 xcodegen.config.json 中添加映射：
+在 xCodeGen.json 中添加映射：
 
 ```
 {
@@ -433,7 +433,7 @@ public class @Model.ClassNameDtoValidator : AbstractValidator<@Model.ClassNameDt
 
 ### 9.1 模板修改后不生效？
 
-- 检查 xcodegen.config.json 中的 TemplatesPath 配置是否正确
+- 检查 xCodeGen.json 中的 TemplatesPath 配置是否正确
 - 清除生成目录后重新执行生成命令
 - 检查模板语法是否有错误（启用 EnableLogging 查看详细日志）
 

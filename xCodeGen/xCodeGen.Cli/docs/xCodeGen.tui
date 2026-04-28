@@ -1,0 +1,80 @@
+{
+  "version": "1",
+  "meta": {
+    "name": "Main Screen",
+    "theme": "dracula",
+    "savedAt": "2026-04-28T14:52:32.727Z"
+  },
+  "tree": {
+    "id": "root",
+    "type": "Screen",
+    "name": "Main Screen",
+    "props": {
+      "width": 80,
+      "height": 24,
+      "theme": "dracula"
+    },
+    "layout": {
+      "type": "absolute"
+    },
+    "style": {
+      "border": false
+    },
+    "events": {},
+    "children": [
+      {
+        "type": "Grid",
+        "name": "Grid",
+        "props": {
+          "width": 32,
+          "height": 24
+        },
+        "layout": {
+          "type": "grid",
+          "columns": 2,
+          "rows": 2,
+          "columnGap": 1,
+          "rowGap": 1,
+          "x": 1,
+          "y": 0
+        },
+        "style": {
+          "color": "white"
+        },
+        "events": {},
+        "children": [
+          {
+            "type": "Grid",
+            "name": "Grid",
+            "props": {},
+            "layout": {
+              "type": "grid",
+              "columns": 2,
+              "rows": 2,
+              "columnGap": 1,
+              "rowGap": 1,
+              "x": 53,
+              "y": 6
+            },
+            "style": {
+              "color": "white"
+            },
+            "events": {},
+            "children": [],
+            "locked": false,
+            "hidden": false,
+            "collapsed": false,
+            "id": "comp-1777387895097-2"
+          }
+        ],
+        "locked": false,
+        "hidden": false,
+        "collapsed": false,
+        "id": "comp-1777387896453-3"
+      }
+    ],
+    "locked": false,
+    "hidden": false,
+    "collapsed": false
+  }
+}
