@@ -8,8 +8,8 @@ public class NamingRule
     /// <summary>
     /// 产物类型
     /// </summary>
-    public string ArtifactType { get; set; }
-        
+    public string ArtifactType { get; set; } = string.Empty;
+
     /// <summary>
     /// 命名模式，可用占位符: {ClassName} - 原始名称, {ArtifactType} - 产物类型
     /// </summary>

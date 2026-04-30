@@ -22,7 +22,7 @@ namespace xCodeGen.Abstractions.Metadata
         public string UserType { get; set; } = string.Empty;
 
         public MetadataSource SourceType { get; set; }
-        public string TemplateName { get; set; } = string.Empty;
+        public string SubDomain { get; set; } = string.Empty;
         public Dictionary<string, object> GenerateCodeSettings { get; set; } = new Dictionary<string, object>();
         public ICollection<AttributeMetadata> Attributes { get; set; } = new Collection<AttributeMetadata>();
 

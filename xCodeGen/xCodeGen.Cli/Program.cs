@@ -50,7 +50,7 @@ partial class Program
             var configProvider = new ConfigurationProvider();
             var searchDir = explicitConfigPath != null ? Path.GetDirectoryName(Path.GetFullPath(explicitConfigPath))! : Directory.GetCurrentDirectory();
             var config = configProvider.Load(searchDir, explicitConfigPath)
-                         ?? throw new InvalidOperationException($"无法加载配置文件。请确保当前目录存在 {} 或使用 -j 指定。");
+                         ?? throw new InvalidOperationException($"无法加载配置文件。请确保当前目录存在 {ConfigurationProvider.ConfigFileName} 或使用 -j 指定。");
 
             return type switch
             {

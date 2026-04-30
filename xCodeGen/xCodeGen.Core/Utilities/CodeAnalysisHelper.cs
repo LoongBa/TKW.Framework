@@ -220,10 +220,10 @@ namespace xCodeGen.SourceGenerator
         /// <returns>
         /// 返回一个元组，包含三个元素：
         /// - Type: 目标类型名称
-        /// - TemplateName: 模板名称，默认为 "Default"
+        /// - SubDomain: 子领域名称，默认为 "Default"
         /// - Overwrite: 是否覆盖现有文件，默认为 false
         /// </returns>
-        public static (string Type, string TemplateName, bool Overwrite) ExtractGenerateAttributeParams(AttributeData attribute)
+        public static (string Type, string SubDomain, bool Overwrite) ExtractGenerateAttributeParams(AttributeData attribute)
         {
             if (attribute == null)
                 throw new ArgumentNullException(nameof(attribute));
@@ -232,20 +232,20 @@ namespace xCodeGen.SourceGenerator
             var type = GetNamedArgumentValue<string>(attribute, "Type") ??
                        GetConstructorArgumentValue<string>(attribute, 0);
 
-            var templateName = GetNamedArgumentValue<string>(attribute, "TemplateName") ??
+            var subDomain = GetNamedArgumentValue<string>(attribute, "SubDomain") ??
                                GetConstructorArgumentValue<string>(attribute, 1) ??
                                "Default";
 
             // 对于布尔值，使用可空类型
             bool? overwrite = GetNamedArgumentValue<bool>(attribute, "Overwrite");
 
-            return (type, templateName, (bool)overwrite);
+            return (type, subDomain, (bool)overwrite);
         }
         
         private static T GetNamedArgumentValue<T>(AttributeData attribute, string argumentName)
         {
             if (attribute == null)
-                return default(T);
+                return default;
 
             var namedArgument = attribute.NamedArguments
                 .FirstOrDefault(arg => arg.Key == argumentName);
@@ -255,21 +255,21 @@ namespace xCodeGen.SourceGenerator
                 namedArgument.Value.Value is T value)
                 return value;
 
-            return default(T);
+            return default;
         }
         
         private static T GetConstructorArgumentValue<T>(AttributeData attribute, int index)
         {
             if (attribute == null)
-                return default(T);
+                return default;
 
             if (index < 0 || index >= attribute.ConstructorArguments.Length)
-                return default(T);
+                return default;
 
             if (attribute.ConstructorArguments[index].Value is T value)
                 return value;
 
-            return default(T);
+            return default;
         }
 
         /// <summary>
@@ -295,18 +295,6 @@ namespace xCodeGen.SourceGenerator
             return string.IsNullOrWhiteSpace(projectDir)
                 ? defaultRelativePath
                 : Path.Combine(projectDir, defaultRelativePath);
-        }
-
-        private static string ComputeOutputPath(in AnalyzerConfigOptionsProvider options, Compilation compilation)
-        {
-            var outputPath = ReadMsBuildProperty(options, "OutputPath");
-            if (string.IsNullOrEmpty(outputPath))
-            {
-                var projectDirectory = GetProjectDirectory(options, compilation);
-                outputPath = System.IO.Path.Combine(projectDirectory, "Generated");
-            }
-
-            return outputPath;
         }
 
         /// <summary>

@@ -79,7 +79,7 @@ namespace xCodeGen.SourceGenerator
                 return true;
             }
 
-            // 5. 基于基类列表的判断
+            // 5. 基于基类列表的判断：接口、基类
             if (type.BaseList != null)
             {
                 foreach (var bt in type.BaseList.Types)
@@ -88,6 +88,9 @@ namespace xCodeGen.SourceGenerator
                     if (string.IsNullOrEmpty(baseName)) continue;
 
                     if (baseName.IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("IDomainEntity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("IDomainDto", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        baseName.IndexOf("DomainDtoBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         baseName.IndexOf("DomainDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         baseName.IndexOf("DomainReadOnlyDataServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         baseName.IndexOf("DomainServiceBase", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -97,7 +100,6 @@ namespace xCodeGen.SourceGenerator
                     }
                 }
             }
-
             return false;
         }
 

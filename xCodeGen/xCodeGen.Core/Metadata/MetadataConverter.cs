@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis; // 核心：用于 NotNullIfNotNull 特性
 using System.Linq;
-using System.Net; // 核心：在此层执行转码
 using xCodeGen.Abstractions.Metadata;
 using xCodeGen.Core.Services;
 
@@ -35,58 +35,29 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 FullName = GetValue(data, "FullName", string.Empty),
                 Summary = GetValue(data, "Summary", null),
                 SourceType = rawMetadata.SourceType,
-                TemplateName = GetValue(data, "TemplateName", "Default"),
+                SubDomain = GetValue(data, "SubDomain", "Default"),
                 BaseType = GetValue(data, "BaseType", "object"),
-                IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is bool b && b,
+                IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is true,
                 TypeKind = GetValue(data, "TypeKind", "class"),
-                ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ??
-                                        [],
+                ImplementedInterfaces = (data.GetValueOrDefault("ImplementedInterfaces") as List<string>)?.ToList() ?? [],
                 Methods = ConvertToMethodMetadataList(data.GetValueOrDefault("Methods") as List<Dictionary<string, object>>),
                 Properties = ConvertToPropertyMetadataList(data.GetValueOrDefault("Properties") as List<Dictionary<string, object>>),
                 Attributes = ConvertToAttributeMetadataList(data.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>)
             };
         }
-
-        // 关键修复：执行清洗与 HTML 解码
-        SanitizeMetadata(metadata);
         return metadata;
     }
 
-    private void SanitizeMetadata(ClassMetadata meta)
-    {
-        /*
-        meta.Summary = CleanAndDecode(meta.Summary);
-        foreach (var p in meta.Properties)
-        {
-            p.Summary = CleanAndDecode(p.Summary);
-        }
-        foreach (var m in meta.Methods)
-        {
-            m.Summary = CleanAndDecode(m.Summary);
-        }
-    */
-    }
-
-    /// <summary>
-    /// 解码 XML 实体并清除空白
-    /// </summary>
-    private static string CleanAndDecode(string input)
-    {
-        if (string.IsNullOrWhiteSpace(input)) return null;
-
-        // 核心修复点：将 &#x...; 还原为中文
-        var decoded = WebUtility.HtmlDecode(input);
-        return decoded.Trim();
-    }
-
-    private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>> rawMethods)
+    // 修复：参数改为可空 List，以兼容 as 关键字的结果
+    private List<MethodMetadata> ConvertToMethodMetadataList(List<Dictionary<string, object>>? rawMethods)
     {
         if (rawMethods == null) return [];
         return rawMethods.Select(m => new MethodMetadata
         {
             Name = GetValue(m, "Name", "Unknown"),
             ReturnType = GetValue(m, "ReturnType", "void"),
-            IsAsync = m.TryGetValue("IsAsync", out var ia) && (bool)ia,
+            // 修复：避免拆箱 null 引发的 CS8605 警告和 NRE
+            IsAsync = m.TryGetValue("IsAsync", out var ia) && ia is true,
             Summary = GetValue(m, "Summary", string.Empty),
             AccessModifier = GetValue(m, "AccessModifier", "public"),
             Parameters = ConvertToParameterMetadataList(m.GetValueOrDefault("Parameters") as List<Dictionary<string, object>>),
@@ -94,7 +65,8 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         }).ToList();
     }
 
-    private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>> rawProps)
+    // 修复：参数改为可空 List
+    private List<PropertyMetadata> ConvertToPropertyMetadataList(List<Dictionary<string, object>>? rawProps)
     {
         if (rawProps == null) return [];
         return rawProps.Select(p => new PropertyMetadata
@@ -102,26 +74,30 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
             Name = GetValue(p, "Name", ""),
             TypeName = GetValue(p, "Type", "object"),
             TypeFullName = GetValue(p, "TypeFullName", string.Empty),
-            IsNullable = p.TryGetValue("IsNullable", out var n) && (bool)n,
+            // 修复：安全判定布尔值
+            IsNullable = p.TryGetValue("IsNullable", out var n) && n is true,
             Summary = GetValue(p, "Summary", string.Empty),
             Attributes = ConvertToAttributeMetadataList(p.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>)
         }).ToList();
     }
 
-    private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>> rawParams)
+    // 修复：参数改为可空 List
+    private List<ParameterMetadata> ConvertToParameterMetadataList(List<Dictionary<string, object>>? rawParams)
     {
         if (rawParams == null) return [];
         return rawParams.Select(p => new ParameterMetadata
         {
             Name = GetValue(p, "Name", ""),
             TypeName = GetValue(p, "Type", "object"),
-            IsNullable = p.TryGetValue("IsNullable", out var n) && (bool)n,
+            // 修复：安全判定布尔值
+            IsNullable = p.TryGetValue("IsNullable", out var n) && n is true,
             Summary = GetValue(p, "Summary", string.Empty),
             Attributes = ConvertToAttributeMetadataList(p.GetValueOrDefault("Attributes") as List<Dictionary<string, object>>)
         }).ToList();
     }
 
-    private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>> rawAttrs)
+    // 修复：参数改为可空 List
+    private List<AttributeMetadata> ConvertToAttributeMetadataList(List<Dictionary<string, object>>? rawAttrs)
     {
         if (rawAttrs == null) return [];
         return rawAttrs.Select(a => new AttributeMetadata
@@ -132,6 +108,8 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
         }).ToList();
     }
 
-    private static string GetValue(Dictionary<string, object> dict, string key, string @default)
-        => dict.TryGetValue(key, out var val) ? val?.ToString() ?? @default : @default;
+    // 修复：借助 CodeAnalysis 引导编译器进行聪明的空值推断
+    [return: NotNullIfNotNull(nameof(@default))]
+    private static string? GetValue(Dictionary<string, object> dict, string key, string? @default)
+        => dict.TryGetValue(key, out var val) ? val.ToString() ?? @default : @default;
 }

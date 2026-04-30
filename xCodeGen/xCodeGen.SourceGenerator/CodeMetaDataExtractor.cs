@@ -11,6 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
+// ReSharper disable ConvertTypeCheckPatternToNullCheck
+#pragma warning disable IDE0300
 
 namespace xCodeGen.SourceGenerator
 {
@@ -35,8 +37,11 @@ namespace xCodeGen.SourceGenerator
                 var groupedInfos = infos.GroupBy(i => (i.Metadata.FullName ?? $"{i.Metadata.Namespace}.{i.Metadata.ClassName}"), StringComparer.Ordinal).Select(g => g.First()).ToList();
                 var allMetadatas = groupedInfos.Select(i => i.Metadata).ToList();
                 EnrichAndHashMetadatas(ref allMetadatas);
-
-                foreach (var entity in allMetadatas.Where(m => m.Type == MetaType.Entity || m.Type == MetaType.View)) GenerateMetaFile(spc, entity);
+                // 生成 meta 文件
+                foreach (var entity in allMetadatas.Where(
+                    m => m.Type == MetaType.Entity || m.Type == MetaType.View 
+                    || m.Type == MetaType.Controller || m.Type == MetaType.Service || m.Type == MetaType.DataService))
+                    GenerateMetaFile(spc, entity);
                 foreach (var controller in allMetadatas.Where(m => m.Type == MetaType.Controller))
                 {
                     GenerateInterfaceFile(spc, controller);
@@ -56,7 +61,7 @@ namespace xCodeGen.SourceGenerator
                 FullName = data["FullName"] as string,
                 Summary = data.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
                 SourceType = rawMetadata.SourceType,
-                TemplateName = DefaultTemplateName,
+                SubDomain = DefaultSubDomain,
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && (bool)ir,
                 BaseType = data["BaseType"] as string ?? string.Empty,
                 TypeKind = data["TypeKind"] as string ?? "Class",
@@ -82,6 +87,11 @@ namespace xCodeGen.SourceGenerator
                 ReturnType = m["ReturnType"] as string,
                 IsAsync = (bool)m["IsAsync"],
                 Summary = m.TryGetValue("Summary", out var s) ? s?.ToString() ?? string.Empty : string.Empty,
+
+                // 提取定性数据
+                Origin = m.TryGetValue("Origin", out var o) ? (MethodOrigin)(int)o : MethodOrigin.Custom,
+                SourceFile = m.TryGetValue("SourceFile", out var sf) ? sf?.ToString() ?? string.Empty : string.Empty,
+
                 AccessModifier = m["AccessModifier"] as string,
                 Parameters = ConvertToParameterMetadataList(GetRawList(m, "Parameters")),
                 Attributes = ConvertToAttributeMetadataList(GetRawList(m, "Attributes"))
@@ -183,7 +193,7 @@ namespace xCodeGen.SourceGenerator
             if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) return null;
 
             var hasGenerateAttr = symbol.HasGenerateCodeAttribute();
-            bool isController = symbol.BaseType != null && symbol.BaseType.ToDisplayString().IndexOf("DomainControllerBase", StringComparison.Ordinal) >= 0;
+            var isController = symbol.BaseType != null && symbol.BaseType.ToDisplayString().IndexOf("DomainControllerBase", StringComparison.Ordinal) >= 0;
             var implementsDomainService = symbol.AllInterfaces.Any(i => i.ToDisplayString().IndexOf("IDomainService", StringComparison.OrdinalIgnoreCase) >= 0);
 
             if (!hasGenerateAttr && !isController && !implementsDomainService) return null;
@@ -193,13 +203,14 @@ namespace xCodeGen.SourceGenerator
 
             if (hasGenerateAttr) classMetadata.Type = MetaType.Entity;
             else if (isController) classMetadata.Type = MetaType.Controller;
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
             else if (implementsDomainService) classMetadata.Type = symbol.Name.EndsWith("DataService") ? MetaType.DataService : MetaType.Service;
 
             return new ClassGenerationInfo
             {
                 Metadata = classMetadata,
                 GenerateMode = GetGenerateMode(symbol),
-                TemplateName = DefaultTemplateName,
+                SubDomain = DefaultSubDomain,
                 SemanticModel = context.SemanticModel
             };
         }
@@ -215,7 +226,7 @@ namespace xCodeGen.SourceGenerator
                 foreach (var arg in attr.NamedArguments) props[arg.Key] = arg.Value.Value ?? string.Empty;
 
                 // 核心拦截标记判定增强：
-                bool isFilter = false;
+                var isFilter = false;
                 var baseType = attr.AttributeClass;
                 while (baseType != null)
                 {
@@ -262,6 +273,18 @@ namespace xCodeGen.SourceGenerator
             }).ToList();
         }
 
+        private Dictionary<string, object> ExtractParameterMetadata(IParameterSymbol parameter, MethodDeclarationSyntax methodSyntax)
+        {
+            return new Dictionary<string, object>
+            {
+                { "Name", parameter.Name },
+                { "Type", parameter.Type.ToDisplayString(ShortTypeFormat) }, // 短名称
+                { "IsNullable", CodeAnalysisDiagnostics.IsNullable(parameter.Type) },
+                { "Summary", methodSyntax != null ? GetParamSummary(methodSyntax, parameter.Name) : string.Empty },
+                { "Attributes", ExtractAttributeMetadataList(parameter.GetAttributes()) }
+            };
+        }
+
         private List<Dictionary<string, object>> ExtractMethodMetadataList(INamedTypeSymbol symbol)
         {
             return symbol.GetMembers().OfType<IMethodSymbol>()
@@ -273,31 +296,89 @@ namespace xCodeGen.SourceGenerator
                 })
                 .Select(method =>
                 {
-                    var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+                    var syntaxRef = method.DeclaringSyntaxReferences.FirstOrDefault();
+                    var syntax = syntaxRef?.GetSyntax();
                     var (sum, _) = syntax != null ? GetNodeSummary(method, syntax) : (string.Empty, "None");
+
+                    // 1. 获取物理来源信息
+                    var (fileName, isFullGenerated) = ExtractMethodSourceInfo(method);
+
+                    // 2. 执行优先级判定定性
+                    var origin = MethodOrigin.Custom;
+
+                    if (IsInfrastructureMethod(symbol, method))
+                    {
+                        // 优先级最高：只要是实现 DAC 接口的方法，一律视为基础设施
+                        origin = MethodOrigin.Infrastructure;
+                    }
+                    else if (isFullGenerated)
+                    {
+                        // 优先级次之：位于 .g.cs 中的非 DAC 方法视为全量生成
+                        origin = MethodOrigin.Generated;
+                    }
+
                     return new Dictionary<string, object>
                     {
-                        { "Name", method.Name },
-                        { "ReturnType", method.ReturnType.ToDisplayString(ShortTypeFormat) }, // 短名称
-                        { "IsAsync", method.IsAsync },
-                        { "Summary", sum },
-                        { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(method.DeclaredAccessibility) },
-                        { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() },
-                        { "Attributes", ExtractAttributeMetadataList(method.GetAttributes()) }
+                { "Name", method.Name },
+                { "ReturnType", method.ReturnType.ToDisplayString(ShortTypeFormat) },
+                { "IsAsync", method.IsAsync },
+                { "Summary", sum },
+                { "Origin", (int)origin }, // 存储枚举整数值
+                { "SourceFile", fileName },
+                { "AccessModifier", CodeAnalysisDiagnostics.GetAccessModifier(method.DeclaredAccessibility) },
+                { "Parameters", method.Parameters.Select(p => ExtractParameterMetadata(p, syntax as MethodDeclarationSyntax)).ToList() },
+                { "Attributes", ExtractAttributeMetadataList(method.GetAttributes()) }
                     };
                 }).ToList();
         }
 
-        private Dictionary<string, object> ExtractParameterMetadata(IParameterSymbol parameter, MethodDeclarationSyntax methodSyntax)
+        /// <summary>
+        /// 判定是否为基础设施方法（实现 IEntityDAC 或 IEntityReadOnlyDAC）
+        /// </summary>
+        private bool IsInfrastructureMethod(INamedTypeSymbol classSymbol, IMethodSymbol methodSymbol)
         {
-            return new Dictionary<string, object>
+            var dacInterface = classSymbol.AllInterfaces.FirstOrDefault(i =>
+                i.Name == "IEntityDAC" || i.Name == "IEntityReadOnlyDAC");
+
+            if (dacInterface == null) return false;
+
+            foreach (var interfaceMember in dacInterface.GetMembers().OfType<IMethodSymbol>())
             {
-                { "Name", parameter.Name },
-                { "Type", parameter.Type.ToDisplayString(ShortTypeFormat) }, // 短名称
-                { "IsNullable", CodeAnalysisDiagnostics.IsNullable(parameter.Type) },
-                { "Summary", methodSyntax != null ? GetParamSummary(methodSyntax, parameter.Name) : string.Empty },
-                { "Attributes", ExtractAttributeMetadataList(parameter.GetAttributes()) }
-            };
+                // 语义判定：查找当前类中哪个方法实现了该接口成员
+                var implementation = classSymbol.FindImplementationForInterfaceMember(interfaceMember);
+                if (SymbolEqualityComparer.Default.Equals(implementation, methodSymbol))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 纯字符串操作判定文件物理来源（避开 System.IO）
+        /// </summary>
+        private (string FileName, bool IsFullGenerated) ExtractMethodSourceInfo(IMethodSymbol method)
+        {
+            var syntaxRef = method.DeclaringSyntaxReferences.FirstOrDefault();
+            if (syntaxRef == null) return ("Unknown", true);
+
+            var tree = syntaxRef.SyntaxTree;
+            var filePath = tree.FilePath;
+
+            // 提取文件名
+            var lastSeparator = filePath.LastIndexOfAny(new[] { '/', '\\' });
+            var fileName = lastSeparator == -1 ? filePath : filePath.Substring(lastSeparator + 1);
+
+            // 判定是否全量生成：后缀判定 + 头部注释判定
+            var hasGeneratedSuffix = fileName.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+            var hasAutoGeneratedHeader = false;
+
+            var root = tree.GetRoot();
+            if (root.HasLeadingTrivia)
+            {
+                var trivia = root.GetLeadingTrivia().ToString();
+                hasAutoGeneratedHeader = trivia.Contains("<auto-generated>") || trivia.Contains("<autogenerated>");
+            }
+
+            return (fileName, hasGeneratedSuffix || hasAutoGeneratedHeader);
         }
 
         private void EnrichAndHashMetadatas(ref List<ClassMetadata> allMetadatas)

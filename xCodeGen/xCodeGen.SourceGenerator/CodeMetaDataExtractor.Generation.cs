@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using xCodeGen.Abstractions.Metadata;
+// ReSharper disable ConvertTypeCheckPatternToNullCheck
 
 namespace xCodeGen.SourceGenerator
 {
@@ -88,6 +89,10 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    ReturnType = \"{EscapeString(method.ReturnType)}\",");
                 codeBuilder.AppendLine($"                    IsAsync = {method.IsAsync.ToString().ToLower()},");
                 codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
+                // --- 核心补充：输出定性标签与物理文件 ---
+                codeBuilder.AppendLine($"                    Origin = MethodOrigin.{method.Origin},");
+                codeBuilder.AppendLine($"                    SourceFile = \"{EscapeString(method.SourceFile)}\",");
+
                 codeBuilder.AppendLine($"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
                 codeBuilder.AppendLine("                    Parameters = new List<ParameterMetadata>");
                 codeBuilder.AppendLine("                    {");
@@ -162,7 +167,7 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine($"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
                 codeBuilder.AppendLine("        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
-                codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.3\";");
+                codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.4\";");
                 codeBuilder.AppendLine();
 
                 var services = allMetadatas.Where(m => m.Type == MetaType.Service || m.Type == MetaType.DataService || m.Type == MetaType.Controller).ToArray();
@@ -317,7 +322,7 @@ namespace xCodeGen.SourceGenerator
             sb.AppendLine("}");
             context.AddSource($"{DecoratorFilePrefix}{decoratorClassName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
             // 同步装饰器状态，触发 ProjectMetaContext 中的代理注册
-                controller.HasDecoratorCandidate = true;
+            controller.HasDecoratorCandidate = true;
             controller.DecoratorTypeFullName = fullDecoratorName;
         }
 
@@ -355,6 +360,7 @@ namespace xCodeGen.SourceGenerator
 
             foreach (var method in controller.Methods)
             {
+                //sb.AppendLine($"    ///<summary>{method.Summary}</summary>");
                 if (method.Attributes != null)
                 {
                     // 统一使用过滤完内部属性并去除了 global:: 和长后缀的 FormatAttributeForCode

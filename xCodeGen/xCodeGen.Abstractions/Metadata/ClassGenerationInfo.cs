@@ -7,7 +7,7 @@ namespace xCodeGen.Abstractions.Metadata
         public ClassMetadata Metadata { get; set; }
         public string Type { get; set; }
         public string GenerateMode { get; set; }
-        public string TemplateName { get; set; }
+        public string SubDomain { get; set; }
         public bool Overwrite { get; set; }
         public SemanticModel SemanticModel { get; set; }
     }

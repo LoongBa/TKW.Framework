@@ -22,6 +22,14 @@ namespace xCodeGen.Abstractions.Metadata
         /// 是否为异步方法
         /// </summary>
         public bool IsAsync { get; set; }
+        /// <summary>
+        /// 来源文件路径
+        /// </summary>
+        public string SourceFile { get; set; } = string.Empty;
+        /// <summary>
+        /// 方法来源
+        /// </summary>
+        public MethodOrigin Origin { get; set; }
 
         /// <summary>
         /// 方法参数元数据
@@ -45,5 +53,23 @@ namespace xCodeGen.Abstractions.Metadata
         /// 访问修饰符
         /// </summary>
         public string AccessModifier { get; set; } = "public";
+    }
+    /// <summary>
+    /// 方法来源
+    /// </summary>
+    public enum MethodOrigin
+    {
+        /// <summary>
+        /// 业务方法：
+        /// </summary>
+        Custom = 0,
+        /// <summary>
+        /// 框架方法：实现 IEntityDAC 的方法（无论手写还是生成）
+        /// </summary>
+        Infrastructure = 1,
+        /// <summary>
+        /// 生成的方法：模板生成的.g.cs 中的方法（AI 仅作为索引）
+        /// </summary>
+        Generated = 2,
     }
 }
