@@ -220,7 +220,7 @@ namespace xCodeGen.SourceGenerator
         /// <returns>
         /// 返回一个元组，包含三个元素：
         /// - Type: 目标类型名称
-        /// - SubDomain: 子领域名称，默认为 "Default"
+        /// - SubDomain: 子领域名称，默认为 CodeMetaDataExtractor.DefaultSubDomain
         /// - Overwrite: 是否覆盖现有文件，默认为 false
         /// </returns>
         public static (string Type, string SubDomain, bool Overwrite) ExtractGenerateAttributeParams(AttributeData attribute)
@@ -233,8 +233,7 @@ namespace xCodeGen.SourceGenerator
                        GetConstructorArgumentValue<string>(attribute, 0);
 
             var subDomain = GetNamedArgumentValue<string>(attribute, "SubDomain") ??
-                               GetConstructorArgumentValue<string>(attribute, 1) ??
-                               "Default";
+                               GetConstructorArgumentValue<string>(attribute, 1) ?? "";
 
             // 对于布尔值，使用可空类型
             bool? overwrite = GetNamedArgumentValue<bool>(attribute, "Overwrite");

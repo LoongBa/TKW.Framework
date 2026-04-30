@@ -16,7 +16,10 @@ namespace xCodeGen.SourceGenerator
             try
             {
                 var sanitizedClassName = SanitizeFileName(metadata.ClassName);
-                var fileName = $"{MetaFilePrefix}{sanitizedClassName}Meta{GeneratedFileExtension}";
+                var typeString = metadata.Type.ToString();
+                var metaType = string.IsNullOrWhiteSpace(typeString) ? "" : $"{typeString}/";
+                var subDomain = string.IsNullOrEmpty(metadata.SubDomain) ? DefaultSubDomain : $"{metadata.SubDomain}/";
+                var fileName = $"{MetaFilePrefix}{subDomain}{metaType}{sanitizedClassName}Meta{GeneratedFileExtension}";
                 var codeContent = BuildMetaCode(metadata);
                 context.AddSource(fileName, SourceText.From(codeContent, Encoding.UTF8));
             }
@@ -88,12 +91,17 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    Name = \"{EscapeString(method.Name)}\",");
                 codeBuilder.AppendLine($"                    ReturnType = \"{EscapeString(method.ReturnType)}\",");
                 codeBuilder.AppendLine($"                    IsAsync = {method.IsAsync.ToString().ToLower()},");
-                codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
-                // --- 核心补充：输出定性标签与物理文件 ---
                 codeBuilder.AppendLine($"                    Origin = MethodOrigin.{method.Origin},");
-                codeBuilder.AppendLine($"                    SourceFile = \"{EscapeString(method.SourceFile)}\",");
-
                 codeBuilder.AppendLine($"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
+                // --- 新增条件编译控制 ---
+                codeBuilder.AppendLine("#if DEBUG");
+                codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
+                codeBuilder.AppendLine($"                    SourceFile = \"{EscapeString(method.SourceFile)}\",");
+                codeBuilder.AppendLine("#else");
+                codeBuilder.AppendLine("                    Summary = \"\",");
+                codeBuilder.AppendLine("                    SourceFile = \"\",");
+                codeBuilder.AppendLine("#endif");
+                // -----------------------
                 codeBuilder.AppendLine("                    Parameters = new List<ParameterMetadata>");
                 codeBuilder.AppendLine("                    {");
                 foreach (var param in method.Parameters)
@@ -175,7 +183,7 @@ namespace xCodeGen.SourceGenerator
 
                 codeBuilder.AppendLine("    }");
                 codeBuilder.AppendLine("}");
-                context.AddSource("ProjectMetaContext.g.cs", SourceText.From(codeBuilder.ToString(), Encoding.UTF8));
+                context.AddSource(ProjectMetaContextName, SourceText.From(codeBuilder.ToString(), Encoding.UTF8));
             }
             catch (Exception ex) { ReportError(context, $"生成 ProjectMetaContext 失败: {ex.Message}"); }
         }
@@ -320,7 +328,10 @@ namespace xCodeGen.SourceGenerator
 
             sb.AppendLine("    }");
             sb.AppendLine("}");
-            context.AddSource($"{DecoratorFilePrefix}{decoratorClassName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+            var sanitizedClassName = SanitizeFileName(decoratorClassName);
+            var subDomain = string.IsNullOrEmpty(controller.SubDomain) ? DefaultSubDomain : $"{controller.SubDomain}/";
+            var fileName = $"{DecoratorFilePrefix}{subDomain}{sanitizedClassName}{GeneratedFileExtension}";
+            context.AddSource(fileName, SourceText.From(sb.ToString(), Encoding.UTF8));
             // 同步装饰器状态，触发 ProjectMetaContext 中的代理注册
             controller.HasDecoratorCandidate = true;
             controller.DecoratorTypeFullName = fullDecoratorName;
@@ -372,7 +383,10 @@ namespace xCodeGen.SourceGenerator
             }
 
             sb.AppendLine("}");
-            context.AddSource($"{InterfaceFilePrefix}{interfaceName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+            var sanitizedClassName = SanitizeFileName(interfaceName);
+            var subDomain = string.IsNullOrEmpty(controller.SubDomain) ? DefaultSubDomain : $"{controller.SubDomain}/";
+            var fileName = $"{InterfaceFilePrefix}{subDomain}{sanitizedClassName}{GeneratedFileExtension}";
+            context.AddSource(fileName, SourceText.From(sb.ToString(), Encoding.UTF8));
             // 更新元数据关联，以便 ProjectMetaContext 注册时使用
             controller.Interface = new ClassMetadata
             {

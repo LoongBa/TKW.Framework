@@ -35,7 +35,7 @@ public class MetadataConverter(NamingService namingService) : IMetadataConverter
                 FullName = GetValue(data, "FullName", string.Empty),
                 Summary = GetValue(data, "Summary", null),
                 SourceType = rawMetadata.SourceType,
-                SubDomain = GetValue(data, "SubDomain", "Default"),
+                SubDomain = GetValue(data, "SubDomain", ""),
                 BaseType = GetValue(data, "BaseType", "object"),
                 IsRecord = data.TryGetValue("IsRecord", out var ir) && ir is true,
                 TypeKind = GetValue(data, "TypeKind", "class"),
