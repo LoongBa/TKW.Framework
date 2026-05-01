@@ -1,11 +1,11 @@
 ﻿#nullable disable
+using System;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Linq;
 
-namespace xCodeGen.SourceGenerator
+namespace xCodeGen.SourceGenerator.Utilities
 {
     /// <summary>
     /// 提供代码分析和诊断相关的工具方法
@@ -24,22 +24,6 @@ namespace xCodeGen.SourceGenerator
             "Queue",
             "Stack"
         ];
-
-        extension(INamedTypeSymbol type)
-        {
-            public bool HasAttribute(string attributeFullName)
-            {
-                return type?.GetAttributes()
-                    .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName) ?? false;
-            }
-
-            public T GetAttribute<T>() where T : Attribute
-            {
-                return type?.GetAttributes()
-                    .FirstOrDefault(attr => attr.AttributeClass?.ToDisplayString() == typeof(T).FullName)?
-                    .ApplyToConstructor<T>();
-            }
-        }
 
         /// <summary>
         /// 检查语法节点是否是候选类型声明（支持 public/internal 的 class 和 record）
@@ -146,21 +130,6 @@ namespace xCodeGen.SourceGenerator
             };
         }
 
-        public static string GetCollectionItemType(ITypeSymbol type)
-        {
-            if (type == null) throw new ArgumentNullException(nameof(type));
-            if (type is IArrayTypeSymbol arrayType) return arrayType.ElementType.ToDisplayString();
-            if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
-            {
-                var interfaces = namedType.AllInterfaces.Where(i => i.ToDisplayString().Contains("IEnumerable")).ToList();
-                if (interfaces.Count > 0)
-                {
-                    return namedType.TypeArguments.FirstOrDefault()?.ToDisplayString();
-                }
-            }
-            return null;
-        }
-
         public static bool IsNullable(ITypeSymbol type)
         {
             if (type == null) return false;
@@ -169,24 +138,6 @@ namespace xCodeGen.SourceGenerator
                 if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) return true;
             }
             return type.NullableAnnotation == NullableAnnotation.Annotated;
-        }
-
-        public static bool IsCollectionType(ITypeSymbol type)
-        {
-            if (type == null) return false;
-            if (type.TypeKind == TypeKind.Array) return true;
-            if (type is INamedTypeSymbol namedType)
-            {
-                return namedType.AllInterfaces.Any(i => i.ToDisplayString().Contains("IEnumerable")) ||
-                       _collectionTypeNames.Any(name => namedType.ToDisplayString().Contains(name));
-            }
-            return false;
-        }
-
-        public static bool HasSpecialMethod(INamedTypeSymbol typeSymbol)
-        {
-            if (typeSymbol == null) return false;
-            return typeSymbol.GetMembers().OfType<IMethodSymbol>().Any(IsSpecialMethod);
         }
     }
 }

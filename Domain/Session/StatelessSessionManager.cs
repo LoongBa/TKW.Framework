@@ -11,31 +11,27 @@ namespace TKW.Framework.Domain.Session;
 public class StatelessSessionManager<TUserInfo> : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
-    public event SessionCreated<TUserInfo>? SessionCreated;
-    public event SessionAbandon<TUserInfo>? SessionAbandon;
+    // 使用空访问器消除警告
+    public event SessionCreated<TUserInfo>? SessionCreated { add { } remove { } }
+    public event SessionAbandon<TUserInfo>? SessionAbandon { add { } remove { } }
 
-    // 在 Web API 中，这通常是 Http Header 的名称，比如 Authorization
     public string SessionKeyKeyName => "Authorization";
 
-    // 创建新会话（通常是在登录成功后派发 JWT）
     public Task<SessionInfo<TUserInfo>> NewSessionAsync()
     {
-        // 返回一个临时的占位符，真正的 Token 通常由授权中心下发
         return Task.FromResult(new SessionInfo<TUserInfo>($"jwt_{Guid.NewGuid():N}", null));
     }
 
     public Task<bool> ContainsSessionAsync(string sessionKey)
         => Task.FromResult(!string.IsNullOrWhiteSpace(sessionKey));
 
-    // 【核心改造】：通过解析 sessionKey (JWT Token) 还原出用户信息
     public Task<SessionInfo<TUserInfo>> GetSessionAsync(string sessionKey)
     {
         if (string.IsNullOrWhiteSpace(sessionKey))
             throw new SessionException(sessionKey, SessionExceptionType.SessionNotFound);
 
-        // 伪代码：解析 JWT，还原 TUserInfo
-        // var userInfo = JwtHelper.ParseToken<TUserInfo>(sessionKey);
-        var userInfo = new TUserInfo(); // 示例：你需要根据 Token 解析出具体的 UserInfo
+        // 实际应用中应在此处解析 JWT
+        var userInfo = new TUserInfo();
 
         var domainUser = new DomainUser<TUserInfo>
         {
@@ -49,13 +45,20 @@ public class StatelessSessionManager<TUserInfo> : ISessionManager<TUserInfo>
     public Task<SessionInfo<TUserInfo>> GetAndActiveSessionAsync(string sessionKey)
         => GetSessionAsync(sessionKey);
 
-    public Task<SessionInfo<TUserInfo>?> TryGetAndActiveSessionAsync(string sessionKey)
+    // 关键修复：使用 async/await 代替 .Result，防止在某些同步上下文（如旧版 ASP.NET）中产生死锁
+    public async Task<SessionInfo<TUserInfo>?> TryGetAndActiveSessionAsync(string sessionKey)
     {
-        if (string.IsNullOrWhiteSpace(sessionKey)) return Task.FromResult<SessionInfo<TUserInfo>?>(null);
-        return Task.FromResult<SessionInfo<TUserInfo>?>(GetSessionAsync(sessionKey).Result);
+        if (string.IsNullOrWhiteSpace(sessionKey)) return null;
+        try
+        {
+            return await GetSessionAsync(sessionKey).ConfigureAwait(false);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
-    // 状态更新操作在无状态模式下应当被拒绝或忽略
     public Task<SessionInfo<TUserInfo>> UpdateAndActiveSessionAsync(string sessionKey, Func<SessionInfo<TUserInfo>, SessionInfo<TUserInfo>> updater)
         => throw new InvalidOperationException("无状态令牌模式下无法在服务端更新用户状态，请重新签发 Token。");
 

@@ -2,37 +2,59 @@
   "TargetProject": "..\\DMP-Lite.Domain.csproj",
   "EnableSkipUnchanged": true,
   "OutputRoot": "Generated",
-  "EnableInterfaceExtraction": true,
+  "EnableInterfaceExtraction": false,
   "InterfaceOutputPath": "..\\..\\Interfaces",
   "ServiceDirectory": "..\\..\\Services",
-
   "TemplatesPath": "Templates",
-  "TemplateMappings": {
-    "Service": "Service.cshtml",
-    "Entity": "Entity.cshtml",
-    "Dto": "Dto.cshtml"
+
+  "Artifacts": {
+    "Entity": {
+      "Scope": "Entity",
+      "Template": "Entity.cshtml",
+      "OutputPattern": "{ClassName}.g.cs",
+      "OutputDir": "..\\..\\Entities",
+      "SkeletonTemplate": "EntityEmpty.cshtml",
+      "SkeletonPattern": "{ClassName}.biz.cs",
+      "SkeletonDir": "..\\..\\Entities"
+    },
+    "Dto": {
+      "Scope": "Entity",
+      "Template": "Dto.cshtml",
+      "OutputPattern": "{ClassName}Dto.g.cs",
+      "OutputDir": "..\\..\\Entities\\DTOs",
+      "SkeletonTemplate": "DtoEmpty.cshtml",
+      "SkeletonPattern": "{ClassName}Dto.cs",
+      "SkeletonDir": "..\\..\\Entities\\DTOs"
+    },
+    "DataService": {
+      "Scope": "Entity",
+      "Template": "DataService.cshtml",
+      "OutputPattern": "{ClassName}DataService.g.cs",
+      "OutputDir": "..\\..\\DataServices",
+      "SkeletonTemplate": "DataServiceEmpty.cshtml",
+      "SkeletonPattern": "{ClassName}DataService.cs",
+      "SkeletonDir": "..\\..\\DataServices"
+    },
+    "DomainMap": {
+      "Scope": "Project",
+      "Template": "DomainMap.cshtml",
+      "OutputPattern": "DomainMap.g.cs",
+      "OutputDir": "..\\..\\docs\\AgencyMD"
+    },
+    "DomainDNA": {
+      "Scope": "Project",
+      "OutputPattern": "DomainDNA.g.cs",
+      "OutputDir": "..\\..\\docs\\AgencyMD",
+      "SkeletonTemplate": "DomainDNA.cshtml"
+    },
+    "Domain_Log": {
+      "Scope": "Project",
+      "OutputPattern": "Domain_Log.g.cs",
+      "OutputDir": "..\\..\\docs\\AgencyMD",
+      "SkeletonTemplate": "Domain_Log.cshtml"
+    }
   },
-  "SkeletonMappings": {
-    "EntityEmpty": "EntityEmpty.cshtml",
-    "DtoEmpty": "DtoEmpty.cshtml",
-    "ServiceEmpty": "ServiceEmpty.cshtml"
-  },
-  "FileNamePatterns": {
-    "Service": "{ClassName}Service.g.cs",
-    "ServiceEmpty": "{ClassName}Service.cs",
-    "EntityEmpty": "{ClassName}.biz.cs",
-    "Entity": "{ClassName}.g.cs",
-    "DtoEmpty": "{ClassName}Dto.cs",
-    "Dto": "{ClassName}Dto.g.cs"
-  },
-  "OutputDirectories": {
-    "EntityEmpty": "..\\..\\Entities",
-    "Entity": "..\\..\\Entities",
-    "DtoEmpty": "..\\..\\Entities\\DTOs",
-    "Dto": "..\\..\\Entities\\DTOs",
-    "Service": "..\\..\\Services",
-    "ServiceEmpty": "..\\..\\Services"
-  },
+
   "CustomSettings": {
     "EnableLogging": "true",
     "AutoManagedFields": "Id,CreateTime,UpdateTime,IsDeleted,TenantId,UId"

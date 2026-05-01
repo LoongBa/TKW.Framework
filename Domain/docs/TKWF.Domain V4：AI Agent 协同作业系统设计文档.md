@@ -52,7 +52,7 @@
 
 ### L3: Business Implementation Delta（增量记录）
 
-- **输出文件**：Domain_ChangedLog.md
+- **输出文件**：Domain_Log.md
 
 - **性质**：**增量记录，记录修改、变化**。
 
@@ -76,41 +76,7 @@
 
 ---
 
-## 3. L2 CLI 实现规格书 （CLI Agent Command）
-
-接下来你将为`cli agent`编写实现代码，其核心逻辑应包含：
-
-### **A. 扫描器 （Scanner）**
-
-- **Entity 扫描**：基于`IDomainEntity`，提取属性名、类型、是否主键、是否导航属性。
-
-- **Service 扫描**：识别继承自`DomainDataService`的类，区分哪些是模板生成的（通常在 `g.cs`），哪些是 `rtial``的。
-
-- **Contract 扫描**：提取所有继承自`IAopContract`的接口，读取方法签名及其标注的 `ilterAttribute`。
-
-以上部分已经由 SG 提取并保存在 IProjectMetaContext 中。
-
-### **B. 格式化器 （AI-Optimized Formatter）**
-
-- **Markdown 输出**：使用极简的 MD 格式。
-
-- **Token 压缩逻辑**：
-  
-  - **省略继承**：明确声明“所有 DataService 默认支持`IEntityDAC<T>`接口”。
-  
-  - **合并描述**：将同属于一个业务子领域的多个 Entity 聚合在同一个 MD 章节中。
-  
-  - **标记变化**：为最近修改过的方法打上`[New]`或 `Updated]`签（通过对比文件修改时间）。
-
-### **C. 接口契约导出 （Contract Exporter）**
-
-- 针对表现层需求，额外生成一份`contracts.md`。
-
-- 内容包含：路由路径、入参 Dto 结构、出参 Dto 结构、权限要求（来自`AuthorityFilter`）。
-
----
-
-## 4. 下一步：编写 CLI 代码的重点提示
+## ## 3. 下一步：编写 CLI 代码的重点提示
 
 在实现`cli agent`时，请注意以下细节，这将直接影响`Agent`的表现：
 

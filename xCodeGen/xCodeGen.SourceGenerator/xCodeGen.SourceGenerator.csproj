@@ -29,7 +29,6 @@
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassGenerationInfo.cs" Link="Metadata\ClassGenerationInfo.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ClassMetadata.cs" Link="Metadata\ClassMetadata.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ExtractedMetadata.cs" Link="Metadata\ExtractedMetadata.cs" />
-    <Compile Include="..\xCodeGen.Abstractions\Metadata\IMetadataConverter.cs" Link="Metadata\IMetadataConverter.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\IProjectMetaContext.cs" Link="Metadata\IProjectMetaContext.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\MetadataChangeLog.cs" Link="Metadata\MetadataChangeLog.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\MethodMetadata.cs" Link="Metadata\MethodMetadata.cs" />
@@ -37,9 +36,6 @@
     <Compile Include="..\xCodeGen.Abstractions\Metadata\ProjectConfiguration.cs" Link="Metadata\ProjectConfiguration.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\PropertyMetadata.cs" Link="Metadata\PropertyMetadata.cs" />
     <Compile Include="..\xCodeGen.Abstractions\Metadata\RawMetadata.cs" Link="Metadata\RawMetadata.cs" />
-    <Compile Include="..\xCodeGen.Core\Utilities\AttributeDataExtensions.cs" Link="Utilities\AttributeDataExtensions.cs" />
-    <Compile Include="..\xCodeGen.Core\Utilities\CodeAnalysisDiagnostics.cs" Link="Utilities\CodeAnalysisDiagnostics.cs" />
-    <Compile Include="..\xCodeGen.Core\Utilities\CodeAnalysisHelper.cs" Link="Utilities\CodeAnalysisHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all">

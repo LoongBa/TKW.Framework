@@ -11,8 +11,9 @@ namespace TKW.Framework.Domain.Session;
 public class NoSessionManager<TUserInfo> : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
-    public event SessionCreated<TUserInfo>? SessionCreated;
-    public event SessionAbandon<TUserInfo>? SessionAbandon;
+    // 使用空访问器消除 CS0067 警告
+    public event SessionCreated<TUserInfo>? SessionCreated { add { } remove { } }
+    public event SessionAbandon<TUserInfo>? SessionAbandon { add { } remove { } }
 
     public string SessionKeyKeyName => "None";
 

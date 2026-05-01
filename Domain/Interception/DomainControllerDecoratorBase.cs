@@ -8,6 +8,7 @@ public abstract class DomainControllerDecoratorBase<TService, TUserInfo>(TServic
     where TService : class, IDomainService, IAopContract
     where TUserInfo: class, IUserInfo, new()
 {
+    public StaticDomainInterceptor<TUserInfo> Invocation { get; } = invocation;
     protected readonly TService Inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
     // 辅助：在装饰器里调用 inner 前后可以复用的方法

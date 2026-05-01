@@ -2,6 +2,10 @@
 
 ## 1. 概述
 
+xCodeGen 是一个基于元数据的模板生成工具，包含几个主要部分：
+
+Abstraction 抽象类、Core 核心业务、SourceGenerator 源生成器（提取元数据）、Cli 命令行工具（调用Core，调用 RazorLight 模板生成代码或文件）
+
 ### 1.1 定位
 
 xCodeGen 是独立的跨平台代码生成工具，与领域运行时代码完全解耦。仅模板与 TKWF.Domain 相关，代码生成本身与 TKWF.Domain 关系不大。

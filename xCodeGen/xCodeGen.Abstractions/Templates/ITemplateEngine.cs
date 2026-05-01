@@ -21,5 +21,13 @@ namespace xCodeGen.Abstractions.Templates
         /// <param name="templateName">模板名称</param>
         /// <returns>渲染后的代码</returns>
         Task<string> RenderAsync(ClassMetadata metadata, string templateName);
+
+        /// <summary>
+        /// 渲染模板
+        /// </summary>
+        /// <param name="project">项目元数据上下文</param>
+        /// <param name="templateName">模板名称</param>
+        /// <returns>渲染后的代码</returns>
+        Task<string> RenderAsync(IProjectMetaContext project, string templateName);
     }
 }

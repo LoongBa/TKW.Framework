@@ -5,7 +5,7 @@ namespace xCodeGen.Cli;
 
 partial class Program
 {
-    private const string Version = " xCodeGen V2.28 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品";
+    private const string Version = " xCodeGen V3.0 - 元数据驱动的代码生成工具 by LoongBa.cn 龙爸出品";
 
     private static void LogError(string msg)
     {

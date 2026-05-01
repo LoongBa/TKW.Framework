@@ -147,7 +147,6 @@ namespace xCodeGen.SourceGenerator
 
         public void GenerateProjectMetaContext(SourceProductionContext context, ClassMetadata[] allMetadatas, ProjectInfo projectInfo, MetadataChangeLog changeLog)
         {
-            var entities = allMetadatas.Where(m => m.Type == MetaType.Entity);
             try
             {
                 var codeBuilder = new StringBuilder();
@@ -169,6 +168,7 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine("        private ProjectMetaContext()");
                 codeBuilder.AppendLine("        {");
+                var entities = allMetadatas.Where(m => m.Type != MetaType.Other);
                 foreach (var metadata in entities.OrderBy(m => m.ClassName))
                     codeBuilder.AppendLine($"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
                 codeBuilder.AppendLine("        }");

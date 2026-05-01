@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis;
 using xCodeGen.Abstractions.Attributes;
 
-namespace xCodeGen.Core.Utilities
+namespace xCodeGen.SourceGenerator.Utilities
 {
     /// <summary>
     /// 特性数据扩展方法 (C# 7.3 兼容版)

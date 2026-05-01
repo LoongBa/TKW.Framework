@@ -11,6 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using xCodeGen.Abstractions.Extractors;
 using xCodeGen.Abstractions.Metadata;
+using xCodeGen.SourceGenerator.Utilities;
+
 // ReSharper disable ConvertTypeCheckPatternToNullCheck
 #pragma warning disable IDE0300
 

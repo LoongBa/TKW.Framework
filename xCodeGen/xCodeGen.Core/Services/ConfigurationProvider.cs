@@ -5,14 +5,14 @@ using xCodeGen.Core.Configuration;
 namespace xCodeGen.Core.Services;
 
 /// <summary>
-/// 负责加载、验证和持久化 xCodeGen.json
+/// 负责加载、验证和路径归一化 xCodeGen.json
 /// </summary>
 public class ConfigurationProvider
 {
     public const string ConfigFileName = "xCodeGen.json";
 
     /// <summary>
-    /// 从指定目录加载配置文件
+    /// 从指定目录加载配置文件并完成路径初始化
     /// </summary>
     public CodeGenConfig Load(string? searchDirectory = null, string? explicitPath = null)
     {
@@ -21,12 +21,10 @@ public class ConfigurationProvider
         // 1. 确定配置文件的绝对路径
         if (!string.IsNullOrWhiteSpace(explicitPath))
         {
-            // 如果指定了 -j，直接定位到该文件
             finalPath = Path.GetFullPath(explicitPath);
         }
         else
         {
-            // 否则在搜索目录下找默认文件
             searchDirectory ??= Directory.GetCurrentDirectory();
             finalPath = Path.Combine(searchDirectory, ConfigFileName);
         }
@@ -38,29 +36,47 @@ public class ConfigurationProvider
         var json = File.ReadAllText(finalPath);
         var config = CodeGenConfig.FromJson(json);
 
-        // 3. 处理路径绝对化
-        // 基础参考点是配置文件所在的文件夹
+        // 3. 路径归一化
         var referenceDir = Path.GetDirectoryName(finalPath) ?? AppContext.BaseDirectory;
+        return NormalizePaths(config, referenceDir);
+    }
 
-        if (!Path.IsPathRooted(config.OutputRoot))
-            config.OutputRoot = Path.GetFullPath(Path.Combine(referenceDir, config.OutputRoot));
+    /// <summary>
+    /// 统一处理配置中的相对路径，转换为绝对路径
+    /// </summary>
+    private CodeGenConfig NormalizePaths(CodeGenConfig config, string baseDir)
+    {
+        // A. 基础路径：相对于配置文件所在目录
+        config.OutputRoot = RootPath(config.OutputRoot, baseDir);
+        config.TemplatesPath = RootPath(config.TemplatesPath, baseDir);
+        config.TargetProject = RootPath(config.TargetProject, baseDir);
 
-        if (!Path.IsPathRooted(config.TemplatesPath))
-            config.TemplatesPath = Path.GetFullPath(Path.Combine(referenceDir, config.TemplatesPath));
+        // B. 业务接口合成路径：相对于 OutputRoot
+        config.InterfaceOutputPath = RootPath(config.InterfaceOutputPath, config.OutputRoot);
+        config.ServiceDirectory = RootPath(config.ServiceDirectory, config.OutputRoot);
 
-        // 针对 TargetProject (csproj) 也要处理，方便后续 Roslyn 分析
-        if (!string.IsNullOrEmpty(config.TargetProject) && !Path.IsPathRooted(config.TargetProject))
-            config.TargetProject = Path.GetFullPath(Path.Combine(referenceDir, config.TargetProject));
+        // C. 处理 Artifacts 字典中的深层路径
+        foreach (var art in config.Artifacts.Values)
+        {
+            // 标准产物输出目录：如果为空则默认为 OutputRoot
+            art.OutputDir = string.IsNullOrWhiteSpace(art.OutputDir) 
+                ? config.OutputRoot : RootPath(art.OutputDir, config.OutputRoot);
+
+            // 骨架产物目录：如果未设置则回退到 OutputDir
+            art.SkeletonDir = string.IsNullOrWhiteSpace(art.SkeletonDir) 
+                ? art.OutputDir : RootPath(art.SkeletonDir, config.OutputRoot);
+        }
 
         return config;
     }
 
-    private CodeGenConfig NormalizePaths(CodeGenConfig config, string baseDir)
+    /// <summary>
+    /// 路径转换辅助工具
+    /// </summary>
+    private string RootPath(string path, string baseDir)
     {
-        // 确保输出路径等基于配置文件所在目录进行转换
-        if (!Path.IsPathRooted(config.OutputRoot))
-            config.OutputRoot = Path.GetFullPath(Path.Combine(baseDir, config.OutputRoot));
-
-        return config;
+        if (string.IsNullOrEmpty(path)) return baseDir;
+        // 如果已经是绝对路径则直接返回，否则基于 baseDir 合并
+        return Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(baseDir, path));
     }
 }

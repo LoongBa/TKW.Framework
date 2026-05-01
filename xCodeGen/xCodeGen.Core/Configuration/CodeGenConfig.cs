@@ -5,43 +5,48 @@ namespace xCodeGen.Core.Configuration
 {
     public class CodeGenConfig
     {
-        // 核心路径配置
-        public string TargetProject { get; set; } = string.Empty; // 目标项目路径
-        public string OutputRoot { get; set; } = "Generated";    // 输出根目录
-        public string TemplatesPath { get; set; } = "Templates"; // 模板所在目录
-
-        // 增量生成/防抖动开关
+        // === 基础设置 ===
+        public string TargetProject { get; set; } = string.Empty;
+        public string OutputRoot { get; set; } = "Generated";
+        public string TemplatesPath { get; set; } = "Templates";
         public bool EnableSkipUnchanged { get; set; } = true;
-
-        // 调试配置
         public DebugConfig Debug { get; set; } = new();
-
-        /// <summary> 是否开启业务类接口自动提取 </summary>
-        public bool EnableInterfaceExtraction { get; set; } = true;
-
-        /// <summary> 接口输出相对路径 (如 "Interfaces") </summary>
         public string InterfaceOutputPath { get; set; } = "Interfaces";
-
-        /// <summary> 服务实现类目录 (如 "Services") </summary>
         public string ServiceDirectory { get; set; } = "Services";
-
+        public List<string> AttributeWhitelist { get; set; } = [];
+        public List<NamingRule> NamingRules { get; set; } = [];
+        // === 产物生成核心配置 ===
         /// <summary>
-        /// 属性白名单：当不为 null/empty 时，InterfaceSynthesizer 只会复制白名单内的特性（大小写不敏感，可带或不带 "Attribute" 后缀）。
-        /// 若为 null 或空列表，则默认复制所有特性（兼容旧行为）。
+        /// Key 为产物类型名称，如 "Entity", "Dto", "DomainMap"
         /// </summary>
-        public List<string> AttributeWhitelist { get; set; } = new();
+        public Dictionary<string, ArtifactConfig> Artifacts { get; set; } = new();
 
-        // 命名与映射规则
-        public List<NamingRule> NamingRules { get; set; } = new();
-        // 文件名生成模式 (e.g. "{ClassName}.Dto.generated.cs")
-        public Dictionary<string, string> FileNamePatterns { get; set; } = new();
-        public Dictionary<string, string> TemplateMappings { get; set; } = new(); // ArtifactType -> TemplatePath
-        public Dictionary<string, string> OutputDirectories { get; set; } = new(); // ArtifactType -> SubDir
-        public Dictionary<string, string> SkeletonMappings { get; set; } = new(); // ArtifactType -> SkeletonTemplatePath
+        // === 自定义设置 ===
         public Dictionary<string, string> CustomSettings { get; set; } = new();
 
         public static CodeGenConfig FromJson(string json) =>
             JsonSerializer.Deserialize<CodeGenConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+    }
+
+    /// <summary>
+    /// 单个生成产物的配置定义
+    /// </summary>
+    public class ArtifactConfig
+    {
+        /// <summary> 
+        /// 生成范围: "Entity" (遍历实体生成), "Project" (全局只生成一次) 
+        /// </summary>
+        public string Scope { get; set; } = "Entity";
+
+        // ---- 可覆盖生成的模板配置 (受 EnableSkipUnchanged 控制) ----
+        public string? Template { get; set; }
+        public string OutputPattern { get; set; } = "{ClassName}.g.cs";
+        public string OutputDir { get; set; } = "";
+
+        // ---- 一次性骨架模板配置 (文件存在则跳过) ----
+        public string? SkeletonTemplate { get; set; }
+        public string? SkeletonPattern { get; set; }
+        public string? SkeletonDir { get; set; }
     }
 
     public class DebugConfig
