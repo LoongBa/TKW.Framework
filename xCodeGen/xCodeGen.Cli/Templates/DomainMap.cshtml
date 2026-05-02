@@ -39,7 +39,7 @@ foreach (var m in dacMeta.Methods)
 @:| :--- | :--- | :--- |
         foreach (var prop in entity.Properties)
         {
-@:| @(prop.Name) | @(prop.TypeName) | @ToMd(prop.Summary) |
+@:| @(prop.Name) | `@(prop.TypeName)` | @ToMd(prop.Summary) |
         }
 
         // 仅在真的有手写 Custom 方法时，才渲染扩展能力大纲
