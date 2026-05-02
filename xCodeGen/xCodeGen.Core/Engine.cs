@@ -36,7 +36,7 @@ public class Engine(
                 {
                     try
                     {
-                        await ProcessEntityArtifactAsync(classMeta, artPair.Key, 
+                        await ProcessEntityArtifactAsync(projectContext, classMeta, artPair.Key, 
                             artPair.Value, config, result);
                     }
                     catch (Exception e)
@@ -81,8 +81,8 @@ public class Engine(
         }
         return result;
     }
-
-    private async Task ProcessEntityArtifactAsync(ClassMetadata entity, string artifactName, ArtifactConfig art, CodeGenConfig config, GenerateResult result)
+    private async Task ProcessEntityArtifactAsync(IProjectMetaContext projectContext, ClassMetadata entity,
+        string artifactName, ArtifactConfig art, CodeGenConfig config, GenerateResult result)
     {
         // A. 处理标准模板 (支持增量跳过)
         if (!string.IsNullOrEmpty(art.Template))
@@ -105,15 +105,17 @@ public class Engine(
             if (shouldGenerate)
             {
                 entity.GenerateCodeSettings["MetadataHash"] = currentHash;
+                entity.GenerateCodeSettings["GeneratedNamespace"] = projectContext.Configuration.GeneratedNamespace;
 
                 var code = await templateEngine.RenderAsync(entity, art.Template);
+                // true 表示允许覆盖写入
                 fileWriter.Write(code, genPath, true);
-                result.AddGenerated($"{entity.ClassName} [{artifactName}]", genPath);
+                result.AddGenerated($"[{artifactName}] {entity.ClassName}", genPath);
             }
             else
             {
                 result.SkippedCount++;
-                result.SkippedFiles[$"{entity.ClassName} [{artifactName}]"] = genPath;
+                result.SkippedFiles[$"[{artifactName}] {entity.ClassName}"] = genPath;
             }
         }
 
@@ -124,18 +126,22 @@ public class Engine(
             var skelPattern = !string.IsNullOrEmpty(art.SkeletonPattern) ? art.SkeletonPattern : art.OutputPattern.Replace(".g.cs", ".cs");
             var skelPath = fileWriter.ResolveOutputPath(skelDir, entity.ClassName, skelPattern);
 
+            // 核心把控：只有文件不存在时才生成，绝不覆盖
             if (!fileWriter.Exists(skelPath))
             {
                 var skelCode = await templateEngine.RenderAsync(entity, art.SkeletonTemplate);
+                // false 表示拒绝覆盖写入（双重保险）
                 fileWriter.Write(skelCode, skelPath, false);
                 result.SkeletonFiles[$"{entity.ClassName} [{artifactName} Skel]"] = skelPath;
             }
         }
     }
+
     private async Task ProcessProjectArtifactAsync(IProjectMetaContext project, string artifactName, ArtifactConfig art, CodeGenConfig config, GenerateResult result)
     {
-        // A. 处理标准模板 (支持增量跳过)
         var projectName = "Project";
+
+        // A. 处理标准模板 (支持增量跳过)
         if (!string.IsNullOrEmpty(art.Template))
         {
             var genPath = fileWriter.ResolveOutputPath(art.OutputDir, projectName, art.OutputPattern);
@@ -144,12 +150,11 @@ public class Engine(
             if (!File.Exists(fullTemplatePath))
             {
                 result.AddError($"找不到模板: {art.Template}");
-                return;
+                return; // 找不到模板直接中止该产物
             }
 
             var templateContent = await File.ReadAllTextAsync(fullTemplatePath);
 
-            // 💡 确保 currentHash 被赋值，不再受 EnableSkipUnchanged 短路影响
             var isChanged = incrementalChecker.NeedRegenerate(project, art.OutputDir, projectName, art.OutputPattern, templateContent, out var currentHash);
             var shouldGenerate = !config.EnableSkipUnchanged || isChanged;
 
@@ -158,7 +163,8 @@ public class Engine(
                 project.Configuration.CustomProperties["MetadataHash"] = currentHash;
                 var code = await templateEngine.RenderAsync(project, art.Template);
                 fileWriter.Write(code, genPath, true);
-                result.AddGenerated($"{project} [{artifactName}]", genPath);
+                // 修复：使用 projectName 而不是直接用 project 对象插值
+                result.AddGenerated($"{projectName} [{artifactName}]", genPath);
             }
             else
             {
@@ -166,7 +172,6 @@ public class Engine(
                 result.SkippedFiles[$"{projectName} [{artifactName}]"] = genPath;
             }
         }
-
         // B. 处理骨架模板 (一次性，存在即跳过)
         if (!string.IsNullOrEmpty(art.SkeletonTemplate))
         {

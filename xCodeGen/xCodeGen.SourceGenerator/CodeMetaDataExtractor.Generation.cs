@@ -54,7 +54,7 @@ namespace xCodeGen.SourceGenerator
             codeBuilder.AppendLine($"            HasDecoratorCandidate = {metadata.HasDecoratorCandidate.ToString().ToLower()},");
             codeBuilder.AppendLine($"            SourceHash = \"{EscapeString(metadata.SourceHash)}\",");
 
-            codeBuilder.AppendLine("            Attributes = new Collection<AttributeMetadata>");
+            codeBuilder.AppendLine("            Attributes = new List<AttributeMetadata>");
             codeBuilder.AppendLine("            {");
             if (metadata.Attributes != null)
             {
@@ -62,7 +62,7 @@ namespace xCodeGen.SourceGenerator
             }
             codeBuilder.AppendLine("            },");
 
-            codeBuilder.AppendLine("            Properties = new Collection<PropertyMetadata>");
+            codeBuilder.AppendLine("            Properties = new List<PropertyMetadata>");
             codeBuilder.AppendLine("            {");
             foreach (var prop in metadata.Properties)
             {
@@ -73,7 +73,6 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    TypeFullName = \"{EscapeString(prop.TypeFullName)}\",");
                 codeBuilder.AppendLine($"                    IsNullable = {prop.IsNullable.ToString().ToLower()},");
                 codeBuilder.AppendLine($"                    Summary = {FormatStringValue(prop.Summary)},");
-                // 修复：生成 List 防止集合隐式转换异常
                 codeBuilder.AppendLine("                    Attributes = new List<AttributeMetadata>");
                 codeBuilder.AppendLine("                    {");
                 foreach (var attr in prop.Attributes) BuildAttributeInitialization(codeBuilder, attr, "                        ");
@@ -82,7 +81,7 @@ namespace xCodeGen.SourceGenerator
             }
             codeBuilder.AppendLine("            },");
 
-            codeBuilder.AppendLine("            Methods = new Collection<MethodMetadata>");
+            codeBuilder.AppendLine("            Methods = new List<MethodMetadata>");
             codeBuilder.AppendLine("            {");
             foreach (var method in metadata.Methods)
             {
@@ -93,15 +92,8 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine($"                    IsAsync = {method.IsAsync.ToString().ToLower()},");
                 codeBuilder.AppendLine($"                    Origin = MethodOrigin.{method.Origin},");
                 codeBuilder.AppendLine($"                    AccessModifier = \"{EscapeString(method.AccessModifier)}\",");
-                // --- 新增条件编译控制 ---
-                codeBuilder.AppendLine("#if DEBUG");
                 codeBuilder.AppendLine($"                    Summary = {FormatStringValue(method.Summary)},");
                 codeBuilder.AppendLine($"                    SourceFile = \"{EscapeString(method.SourceFile)}\",");
-                codeBuilder.AppendLine("#else");
-                codeBuilder.AppendLine("                    Summary = \"\",");
-                codeBuilder.AppendLine("                    SourceFile = \"\",");
-                codeBuilder.AppendLine("#endif");
-                // -----------------------
                 codeBuilder.AppendLine("                    Parameters = new List<ParameterMetadata>");
                 codeBuilder.AppendLine("                    {");
                 foreach (var param in method.Parameters)
@@ -109,7 +101,6 @@ namespace xCodeGen.SourceGenerator
                     codeBuilder.AppendLine($"                        new ParameterMetadata {{ Name = \"{EscapeString(param.Name)}\", TypeName = \"{EscapeString(param.TypeName)}\", IsNullable = {param.IsNullable.ToString().ToLower()}, Summary = {FormatStringValue(param.Summary)} }},");
                 }
                 codeBuilder.AppendLine("                    },");
-                // 修复：生成 List 防止集合隐式转换异常
                 codeBuilder.AppendLine("                    Attributes = new List<AttributeMetadata>");
                 codeBuilder.AppendLine("                    {");
                 if (method is MethodMetadata mm && mm.Attributes != null)
@@ -168,14 +159,24 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine("        private ProjectMetaContext()");
                 codeBuilder.AppendLine("        {");
-                var entities = allMetadatas.Where(m => m.Type != MetaType.Other);
-                foreach (var metadata in entities.OrderBy(m => m.ClassName))
-                    codeBuilder.AppendLine($"            _allMetadatas.Add({metadata.Namespace}.Generated.{metadata.ClassName}Meta.Metadata);");
+                //var metas = allMetadatas.Where(m => m.Type != MetaType.Other);
+                var type = "";
+                foreach (var m in allMetadatas.OrderBy(m => m.Type)
+                             .ThenBy(m => m.Namespace).ThenBy(m => m.ClassName))
+                {
+                    if (type != null && !type.Equals(m.Type.ToString(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        type = m.Type.ToString();
+                        if (!string.IsNullOrEmpty(type))
+                            codeBuilder.AppendLine($"            //{type}");
+                    }
+                    codeBuilder.AppendLine($"            _allMetadatas.Add({m.Namespace}.Generated.{m.ClassName}Meta.Metadata);");
+                }
                 codeBuilder.AppendLine("        }");
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine($"        public override ProjectConfiguration Configuration {{ get; }} = new ProjectConfiguration(projectDirectory: \"{EscapeString(projectInfo.ProjectDirectory)}\", outputPath: \"{EscapeString(projectInfo.OutputPath)}\", rootNamespace: \"{EscapeString(projectInfo.RootNamespace)}\", assemblyName: \"{EscapeString(projectInfo.AssemblyName)}\", targetFramework: \"{EscapeString(projectInfo.TargetFramework)}\", buildConfiguration: \"{EscapeString(projectInfo.BuildConfiguration)}\", langVersion: \"{EscapeString(projectInfo.LangVersion)}\", nullable: \"{EscapeString(projectInfo.Nullable)}\", generatedNamespace: \"{EscapeString(projectInfo.GeneratedNamespace)}\", generatedFilesDirectory: \"{EscapeString(projectInfo.GeneratedFilesDirectory)}\", generatorVersion: \"{EscapeString(projectInfo.GeneratorVersion)}\");");
                 codeBuilder.AppendLine("        public override MetadataChangeLog ChangeLog { get; } = new MetadataChangeLog();");
-                codeBuilder.AppendLine("        public override string MetadataSchemaVersion => \"2.4\";");
+                codeBuilder.AppendLine($"        public override string MetadataSchemaVersion => \"{Version}\";");
                 codeBuilder.AppendLine();
 
                 var services = allMetadatas.Where(m => m.Type == MetaType.Service || m.Type == MetaType.DataService || m.Type == MetaType.Controller).ToArray();

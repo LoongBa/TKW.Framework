@@ -43,6 +43,10 @@ namespace xCodeGen.Abstractions.Metadata
         public virtual IEnumerable<ClassMetadata> FindByNamespace(string @namespace)
             => AllMetadatas.Where(m => m.Namespace == @namespace);
 
+        public string Md(string input) => MdHelper.Clean(input);
+
+        public string MdQuote(string input) => MdHelper.ToQuote(input);
+
         /// <summary>
         /// 按类全名和方法名检索方法元数据（高性能，无反射）
         /// </summary>

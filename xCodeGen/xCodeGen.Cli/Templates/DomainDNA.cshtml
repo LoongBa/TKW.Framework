@@ -1,0 +1,15 @@
+@using xCodeGen.Abstractions.Metadata
+@model IProjectMetaContext
+# TKWF.Domain V4 框架公理库 (DNA)
+
+## 核心开发法则
+1. **物理隔离**：所有实现类（Controller/DataService）必须声明为 `internal`。表现层仅允许访问 `public` 契约接口。
+2. **唯一入口**：业务调用的唯一合法入口是 `DomainUser`。
+3. **调用规约**：
+   - 外部调用契约：`User.UseAop<IContract>()`。
+   - 领域内部原子调用：`User.Use<Service>()`。
+4. **事务原则**：涉及多个 DataService 修改的操作，必须在 Controller 方法上标注 `[Transactional]`。
+
+## 基础设施
+- **ORM**: 基于 FreeSql 封装。
+- **DI**: 静态装配，由 `ProjectMetaContext` 自动分流。

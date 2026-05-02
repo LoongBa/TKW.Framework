@@ -164,7 +164,7 @@ partial class Program
             {
                 Console.WriteLine("\n⏭️  跳过清单 (Unchanged):");
                 Console.ForegroundColor = ConsoleColor.Blue;
-                foreach (var file in result.SkippedFiles)
+                foreach (var file in result.SkippedFiles.OrderBy(f=>f.Key))
                 {
                     var relPath = Path.GetRelativePath(currentDir, file.Value);
                     Console.WriteLine($"  [-] {file.Key,-30} -> {relPath} (未变更)");

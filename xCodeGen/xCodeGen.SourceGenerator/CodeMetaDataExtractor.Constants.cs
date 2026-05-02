@@ -12,6 +12,7 @@ namespace xCodeGen.SourceGenerator
 {
     public partial class CodeMetaDataExtractor
     {
+        public const string Version = "3.0";
         public const string GeneratedFileExtension = ".g.cs";
         public const string ProjectMetaContextName = "_ProjectMetaContext.g.cs";
         public const string MetaFilePrefix = "";//"Meta/";
