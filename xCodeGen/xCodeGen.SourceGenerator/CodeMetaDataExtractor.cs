@@ -49,10 +49,23 @@ namespace xCodeGen.SourceGenerator
                 EnrichAndHashMetadatas(ref allMetadatas);
 #if DEBUG
                 // 条件编译：DEBUG 时才生成 meta 文件
-                foreach (var entity in allMetadatas.Where(
+                foreach (var metadata in allMetadatas.Where(
                     m => m.Type == MetaType.Entity || m.Type == MetaType.View
                     || m.Type == MetaType.Controller || m.Type == MetaType.Service || m.Type == MetaType.DataService))
-                    GenerateMetaFile(spc, entity);
+                {
+                    // 审计规则：禁止 DataService 实现 IAopContract 或被标记为 Controller 逻辑
+                    if (metadata.Type == MetaType.DataService && metadata.ImplementedInterfaces.Any(i => i.Contains("IAopContract")))
+                    {
+                        var descriptor = new DiagnosticDescriptor(
+                            id: "V4_ERR_001", title: "架构约束检查",
+                            messageFormat: "禁止在 DataService {0} 中实现 IAopContract",
+                            category: "Usage", defaultSeverity: DiagnosticSeverity.Error, // 设为 Error 会导致编译失败
+                            isEnabledByDefault: true);
+                        spc.ReportDiagnostic(Diagnostic.Create(descriptor, Location.None, metadata.ClassName));
+                    }
+
+                    GenerateMetaFile(spc, metadata);
+                }
                 // 提取框架公共接口（作为 DomainMap 的公共内容，节省 Token）
                 var meta = ExtractFrameworkInterfaceMeta(spc, compilation, "TKW.Framework.Domain.Interfaces.IEntityDAC`1", "IEntityDAC");
                 allMetadatas.Add(meta);

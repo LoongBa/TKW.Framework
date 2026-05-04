@@ -71,7 +71,7 @@ namespace @(servicesNS);
 }
 /// </summary>
 // 【修改】：使用 @(baseClassName) 动态继承
-@Model.Accessibility partial class @(serviceName) : IGeneratedByxCodeGenCli
+@Model.Accessibility sealed partial class @(serviceName) : IGeneratedByxCodeGenCli
 {
     #region [ 自动化业务查询 (双轨制：Internal Entity / Public DTO) ]
 
