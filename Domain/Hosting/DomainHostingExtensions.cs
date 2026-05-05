@@ -1,6 +1,6 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
+using System;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Hosting;
@@ -11,19 +11,26 @@ public static class DomainHostingExtensions
     /// V4 统一入口：向应用注入领域层能力
     /// </summary>
     public static TSubBuilder AddDomain<TUserInfo, TInitializer, TSubBuilder, TOptions>(
-        this IServiceCollection services,
-        IConfiguration configuration,
+        this IServiceCollection services, IConfiguration configuration, TOptions options,
         Func<IDomainAppBuilderAdapter, TOptions, TSubBuilder> builderFactory)
         where TUserInfo : class, IUserInfo, new()
-        where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
+        where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
         where TSubBuilder : DomainAppBuilderBase<TSubBuilder, TOptions, TUserInfo>
         where TOptions : DomainOptions, new()
     {
-        // 1. 初始化 Options
-        var options = new TOptions();
+        // 1. 注册 Options 并启用验证
+        var optionsBuilder = services.AddOptions<TOptions>();
+        if (!options.SkipValidation)
+        {
+            optionsBuilder
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+        }
+        // 关键：将当前已填充的实例注册为 IOptions 的源
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(options));
 
         // 2. 调用 DomainHost.Initialize (静态初始化)
-        var host = DomainHost<TUserInfo>.Initialize<TInitializer>(services, options, configuration);
+        var host = DomainHost<TUserInfo>.Initialize<TInitializer, TOptions>(services, options, configuration);
 
         // 3. 注册一个启动任务，用于在 ServiceProvider 构建后同步状态
         services.AddHostedService(sp =>

@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using TKW.Framework.Domain.Interfaces;
-using TKW.Framework.Domain.Web.Session;
+using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain.Web.Middlewares;
 
@@ -81,7 +81,7 @@ public class SessionUserMiddleware<TUserInfo>(
         {
             HttpOnly = options.HttpOnly,
             Secure = context.Request.IsHttps,
-            SameSite = options.SameSite,
+            //TODO: SameSite = options.SameSite,
             MaxAge = options.ExpiredTimeSpan
         });
 

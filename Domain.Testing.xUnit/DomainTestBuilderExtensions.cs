@@ -10,9 +10,10 @@ public static class DomainTestBuilderExtensions
     /// <summary>
     /// 封装 xUnit 专用日志桥接逻辑，业务层无需再手动注册 Bridge
     /// </summary>
-    public static TestAppBuilder<TUserInfo, TInitializer> UseXunitLogger<TUserInfo, TInitializer>(this TestAppBuilder<TUserInfo, TInitializer> builder)
+    public static TestAppBuilder<TUserInfo, TInitializer, TOptions> UseXunitLogger<TUserInfo, TInitializer, TOptions>(this TestAppBuilder<TUserInfo, TInitializer, TOptions> builder)
         where TUserInfo : class, IUserInfo, new()
-        where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
+        where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+        where TOptions : DomainOptions, new()
     {
         // V4 变更：使用 IServiceCollection 的 RegisterServices 钩子替代 Autofac
         builder.RegisterServices((services, _) =>

@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
@@ -47,11 +48,12 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
     #region [ 初始化与绑定 ]
 
-    public static DomainHost<TUserInfo> Initialize<TDomainInitializer>(
+    public static DomainHost<TUserInfo> Initialize<TDomainInitializer, TOptions>(
         IServiceCollection services,
-        DomainOptions options,
+        TOptions options,
         IConfiguration? configuration = null)
-        where TDomainInitializer : DomainHostInitializerBase<TUserInfo>, new()
+        where TDomainInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+        where TOptions : DomainOptions, new()
     {
         if (Root != null) throw new InvalidOperationException("DomainHost 已重初始化");
 

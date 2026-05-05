@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using TKW.Framework.Common.Tools;
 
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Domain.Hosting;
 
 /// <summary>
 /// 领域核心配置项，不包含任何 Web 环境依赖
@@ -18,7 +18,8 @@ public class DomainOptions
     public bool EnableDomainLogging { get; set; }
     public Type IIdGeneratorType { get; set; } = typeof(DefaultIdGenerator);
     public DomainSessionOptions Session { get; } = new();
-
+    /// <summary>跳过配置验证</summary>
+    public bool SkipValidation { get; set; }
     public string ApplicationName { get; set; } = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "TKWF.DefaultApp";
 }
 

@@ -9,11 +9,12 @@ using TKW.Framework.Domain.Testing.Session;
 
 namespace TKW.Framework.Domain.Hosting;
 
-public class TestAppBuilder<TUserInfo, TInitializer>(
-    IDomainAppBuilderAdapter builder, DomainOptions options)
-    : DomainAppBuilderBase<TestAppBuilder<TUserInfo, TInitializer>, DomainOptions, TUserInfo>(builder, options)
+public class TestAppBuilder<TUserInfo, TInitializer, TOptions>(
+    IDomainAppBuilderAdapter builder, TOptions options)
+    : DomainAppBuilderBase<TestAppBuilder<TUserInfo, TInitializer, TOptions>, TOptions, TUserInfo>(builder, options)
     where TUserInfo : class, IUserInfo, new()
-    where TInitializer : DomainHostInitializerBase<TUserInfo>, new()
+    where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+    where TOptions : DomainOptions, new()
 {
     public DomainHost<TUserInfo> Build()
     {
@@ -29,12 +30,12 @@ public class TestAppBuilder<TUserInfo, TInitializer>(
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
     }
 
-    public TestAppBuilder<TUserInfo, TInitializer> NoSession()
+    public TestAppBuilder<TUserInfo, TInitializer, TOptions> NoSession()
     {
-        return UseSessionManager<StatelessSessionManager<TUserInfo>>();
+        return UseSessionManager<NoSessionManager<TUserInfo>>();
     }
 
-    public TestAppBuilder<TUserInfo, TInitializer> UseTestSession()
+    public TestAppBuilder<TUserInfo, TInitializer, TOptions> UseTestSession()
     {
         return UseSessionManager<TestSessionManager<TUserInfo>>();
     }

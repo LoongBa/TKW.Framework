@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
+using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Session;

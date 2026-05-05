@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using TKW.Framework.Domain.Exceptions;
+using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interception.Filters;
 using TKW.Framework.Domain.Interfaces;
@@ -16,7 +16,9 @@ namespace TKW.Framework.Domain;
 /// <summary>
 /// 领域主机初始化基类：适配 IServiceCollection。
 /// </summary>
-public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : class, IUserInfo, new()
+public abstract class DomainHostInitializerBase<TUserInfo, TOptions> 
+    where TUserInfo : class, IUserInfo, new()
+    where TOptions : DomainOptions, new()
 {
     protected DomainHost<TUserInfo>? Host { get; private set; }
 
@@ -26,18 +28,20 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     public DomainUserHelperBase<TUserInfo> InitializeDiContainer(
         IServiceCollection services,
         IConfiguration? configuration,
-        DomainOptions options)
+        TOptions options)
     {
         OnPreInitialize(options, configuration);
         RegisterInfrastructureInternal(services, configuration, options);
         return OnRegisterDomainServices(services, configuration);
     }
 
-    protected virtual void OnPreInitialize(DomainOptions options, IConfiguration? configuration) { }
+    protected virtual void OnPreInitialize(TOptions options, IConfiguration? configuration) { }
 
-    private void RegisterInfrastructureInternal(IServiceCollection services, IConfiguration? configuration, DomainOptions options)
+    private void RegisterInfrastructureInternal(IServiceCollection services, 
+        IConfiguration? configuration, TOptions options)
     {
-        var projectMetaContext = OnRegisterInfrastructureServices(services, configuration, options);
+        var projectMetaContext 
+            = OnRegisterInfrastructureServices(services, configuration, options);
         // 注册 IProjectMetaContext 供后续查询
         // 此时 Host 尚未创建，需要在 BindServiceProvider 中处理
         services.AddSingleton(projectMetaContext);
@@ -54,7 +58,7 @@ public abstract class DomainHostInitializerBase<TUserInfo> where TUserInfo : cla
     }
 
     protected abstract IProjectMetaContext OnRegisterInfrastructureServices(IServiceCollection services,
-        IConfiguration? configuration, DomainOptions options);
+        IConfiguration? configuration, TOptions options);
     protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(IServiceCollection services, IConfiguration? configuration);
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TKW.Framework.Domain.Hosting;
 
 namespace TKW.Framework.Domain.Web;
 

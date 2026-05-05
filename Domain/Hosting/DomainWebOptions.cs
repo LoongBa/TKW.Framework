@@ -1,6 +1,6 @@
-﻿using TKW.Framework.Domain.Web.Session;
+﻿using TKW.Framework.Domain.Session;
 
-namespace TKW.Framework.Domain.Web;
+namespace TKW.Framework.Domain.Hosting;
 
 /// <summary>
 /// Web 专用领域配置扩展
@@ -14,6 +14,6 @@ public class DomainWebOptions: DomainOptions
     /// </summary>
     public bool AutoAddHttpContextAccessor { get; set; } = true;
     public bool SuppressRoutingWarning { get; set; } = false;
-    internal bool HasRoutingPhase { get; set; } = false;
+    public bool HasRoutingPhase { get; set; } = false;
     public WebSessionOptions WebSession { get; set; } = new();
 }
