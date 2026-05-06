@@ -21,7 +21,7 @@ public record CachePolicy(TimeSpan ExpirationTime, bool NeverExpire = false)
 }
 
 /// <summary>
-/// 高性能对象映射工具（面向 .NET 10 优化）
+/// 高性能对象映射工具（面向 .NET 10 优化：SG > JIT > Reflection）
 /// </summary>
 /// <remarks>
 /// 采用三级自动降级执行路径：
@@ -32,7 +32,6 @@ public record CachePolicy(TimeSpan ExpirationTime, bool NeverExpire = false)
 /// </remarks>
 public static class ExpressionMapper
 {
-    // 缓存：(源类型, 目标类型) -> (委托, 最后访问时间刻度, 策略)
     private static readonly ConcurrentDictionary<(Type, Type), (Delegate Delegate, long LastAccessTicks, CachePolicy Policy)> _mapperCache = new();
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> _propertyCache = new();
 
@@ -48,7 +47,7 @@ public static class ExpressionMapper
     #region 公开 API
 
     /// <summary>
-    /// 拷贝值到现有对象
+    /// [扩展方法] 拷贝值到现有对象 (Update)
     /// </summary>
     public static TTarget CopyValuesFrom<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TSource,
@@ -59,7 +58,7 @@ public static class ExpressionMapper
         ArgumentNullException.ThrowIfNull(target);
         if (source == null) return target;
 
-        // 1. SG 快速路径 (最高性能)
+        // 1. SG 快速路径
         if (target is ICopyValuesFrom<TSource> generated)
         {
             generated.CopyValuesFrom(source);
@@ -76,7 +75,6 @@ public static class ExpressionMapper
         }
         else
         {
-            // 3. AOT 兜底路径
             ReflectionFallbackMap(source, target);
         }
 
@@ -84,7 +82,7 @@ public static class ExpressionMapper
     }
 
     /// <summary>
-    /// 创建新对象并拷贝
+    /// [扩展方法] 创建新对象并拷贝值 (Create)
     /// </summary>
     public static TTarget CopyToNew<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TSource,
@@ -94,6 +92,7 @@ public static class ExpressionMapper
     {
         if (source == null) return null!;
 
+        // 1. 环境探测：JIT 模式下使用 MemberInit 委托 (性能最高)
         if (IsJitSupported)
         {
             var mapper = GetOrCreateDelegate(
@@ -101,108 +100,108 @@ public static class ExpressionMapper
                 CreateCreateDelegate<TSource, TTarget>);
             return mapper(source);
         }
-        else
-        {
-            var target = new TTarget();
-            ReflectionFallbackMap(source, target);
-            return target;
-        }
+
+        // 2. AOT 或降级模式：先 new 再尝试 CopyValuesFrom (可利用 SG)
+        var target = new TTarget();
+        return target.CopyValuesFrom(source);
     }
 
     /// <summary>
-    /// 批量预缓存映射关系（用于启动预热）
+    /// [扩展方法] 高性能深拷贝 (Clone)
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static T Clone<T>(this T source) where T : class, new()
+    {
+        // 逻辑统一：直接调用 CopyToNew，其内部已包含三级路径分发
+        return source.CopyToNew<T, T>();
+    }
+
+    /// <summary>
+    /// 批量预缓存映射关系（用于启动预热，消除首次调用延迟）
     /// </summary>
     public static void BatchPreCache(IEnumerable<(Type Source, Type Target)> pairs)
     {
+        if (!IsJitSupported) return;
+
         foreach (var (s, t) in pairs)
         {
-            if (!IsJitSupported) continue;
+            // 预热 Update 委托
+            var methodUpdate = typeof(ExpressionMapper).GetMethod(nameof(GetOrCreateDelegate), BindingFlags.NonPublic | BindingFlags.Static);
+            var updateFactory = typeof(ExpressionMapper).GetMethod(nameof(CreateUpdateDelegate), BindingFlags.NonPublic | BindingFlags.Static)?.MakeGenericMethod(s, t);
+            methodUpdate?.MakeGenericMethod(typeof(Action<,>).MakeGenericType(s, t)).Invoke(null, [(s, t), updateFactory?.CreateDelegate(typeof(Func<>).MakeGenericType(typeof(Action<,>).MakeGenericType(s, t)))]);
 
-            // 动态调用预热 Action 编译
-            var method = typeof(ExpressionMapper).GetMethod(nameof(GetOrCreateDelegate), BindingFlags.NonPublic | BindingFlags.Static);
-            // 逻辑略：通常建议手动针对高频对象调用 CopyValuesFrom 进行热身
+            // 预热 Create 委托 (如果 T 具备无参构造)
+            if (t.GetConstructor(Type.EmptyTypes) != null)
+            {
+                var createFactory = typeof(ExpressionMapper).GetMethod(nameof(CreateCreateDelegate), BindingFlags.NonPublic | BindingFlags.Static)?.MakeGenericMethod(s, t);
+                methodUpdate?.MakeGenericMethod(typeof(Func<,>).MakeGenericType(s, t)).Invoke(null, [(s, t), createFactory?.CreateDelegate(typeof(Func<>).MakeGenericType(typeof(Func<,>).MakeGenericType(s, t)))]);
+            }
         }
     }
 
     #endregion
 
-    #region 内部编译逻辑
+    #region 内部编译逻辑 (私有)
 
     private static TDelegate GetOrCreateDelegate<TDelegate>((Type, Type) key, Func<TDelegate> factory) where TDelegate : Delegate
     {
         var item = _mapperCache.GetOrAdd(key, _ => (factory(), DateTime.UtcNow.Ticks, CachePolicy.Default));
-
-        // 使用原子操作更新时间戳，避免高并发下的锁竞争
         Interlocked.Exchange(ref Unsafe.As<long, long>(ref Unsafe.AsRef(in item.LastAccessTicks)), DateTime.UtcNow.Ticks);
-
         return (TDelegate)item.Delegate;
     }
 
+    // 针对 CopyValuesFrom 的 Action 委托
     private static Action<TSource, TTarget> CreateUpdateDelegate<TSource, TTarget>()
     {
-        var sourceParam = Expression.Parameter(typeof(TSource), "s");
-        var targetParam = Expression.Parameter(typeof(TTarget), "t");
+        var sParam = Expression.Parameter(typeof(TSource), "s");
+        var tParam = Expression.Parameter(typeof(TTarget), "t");
         var expressions = new List<Expression>();
+        var sProps = GetCachedProperties(typeof(TSource));
+        var tProps = GetCachedProperties(typeof(TTarget));
 
-        var sourceProps = GetCachedProperties(typeof(TSource));
-        var targetProps = GetCachedProperties(typeof(TTarget));
-
-        foreach (var tProp in targetProps)
+        foreach (var tProp in tProps)
         {
             if (!tProp.CanWrite) continue;
-            var sProp = Array.Find(sourceProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase)
+            var sProp = Array.Find(sProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase)
                 && (p.PropertyType == tProp.PropertyType || Nullable.GetUnderlyingType(tProp.PropertyType) == p.PropertyType));
-
             if (sProp == null || !sProp.CanRead) continue;
 
-            var sAccess = Expression.Property(sourceParam, sProp);
-            var tAccess = Expression.Property(targetParam, tProp);
+            var sAccess = Expression.Property(sParam, sProp);
+            var tAccess = Expression.Property(tParam, tProp);
 
-            // 自动非空检查 logic
             if (!sProp.PropertyType.IsValueType || Nullable.GetUnderlyingType(sProp.PropertyType) != null)
-            {
-                expressions.Add(Expression.IfThen(
-                    Expression.NotEqual(sAccess, Expression.Constant(null, sProp.PropertyType)),
-                    Expression.Assign(tAccess, sAccess)));
-            }
+                expressions.Add(Expression.IfThen(Expression.NotEqual(sAccess, Expression.Constant(null, sProp.PropertyType)), Expression.Assign(tAccess, sAccess)));
             else
-            {
                 expressions.Add(Expression.Assign(tAccess, sAccess));
-            }
         }
-        return Expression.Lambda<Action<TSource, TTarget>>(Expression.Block(expressions), sourceParam, targetParam).Compile();
+        return Expression.Lambda<Action<TSource, TTarget>>(Expression.Block(expressions), sParam, tParam).Compile();
     }
 
+    // 针对 CopyToNew 的 Func 委托 (MemberInit 性能更优)
     private static Func<TSource, TTarget> CreateCreateDelegate<TSource, TTarget>() where TTarget : new()
     {
-        var sourceParam = Expression.Parameter(typeof(TSource), "s");
+        var sParam = Expression.Parameter(typeof(TSource), "s");
         var bindings = new List<MemberBinding>();
-        var sourceProps = GetCachedProperties(typeof(TSource));
-        var targetProps = GetCachedProperties(typeof(TTarget));
+        var sProps = GetCachedProperties(typeof(TSource));
+        var tProps = GetCachedProperties(typeof(TTarget));
 
-        foreach (var tProp in targetProps)
+        foreach (var tProp in tProps)
         {
             if (!tProp.CanWrite) continue;
-            var sProp = Array.Find(sourceProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase)
-                && p.PropertyType == tProp.PropertyType);
-
-            if (sProp != null)
-                bindings.Add(Expression.Bind(tProp, Expression.Property(sourceParam, sProp)));
+            var sProp = Array.Find(sProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase) && p.PropertyType == tProp.PropertyType);
+            if (sProp != null) bindings.Add(Expression.Bind(tProp, Expression.Property(sParam, sProp)));
         }
-
-        return Expression.Lambda<Func<TSource, TTarget>>(
-            Expression.MemberInit(Expression.New(typeof(TTarget)), bindings), sourceParam).Compile();
+        return Expression.Lambda<Func<TSource, TTarget>>(Expression.MemberInit(Expression.New(typeof(TTarget)), bindings), sParam).Compile();
     }
 
     private static void ReflectionFallbackMap<TSource, TTarget>(TSource source, TTarget target)
     {
-        var sourceProps = GetCachedProperties(typeof(TSource));
-        var targetProps = GetCachedProperties(typeof(TTarget));
-
-        foreach (var tProp in targetProps)
+        var sProps = GetCachedProperties(typeof(TSource));
+        var tProps = GetCachedProperties(typeof(TTarget));
+        foreach (var tProp in tProps)
         {
             if (!tProp.CanWrite) continue;
-            var sProp = Array.Find(sourceProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase));
+            var sProp = Array.Find(sProps, p => string.Equals(p.Name, tProp.Name, StringComparison.OrdinalIgnoreCase));
             if (sProp != null && sProp.CanRead)
             {
                 var val = sProp.GetValue(source);
@@ -213,10 +212,7 @@ public static class ExpressionMapper
 
     private static PropertyInfo[] GetCachedProperties(Type type)
     {
-        return _propertyCache.GetOrAdd(type, t =>
-            t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-             .Where(p => p.GetIndexParameters().Length == 0)
-             .ToArray());
+        return _propertyCache.GetOrAdd(type, t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => p.GetIndexParameters().Length == 0).ToArray());
     }
 
     private static void CleanupExpiredCache()
@@ -224,13 +220,10 @@ public static class ExpressionMapper
         var nowTicks = DateTime.UtcNow.Ticks;
         foreach (var key in _mapperCache.Keys)
         {
-            if (_mapperCache.TryGetValue(key, out var item))
+            if (_mapperCache.TryGetValue(key, out var item) && !item.Policy.NeverExpire)
             {
-                if (item.Policy.NeverExpire) continue;
                 if (nowTicks - item.LastAccessTicks > item.Policy.ExpirationTime.Ticks)
-                {
                     _mapperCache.TryRemove(key, out _);
-                }
             }
         }
     }
