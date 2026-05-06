@@ -1,10 +1,12 @@
-﻿using TKW.Framework.Domain.Session;
+﻿using TKW.Framework.Common.Attributes;
+using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain.Hosting;
 
 /// <summary>
 /// Web 专用领域配置扩展
 /// </summary>
+[DomainMapFrom]
 public class DomainWebOptions: DomainOptions
 {
     public bool UseWebExceptionMiddleware { get; set; } = true;

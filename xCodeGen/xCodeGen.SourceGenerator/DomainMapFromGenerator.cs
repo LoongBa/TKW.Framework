@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -16,9 +17,9 @@ namespace xCodeGen.SourceGenerator
         private static readonly DiagnosticDescriptor NotPartialWarning = new(
             id: "TKWMAP001",
             title: "DomainMapFrom target must be partial",
-            messageFormat: "The class '{0}' uses [DomainMapFrom] but is not declared as partial. Mapping code generation is skipped and will fallback to dynamic expression tree.",
+            messageFormat: "类 '{0}' 使用了 [DomainMapFrom] 但未声明为 partial。映射代码生成已跳过，将回退到动态表达式树。",
             category: "Usage",
-            defaultSeverity: DiagnosticSeverity.Warning,
+            defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -29,7 +30,7 @@ namespace xCodeGen.SourceGenerator
                 predicate: (node, _) => node is ClassDeclarationSyntax,
                 transform: GetMappingContext)
                 .Where(ctx => ctx != null);
-
+            //Debugger.Launch();
             context.RegisterSourceOutput(provider, ExecuteGeneration);
         }
 
