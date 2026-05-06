@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Hosting;
@@ -19,15 +20,16 @@ public static class DomainHostingExtensions
         where TOptions : DomainOptions, new()
     {
         // 1. 注册 Options 并启用验证
-        var optionsBuilder = services.AddOptions<TOptions>();
+        var optionsBuilder = services.AddOptions<TOptions>().Configure(opt =>
+        {
+            opt.CopyValuesFrom(options);
+        });
         if (!options.SkipValidation)
         {
             optionsBuilder
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
         }
-        // 关键：将当前已填充的实例注册为 IOptions 的源
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(options));
 
         // 2. 调用 DomainHost.Initialize (静态初始化)
         var host = DomainHost<TUserInfo>.Initialize<TInitializer, TOptions>(services, options, configuration);

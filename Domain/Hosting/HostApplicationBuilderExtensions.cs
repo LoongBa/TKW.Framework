@@ -1,5 +1,8 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System;
+using TKW.Framework.Common.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Hosting;
@@ -7,89 +10,60 @@ namespace TKW.Framework.Domain.Hosting;
 public static class HostApplicationBuilderExtensions
 {
     /// <summary>
-    /// 为测试环境配置领域驱动环境 (适配 DomainTestFixture)
+    /// 核心配置逻辑：处理配置绑定、环境锁定及 AddDomain 调用
     /// </summary>
-    public static TestAppBuilder<TUserInfo, TInitializer, TOptions>  
-        ConfigTestAppDomain<TUserInfo, TInitializer, TOptions>(this HostApplicationBuilder builder, string? configSection = "TKWDomain", Action<TOptions>? configure = null)
+    public static TSubBuilder CoreConfigDomain<TUserInfo, TInitializer, TSubBuilder, TOptions>(
+        IServiceCollection services, IConfiguration configuration, IHostEnvironment environment,
+        string? configSection, Action<TOptions>? configure,
+        Func<IDomainAppBuilderAdapter, TOptions, TSubBuilder> builderFactory,
+        Action<TOptions, IServiceCollection>? hostSpecificAction = null)
         where TUserInfo : class, IUserInfo, new()
         where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+        where TSubBuilder : DomainAppBuilderBase<TSubBuilder, TOptions, TUserInfo>
         where TOptions : DomainOptions, new()
     {
+        // 1. 读取配置文件并绑定
         var options = new TOptions();
+        var section = configuration.GetSection(configSection.EnsureNotEmptyOrNull(nameof(configSection)));
+        section.Bind(options);
 
-        // 1. 自动执行绑定逻辑 (内部调用你写的 Binder)
-        if (!string.IsNullOrEmpty(configSection))
-            options.Bind(builder, configSection);
-
-        // 2. 执行用户自定义委托（用于覆盖配置或设置无法从配置文件读取的属性）
+        // 2. 执行用户自定义委托
         configure?.Invoke(options);
 
-        // 3. 强行锁定环境状态
-        options.IsDevelopment = builder.Environment.IsDevelopment();
+        // 3. 锁定环境状态
+        options.IsDevelopment = environment.IsDevelopment();
 
-        // 使用 V4 统一的 AddDomain 扩展
-        return builder.Services.AddDomain<TUserInfo, TInitializer, TestAppBuilder<TUserInfo, TInitializer, TOptions>, TOptions>(
-            builder.Configuration, options,
-            (adapter, opt) => new TestAppBuilder<TUserInfo, TInitializer, TOptions>(adapter, opt)
-        );
+        // 4. 执行宿主差异化逻辑 (例如 Web 的 HttpContextAccessor)
+        hostSpecificAction?.Invoke(options, services);
+
+        // 5. 调用统一的 AddDomain
+        return services.AddDomain<TUserInfo, TInitializer, TSubBuilder, TOptions>(
+            configuration, options, builderFactory);
     }
 
     extension(HostApplicationBuilder builder)
     {
-        /// <summary>
-        /// 为本地客户端类宿主配置领域驱动环境 (V4 标准 DI 版)
-        /// </summary>
-        private LocalAppBuilder<TUserInfo, TInitializer, TOptions> 
-            ConfigLocalAppDomain<TUserInfo, TInitializer, TOptions>(
-            string? configSection = "TKWDomain", Action<TOptions>? configure = null)
+        /// <summary> 为控制台/Worker 宿主配置领域环境 </summary>
+        public LocalAppBuilder<TUserInfo, TInitializer, TOptions> ConfigConsoleDomain<TUserInfo, TInitializer, TOptions>(string? configSection = "TKWDomain", Action<TOptions>? configure = null)
             where TUserInfo : class, IUserInfo, new()
             where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
             where TOptions : DomainOptions, new()
         {
-            var options = new TOptions();
-
-            // 1. 自动执行绑定逻辑 (调用 DomainConfigurationBinder)
-            if (!string.IsNullOrEmpty(configSection))
-                options.Bind(builder, configSection);
-            
-            // 2. 执行用户自定义委托（用于覆盖配置或设置无法从配置文件读取的属性）
-            configure?.Invoke(options);
-
-            // 3. 强行锁定环境状态
-            options.IsDevelopment = builder.Environment.IsDevelopment();
-
-            // 使用 V4 统一的 AddDomain 扩展
-            return builder.Services.AddDomain<TUserInfo, TInitializer, LocalAppBuilder<TUserInfo, TInitializer, TOptions>, TOptions>(
-                    builder.Configuration, options,
-                    (adapter, opt) => new LocalAppBuilder<TUserInfo, TInitializer, TOptions>(adapter, opt)
-            );
+            return CoreConfigDomain<TUserInfo, TInitializer, LocalAppBuilder<TUserInfo, TInitializer, TOptions>, TOptions>(
+                builder.Services, builder.Configuration, builder.Environment, configSection, configure,
+                (adapter, opt) => new LocalAppBuilder<TUserInfo, TInitializer, TOptions>(adapter, opt));
         }
 
-        public LocalAppBuilder<TUserInfo, TInitializer, TOptions> ConfigConsoleDomain<TUserInfo, TInitializer, TOptions>(
-            string? configSection = "TKWDomain", Action<TOptions>? configure = null)
+        /// <summary> 为测试环境配置领域环境 (已纠正返回类型错误) </summary>
+        public TestAppBuilder<TUserInfo, TInitializer, TOptions> ConfigTestAppDomain<TUserInfo, TInitializer, TOptions>(string? configSection = "TKWDomain", Action<TOptions>? configure = null)
             where TUserInfo : class, IUserInfo, new()
             where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
             where TOptions : DomainOptions, new()
         {
-            return builder.ConfigLocalAppDomain<TUserInfo, TInitializer, TOptions>(configSection, configure);
-        }
-
-        public LocalAppBuilder<TUserInfo, TInitializer, TOptions> ConfigConsoleDomain<TUserInfo, TInitializer, TOptions>(
-            Action<TOptions>? configure = null, string? configSection = "TKWDomain")
-            where TUserInfo : class, IUserInfo, new()
-            where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
-            where TOptions : DomainOptions, new()
-        {
-            return builder.ConfigLocalAppDomain<TUserInfo, TInitializer, TOptions>(configSection, configure);
-        }
-
-        public TestAppBuilder<TUserInfo, TInitializer, TOptions> ConfigTestAppDomainConfigConsoleDomain<TUserInfo, TInitializer, TOptions>(
-            Action<TOptions>? configure = null, string? configSection = "TKWDomain")
-            where TUserInfo : class, IUserInfo, new()
-            where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
-            where TOptions : DomainOptions, new()
-        {
-            return builder.ConfigTestAppDomain<TUserInfo, TInitializer, TOptions>(configSection, configure);
+            // 修正点：这里必须传入 TestAppBuilder 的构造工厂
+            return CoreConfigDomain<TUserInfo, TInitializer, TestAppBuilder<TUserInfo, TInitializer, TOptions>, TOptions>(
+                builder.Services, builder.Configuration, builder.Environment, configSection, configure,
+                (adapter, opt) => new TestAppBuilder<TUserInfo, TInitializer, TOptions>(adapter, opt));
         }
     }
 }

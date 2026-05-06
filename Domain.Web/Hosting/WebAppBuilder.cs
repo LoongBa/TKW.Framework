@@ -11,12 +11,13 @@ using TKW.Framework.Domain.Web.Session;
 
 namespace TKW.Framework.Domain.Web.Hosting;
 
-public class WebAppBuilder<TUserInfo> : DomainAppBuilderBase<WebAppBuilder<TUserInfo>, DomainWebOptions, TUserInfo>
+public class WebAppBuilder<TUserInfo, TOptions> : DomainAppBuilderBase<WebAppBuilder<TUserInfo, TOptions>, TOptions, TUserInfo>
     where TUserInfo : class, IUserInfo, new()
+    where TOptions : DomainWebOptions, new()
 {
     private readonly List<Action<IApplicationBuilder>> _PipelineActions;
 
-    internal WebAppBuilder(IDomainAppBuilderAdapter builder, DomainWebOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
+    internal WebAppBuilder(IDomainAppBuilderAdapter builder, TOptions options, List<Action<IApplicationBuilder>>? pipelineActions = null)
         : base(builder, options)
     {
         _PipelineActions = pipelineActions ?? [];

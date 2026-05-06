@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
 
@@ -8,17 +7,17 @@ namespace TKW.Framework.Domain.Web.Hosting;
 
 public static class WebApplicationExtensions
 {
-    public static WebAppBuilder<TUserInfo> ConfigWebAppDomain<TUserInfo, TInitializer>(
-        this WebApplicationBuilder builder, string? configSection = "DmpOptions",
-        Action<DomainWebOptions>? configure = null)
+    /*public static WebAppBuilder<TUserInfo, TOptions> ConfigWebAppDomain<TUserInfo, TInitializer, TOptions>(
+        this WebApplicationBuilder builder, string? configSection = "TKWDomain",
+        Action<TOptions>? configure = null)
         where TUserInfo : class, IUserInfo, new()
-        where TInitializer : DomainHostInitializerBase<TUserInfo, DomainWebOptions>, new()
+        where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+        where TOptions : DomainWebOptions, new()
     {
-        var options = new DomainWebOptions();
-
-        // 1. 自动执行绑定逻辑 (调用 DomainConfigurationBinder)
-        if (!string.IsNullOrEmpty(configSection))
-            options.Bind(builder, configSection);
+        // 1. 读取配置文件并绑定到 TOptions 实例
+        var options = new TOptions();
+        var section = builder.Configuration.GetSection(configSection.EnsureNotEmptyOrNull(nameof(configSection)));
+        section.Bind(options);
 
         // 2. 执行用户自定义委托（用于覆盖配置或设置无法从配置文件读取的属性）
         configure?.Invoke(options);
@@ -31,9 +30,27 @@ public static class WebApplicationExtensions
             builder.Services.AddHttpContextAccessor();
 
         // 使用 V4 统一的 AddDomain 扩展
-        return builder.Services.AddDomain<TUserInfo, TInitializer, WebAppBuilder<TUserInfo>, DomainWebOptions>(
+        return builder.Services.AddDomain<TUserInfo, TInitializer, WebAppBuilder<TUserInfo, TOptions>, TOptions>(
             builder.Configuration, options,
-            (adapter, opt) => new WebAppBuilder<TUserInfo>(adapter, opt)
+            (adapter, opt) => new WebAppBuilder<TUserInfo, TOptions>(adapter, opt)
+        );
+    }*/
+    /// <summary> 为 Web 宿主配置领域环境 </summary>
+    public static WebAppBuilder<TUserInfo, TOptions> ConfigWebAppDomain<TUserInfo, TInitializer, TOptions>(
+        this WebApplicationBuilder builder, string? configSection = "TKWDomain", Action<TOptions>? configure = null)
+        where TUserInfo : class, IUserInfo, new()
+        where TInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
+        where TOptions : DomainWebOptions, new()
+    {
+        return HostApplicationBuilderExtensions.CoreConfigDomain<TUserInfo, TInitializer, WebAppBuilder<TUserInfo, TOptions>, TOptions>
+        (
+            builder.Services, builder.Configuration, builder.Environment, configSection, configure,
+            (adapter, opt) => new WebAppBuilder<TUserInfo, TOptions>(adapter, opt),
+            (opt, svc) =>
+            {
+                // Web 独有的逻辑
+                if (opt.AutoAddHttpContextAccessor) svc.AddHttpContextAccessor();
+            }
         );
     }
 }
