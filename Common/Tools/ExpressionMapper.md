@@ -1,173 +1,107 @@
-## ExpressionMapper
+# ExpressionMapper 2.0 说明文档
 
-# 一、核心特性说明
+## 一、 核心特性说明
 
-## 1. 缓存策略体系（灵活配置）
+### 1. 三级自动降级执行路径 (核心演进)
 
-| 策略类型                    | 用途              | 使用示例                                                         |
-| ----------------------- | --------------- | ------------------------------------------------------------ |
-| `CachePolicy.Default`   | 全局默认策略（24 小时过期） | 普通业务类型                                                       |
-| `CachePolicy.Permanent` | 永不过期            | 核心类型（商户 / 订单 / 用户）                                           |
-| `CachePolicy.ShortTerm` | 短期策略（1 小时过期）    | 临时类型 / 第三方接口 DTO                                             |
-| 自定义策略                   | 按需配置过期时间        | `new CachePolicy { ExpirationTime = TimeSpan.FromHours(8) }` |
+这是本工具最显著的特性，确保了在不同 .NET 运行时环境下的最佳性能与兼容性：
 
-## 2. 预缓存使用示例
+| **路径**        | **执行方式**                  | **触发条件**                       | **性能**    | **AOT 兼容性** |
+| ------------- | ------------------------- | ------------------------------ | --------- | ----------- |
+| **Fast Path** | **Source Generator (SG)** | 目标类实现了 `ICopyValuesFrom<T>` 接口 | 极高 (原生代码) | 完美支持        |
+| **JIT Path**  | **Expression Tree**       | 环境支持动态编译 (Standard JIT)        | 高 (编译后委托) | 不支持         |
+| **Fallback**  | **高性能反射**                 | Native AOT 环境且无预生成代码           | 中 (带缓存优化) | 支持          |
 
-```csharp
-// Program.cs 系统启动时调用
-public static void Main(string[] args)
-{
-    // 1. 全局清理配置（可选）
-    ExpressionMapperExtensions.CleanupConfig.CleanupInterval = TimeSpan.FromMinutes(30);
+### 2. 缓存策略体系 (灵活配置)
 
-    // 2. 预缓存核心类型（永不过期）
-    ExpressionMapperExtensions.PreCacheMapper<MerchantCreateDto, MerchantInfo>(CachePolicy.Permanent);
-    ExpressionMapperExtensions.PreCacheMapper<MerchantUpdateDto, MerchantInfo>(CachePolicy.Permanent);
+| **策略类型**                | **用途**         | **使用示例**                                 |
+| ----------------------- | -------------- | ---------------------------------------- |
+| `CachePolicy.Default`   | 默认策略 (24 小时过期) | 普通业务对象映射                                 |
+| `CachePolicy.Permanent` | 永不过期           | 核心基础数据 (商户/用户/订单)                        |
+| 自定义策略                   | 按需配置           | `new CachePolicy(TimeSpan.FromHours(8))` |
 
-    // 3. 预缓存临时类型（短期过期）
-    ExpressionMapperExtensions.PreCacheMapper<ThirdPartyOrderDto, OrderInfo>(CachePolicy.ShortTerm);
+---
 
-    // 4. 批量预缓存（统一策略）
-    var batchTypes = new List<(Type, Type)>
-    {
-        (typeof(UserCreateDto), typeof(UserInfo)),
-        (typeof(UserUpdateDto), typeof(UserInfo))
-    };
-    ExpressionMapperExtensions.BatchPreCacheMapper(batchTypes, CachePolicy.Permanent);
+## 二、 业务代码调用示例
 
-    // 5. 自定义策略预缓存
-    var customPolicy = new CachePolicy { ExpirationTime = TimeSpan.FromHours(8) };
-    ExpressionMapperExtensions.PreCacheMapper<CustomDto, CustomInfo>(customPolicy);
+### 1. 基础调用 (零成本迁移)
 
-    // 启动应用...
-}
-```
-
-## 3. 业务代码调用示例（完全兼容原有语法）
+完全兼容原有语法，支持现有对象拷贝与新对象创建。
 
 ```csharp
-// 创建场景
-var merchantDto = new MerchantCreateDto { Name = "测试商户", CreditCode = "91110108MA00000000" };
-var merchant = merchantDto.CopyToNew<MerchantInfo>();
-
-// 编辑场景
-var updateDto = new MerchantUpdateDto { UId = "123", ContactPhone = "13800138000" };
-var existingMerchant = await _freeSql.Select<MerchantInfo>().Where(m => m.UId == "123").FirstAsync();
+// 场景 A：拷贝值到现有对象 (Update)
 existingMerchant.CopyValuesFrom(updateDto);
+
+// 场景 B：创建新对象并拷贝 (Create)
+var newMerchant = dto.CopyToNew<MerchantInfo>();
 ```
 
-## 关键设计
+### 2. 配合 Source Generator (极致性能)
 
-1. **策略隔离**：不同类型对可配置不同的过期策略，核心类型永不过期，临时类型短期过期；
-2. **线程安全**：使用 `ConcurrentDictionary` + `ReaderWriterLockSlim` 保证高并发下的缓存安全；
-3. **资源释放**：监听应用退出事件，自动释放 Timer 和锁资源，避免内存泄漏；
-4. **容错机制**：清理时加锁超时保护，异常捕获，不影响主线程运行；
-5. **兼容性**：完全兼容原有 `CopyValuesFrom`/`CopyToNew` 调用方式，零成本迁移；
-6. **可监控**：清理日志输出，便于运维监控缓存使用情况。
-
-# 二、开箱即用
-
-## 默认策略
-
-1. **默认策略兜底**：无手动配置时，所有缓存项均使用 `CachePolicy.Default`（24 小时过期）；
-2. **按需编译缓存**：无预缓存时，首次转换自动编译并缓存委托，后续直接复用；
-3. **智能自动清理**：默认 1 小时清理一次，仅删除 24 小时未访问的缓存项，活跃缓存不会被清理；
-4. **零配置可用**：默认行为覆盖绝大多数场景，无需任何配置即可直接使用，兼顾性能和内存安全。
-
-简单来说，默认情况下工具类是 “傻瓜式” 可用的 —— 无需关心预缓存、策略配置等细节，直接调用 `CopyToNew`/`CopyValuesFrom` 即可，工具类会自动处理缓存的创建、更新和清理，同时保证性能和内存占用的平衡。
-
-## 默认行为
-
-**未调用任何预缓存方法**、**未手动指定 CachePolicy** 时，工具类会按照以下 “兜底规则” 运行，全程无需任何配置，开箱即用：
-
-| 维度   | 默认行为                                         | 设计目的                          |
-| ---- | -------------------------------------------- | ----------------------------- |
-| 缓存策略 | 自动使用 `CachePolicy.Default`（过期时间 24 小时，非永不过期） | 平衡 “性能” 和 “内存占用”，适配绝大多数普通业务场景 |
-| 首次转换 | 自动编译 Expression 委托 + 缓存属性信息（均绑定默认策略），无预缓存开销  | 按需编译，避免启动时无意义的资源消耗            |
-| 缓存访问 | 每次访问缓存（转换对象）时，自动更新 “最后访问时间”                  | 保证活跃的缓存项不被误清理                 |
-| 自动清理 | 按 `CleanupConfig` 全局配置执行（默认 1 小时清理一次）        | 定期释放超过 24 小时未访问的缓存项，防止内存膨胀    |
-| 异常处理 | 清理时加锁超时保护、异常捕获，不影响主线程                        | 保证工具类的健壮性，即使清理失败也不影响业务转换      |
-
-## 1. 缓存策略的默认值（无手动配置时）
-
-`CachePolicy.Default` 是所有未指定策略的缓存项的兜底策略，其固定默认值为：
+在 .NET 10 项目中，只需让类实现接口，工具会自动切换到无反射路径。
 
 ```csharp
-// CachePolicy 类中定义的默认策略
-public static readonly CachePolicy Default = new() 
+// 领域对象实现接口
+public partial class MerchantInfo : ICopyValuesFrom<MerchantCreateDto>
 {
-    ExpirationTime = TimeSpan.FromHours(24), // 24小时过期
-    NeverExpire = false // 非永不过期
-};
-```
-
-- 无论是 “首次转换自动缓存” 还是 “预缓存时未传 policy 参数”，都会使用这个策略；
-- 核心逻辑：`var actualPolicy = policy ?? CachePolicy.Default;`（所有策略相关方法的兜底）。
-
-## 2. 首次转换的默认流程（无预缓存）
-
-当你第一次执行 `dto.CopyToNew<MerchantInfo>()` 时，工具类的执行链路：
-
-1. 检查 `_mapperDelegateCache` 是否有 `(MerchantCreateDto, MerchantInfo)` 的缓存项 → 无；
-2. 自动编译 Expression 委托（生成 `Func<MerchantCreateDto, MerchantInfo>`）；
-3. 将委托、当前时间（最后访问时间）、`CachePolicy.Default` 绑定，存入缓存容器；
-4. 同时自动缓存 `MerchantCreateDto` 和 `MerchantInfo` 的属性信息（均绑定默认策略）；
-5. 执行委托，完成对象转换并返回结果；
-6. 后续再执行该类型对的转换时，直接从缓存取委托（无编译开销），仅更新最后访问时间。
-
-## 3. 自动清理的默认逻辑（无预缓存）
-
-清理线程默认 1 小时执行一次，核心判断逻辑：
-
-```csharp
-// 仅清理：非永不过期 + 最后访问时间 + 24小时 < 当前时间
-.Where(kv => !kv.Value.Policy.NeverExpire && 
-             kv.Value.LastAccessTime.Add(kv.Value.Policy.ExpirationTime) < now)
-```
-
-- 示例：如果某个类型对的转换只执行过一次，且之后 24 小时内未再访问 → 会被清理；
-- 示例：如果某个类型对频繁访问（如每小时转换 100 次）→ 最后访问时间持续更新，永远不会被清理；
-
-## 4. 全局清理配置的默认值
-
-`CleanupConfig` 是控制清理频率的全局配置，默认值为：
-
-```csharp
-public static class CleanupConfig
-{
-    public static TimeSpan CleanupInterval = TimeSpan.FromHours(1); // 1小时清理一次
-    public static bool EnableAutoCleanup = true; // 开启自动清理
+    // SG 会自动生成 CopyValuesFrom 的实现逻辑
 }
+
+// 调用端代码无需改变，内部自动走最快路径
+merchant.CopyValuesFrom(dto); 
 ```
 
-- 无需手动修改，工具类静态构造函数会自动初始化 Timer 并按此配置运行；
+---
 
-- 如需调整，可在系统启动时全局修改（如改为 30 分钟清理一次）：
-  
-  ```csharp
-  ExpressionMapperExtensions.CleanupConfig.CleanupInterval = TimeSpan.FromMinutes(30);
-  ```
+## 三、 关键设计细节
 
-## 默认行为的适用场景
+1. **Native AOT 完美适配**：
+   
+   - 自动探测 `RuntimeFeature.IsDynamicCodeCompiled`。
+   
+   - 在 AOT 环境下自动降级为反射路径，配合 `[DynamicallyAccessedMembers]` 特性防止元数据被裁剪，确保程序不崩溃。
 
-默认行为是为**90% 的普通业务场景**设计的，尤其适合：
+2. **零锁高性能并发**：
+   
+   - 移除传统的 `ReaderWriterLockSlim`，改用 `ConcurrentDictionary` 配合 `Interlocked.Exchange` 原子操作更新时间戳。
+   
+   - 极大降低了高并发场景下缓存访问的竞争开销。
 
-1. 中小型项目，无需复杂的缓存策略配置；
-2. 转换频率中等的业务类型（如普通的商户 / 订单 / 用户转换）；
-3. 快速开发、开箱即用的场景；
+3. **智能内存治理**：
+   
+   - **自动化清理**：内置后台 `Timer` 每小时扫描一次，释放不活跃的缓存项。
+   
+   - **时间戳同步**：每次访问均通过 `long` 刻度更新最后访问时间，确保活跃业务缓存不被误删。
 
-只有以下场景需要手动配置预缓存 / 自定义策略：
+4. **SG 接口契约**：
+   
+   - 引入 `ICopyValuesFrom<in TSource>` 接口。作为框架的标准契约，不仅可用于 SG 自动代码生成，也方便了单元测试和 mock 操作。
 
-- 核心业务类型（如商户创建 / 编辑）：预缓存 + `CachePolicy.Permanent`（永不过期），消除首次转换的编译开销；
-- 临时 / 第三方类型（如临时接口 DTO）：预缓存 + `CachePolicy.ShortTerm`（1 小时过期），快速释放内存；
-- 特殊过期需求：自定义 `CachePolicy`（如 8 小时过期）。
+---
 
-# 三、总结：核心要点
+## 四、 默认行为与“傻瓜式”运行
 
-1. **预缓存能力**：支持单个 / 批量预编译核心类型对，消除首次执行的编译开销；
-2. **自定义策略**：预缓存时可指定专属过期策略，兼顾核心类型和临时类型的不同需求；
-3. **自动清理**：基于最后访问时间 + 策略的智能清理，防止缓存膨胀，控制内存占用；
-4. **高性能**：Expression 树编译委托，后续执行无反射开销，性能接近手动赋值；
-5. **健壮性**：完善的线程安全、资源释放、容错机制，适配生产环境使用。
+即使不进行任何配置，工具类也会按照“最优原则”运行：
 
-生产环境级别的最终实现，既满足高性能需求，又兼顾灵活性和可维护性。
+| **维度**    | **默认行为**           | **设计目的**                                     |
+| --------- | ------------------ | -------------------------------------------- |
+| **环境自适应** | 自动选择 SG > JIT > 反射 | 保证在 Windows 服务器、Linux 容器或 AOT 移动端均能正确运行。     |
+| **缓存策略**  | 自动使用 24 小时过期策略     | 在保证响应速度的同时，防止内存随运行时间无限膨胀。                    |
+| **按需编译**  | 首次调用时触发编译          | 避免系统启动时加载大量无用缓存，按需分配资源。                      |
+| **元数据保护** | 静态标记属性访问           | 确保在单文件发布 (SingleFile) 和压缩 (Trimmed) 模式下功能完整。 |
+
+### 什么时候需要手动配置？
+
+- **核心热点类型**：建议使用 `CachePolicy.Permanent` 或配合 Source Generator，消除 JIT 编译产生的首词冷启动耗时。
+
+- **内存受限环境**：可调低 `CleanupInterval` 或设置更短的 `ExpirationTime`。
+
+---
+
+## 五、 总结：核心要点
+
+1. **三位一体**：它是目前业界少数同时完美支持 SG 静态生成、JIT 动态编译和 AOT 反射兜底的映射工具。
+
+2. **工业级稳定**：内置完善的资源释放和异常捕获机制，监听进程退出信号。
+
+3. **面向 .NET 10**：充分利用了 C# 13/14 的底层性能特性（如 `Unsafe`、`ref` 优化），是领域自治框架最稳健的基础组件。
