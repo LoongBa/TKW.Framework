@@ -47,6 +47,18 @@ public static class DomainHostingExtensions
         return builderFactory(adapter, options);
     }
 
+    /// <summary>
+    /// 手动触发领域主机的第二阶段绑定
+    /// (Web 端由 IHostedService 自动触发，Test/Local/MAUI需显式或在 Builder 中调用)
+    /// </summary>
+    public static void UseTKWDomain<TUserInfo, TOptions>(this IServiceProvider sp)
+        where TUserInfo : class, IUserInfo, new()
+        where TOptions : DomainOptions, new()
+    {
+        var initializer = sp.GetService<DomainHostInitializerBase<TUserInfo, TOptions>>();
+        initializer?.ServiceProviderBuiltCallback(sp);
+    }
+
     private class InternalDefaultAdapter(IServiceCollection services, IConfiguration configuration) : IDomainAppBuilderAdapter
     {
         public IServiceCollection Services => services;

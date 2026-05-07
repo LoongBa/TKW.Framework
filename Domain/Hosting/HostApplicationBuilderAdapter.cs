@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TKW.Framework.Domain.Interfaces;
@@ -15,7 +16,7 @@ public class HostApplicationBuilderAdapter<TUserInfo>(HostApplicationBuilder bui
     public IServiceCollection Services => builder.Services;
     public IConfiguration Configuration => builder.Configuration;
 
-    public void Build()
+    public IServiceProvider Build()
     {
         // 触发宿主构建
         var host = builder.Build();
@@ -27,5 +28,6 @@ public class HostApplicationBuilderAdapter<TUserInfo>(HostApplicationBuilder bui
             var sp = host.Services;
             // 此时框架会自动执行 ServiceProviderBuiltCallback
         }
+        return host.Services;
     }
 }

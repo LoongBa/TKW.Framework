@@ -69,9 +69,13 @@ public abstract class DomainHostInitializerBase<TUserInfo, TOptions>
     /// </summary>
     public void ServiceProviderBuiltCallback(IServiceProvider sp)
     {
-        if (DomainHost<TUserInfo>.Root == null) return;
+        var root = DomainHost<TUserInfo>.Root;
 
-        this.Host = DomainHost<TUserInfo>.Root;
+        // 🌟 增强幂等保护：如果还没初始化，或者已经绑定过了，直接拦截！
+        // 这样可以彻底防止下方的 ConfigGlobalFilters 和 OnServiceProviderBuilt 被重复调用
+        if (root == null || root.IsBound) return;
+
+        this.Host = root;
         Host.BindServiceProvider(sp);
 
         ConfigGlobalFilters(sp);

@@ -20,6 +20,7 @@ namespace TKW.Framework.Domain;
 /// </summary>
 public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
+    public bool IsBound => ServiceProvider != null;// 1. 幂等性防御
     public static DomainHost<TUserInfo>? Root { get; private set; }
 
     /// <summary>
@@ -61,8 +62,10 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         services.AddSingleton(options);
 
         var initializer = new TDomainInitializer();
-        var userHelper = initializer.InitializeDiContainer(services, configuration, options);
+        //将初始化器丢进 DI 容器，以后再也不用 new，也不用传泛型
+        services.AddSingleton<DomainHostInitializerBase<TUserInfo, TOptions>>(initializer);
 
+        var userHelper = initializer.InitializeDiContainer(services, configuration, options);
         Root = new DomainHost<TUserInfo>(userHelper, options, configuration);
         userHelper.AttachHost(Root);
 
@@ -78,6 +81,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
     internal void BindServiceProvider(IServiceProvider sp)
     {
+        if (IsBound) return; // 绝对防止重复执行
         ServiceProvider = sp;
         LoggerFactory = sp.GetService<ILoggerFactory>() ?? new NullLoggerFactory();
 
