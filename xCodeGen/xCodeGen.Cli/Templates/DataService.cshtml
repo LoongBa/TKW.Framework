@@ -70,9 +70,46 @@ namespace @(servicesNS);
     }
 }
 /// </summary>
-// 【修改】：使用 @(baseClassName) 动态继承
 @Model.Accessibility sealed partial class @(serviceName) : IGeneratedByxCodeGenCli
 {
+    #region [ 内部原子逻辑转发 (Internal Accessors) ]
+
+    /// <summary> 转发基类受保护的 QueryForUser，供同程序集 Controller 组合查询 Entity </summary>
+    internal IQueryable<@entity> EntityQuery => QueryForUser();
+
+    /// <summary> 转发基类受保护的 InternalGetAsync </summary>
+    internal Task<@entity?> EntityGetAsync(Expression<Func<@entity, bool>> predicate, CancellationToken ct = default) 
+        => InternalGetAsync(predicate, ct);
+
+    /// <summary> 转发基类受保护的 InternalSelectAsync </summary>
+    internal Task<List<@entity>> EntitySelectAsync(
+        Expression<Func<@entity, bool>>? predicate, 
+        int skip, int limit, 
+        Func<IQueryable<@entity>, IQueryable<@entity>>? orderBy, 
+        CancellationToken ct)
+        => InternalSelectAsync(predicate, skip, limit, orderBy, ct);
+
+    @if (!isView)
+    {
+        <text>
+    // --- 仅非视图(可写)实体拥有的转发方法 ---
+
+    /// <summary> 转发基类受保护的 InternalCreateAsync </summary>
+    internal Task<@entity> EntityCreateAsync(@entity entity, CancellationToken ct = default)
+        => InternalCreateAsync(entity, ct);
+
+    /// <summary> 转发基类受保护的 InternalUpdateAsync </summary>
+    internal Task EntityUpdateAsync(@entity entity, CancellationToken ct = default)
+        => InternalUpdateAsync(entity, ct);
+
+    /// <summary> 转发基类受保护的 InternalHardDeleteAsync </summary>
+    internal Task<bool> EntityHardDeleteAsync(long id, CancellationToken ct = default)
+        => InternalHardDeleteAsync(id, ct);
+        </text>
+    }
+
+    #endregion
+
     #region [ 自动化业务查询 (双轨制：Internal Entity / Public DTO) ]
 
 @foreach (var group in searchGroups)

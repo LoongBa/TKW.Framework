@@ -11,6 +11,29 @@ namespace TKW.Framework.Domain;
 public static class DomainServiceCollectionExtensions
 {
     /// <summary>
+    /// 注册 Controller（带 AOP 装饰器代理）
+    /// </summary>
+    public static IServiceCollection AddController(
+        this IServiceCollection services, Type serviceInterface,
+        Type implementation, Type proxyType, Type userInfoType)
+    {
+        return AddAopService(services, serviceInterface, implementation, proxyType, userInfoType);
+    }
+
+    /// <summary>
+    /// 注册 Controller（带 AOP 装饰器代理）
+    /// </summary>
+    public static IServiceCollection AddController<TInterface, TImplementation, TDecorator, TUserInfo>(
+        this IServiceCollection services)
+        where TInterface : class
+        where TImplementation : class, TInterface
+        where TDecorator : class, TInterface
+        where TUserInfo : class, IUserInfo, new()
+    {
+        return AddAopService<TInterface, TImplementation, TDecorator, TUserInfo>(services);
+    }
+
+    /// <summary>
     /// 注册 Aop 服务（带装饰器代理）
     /// </summary>
     public static IServiceCollection AddAopService<TInterface, TImplementation, TDecorator, TUserInfo>(this IServiceCollection services)
@@ -98,7 +121,7 @@ public static class DomainServiceCollectionExtensions
     {
         // 架构守卫：不允许将控制器作为普通 Service 注册
         if (typeof(IAopContract).IsAssignableFrom(implementation))
-            throw new DomainException($"[注册守卫] 类型 {implementation.Name} 属于控制器契约类，必须通过 AddAopService 注册以启用拦截器。");
+            throw new DomainException($"[注册守卫] 类型 {implementation.Name} 属于控制器契约类，必须通过 AddController/AddAopService 注册以启用拦截器。");
         // 直接作为类本身注册，不映射接口
         // 确保了 User.Use<Implementation>() 能解析到单例化的 Scoped 实例
         services.TryAddScoped(implementation);

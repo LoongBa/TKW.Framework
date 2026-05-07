@@ -152,9 +152,9 @@ namespace xCodeGen.SourceGenerator
                 codeBuilder.AppendLine("{");
                 codeBuilder.AppendLine("    public class ProjectMetaContext : ProjectMetaContextBase");
                 codeBuilder.AppendLine("    {");
-                codeBuilder.AppendLine("        static ProjectMetaContext()");
+                codeBuilder.AppendLine("        public static IProjectMetaContext GetOrCreateInstance()");
                 codeBuilder.AppendLine("        {");
-                codeBuilder.AppendLine("            Instance = new ProjectMetaContext();");
+                codeBuilder.AppendLine("            return Instance ??= new ProjectMetaContext();");
                 codeBuilder.AppendLine("        }");
                 codeBuilder.AppendLine();
                 codeBuilder.AppendLine("        private ProjectMetaContext()");

@@ -139,9 +139,17 @@ namespace xCodeGen.SourceGenerator
                 }
             }
             var attrContent = args.Count > 0 ? $"({string.Join(", ", args)})" : "";
-            // 核心修复 2：统一使用短名称，去掉结尾的 Attribute 后缀使代码更干净
-            var shortName = attr.Name.EndsWith("Attribute") ? attr.Name.Substring(0, attr.Name.Length - 9) : attr.Name;
-            return $"[{shortName}{attrContent}]";
+            // 【修复 2】：处理带有泛型参数的情况（例如 AuthorityFilterAttribute<DmpUserInfo>）
+            var rawName = attr.Name;
+            var genericIndex = rawName.IndexOf('<');
+            var baseName = genericIndex > 0 ? rawName.Substring(0, genericIndex) : rawName;
+            var genericArgs = genericIndex > 0 ? rawName.Substring(genericIndex) : string.Empty;
+
+            // 去掉结尾的 Attribute 后缀
+            var shortName = baseName.EndsWith("Attribute") ? baseName.Substring(0, baseName.Length - 9) : baseName;
+
+            // 重新将 基础名、泛型参数 和 构造参数 拼接
+            return $"[{shortName}{genericArgs}{attrContent}]";
         }
 
         public static string GetParamSummary(MethodDeclarationSyntax method, string name)

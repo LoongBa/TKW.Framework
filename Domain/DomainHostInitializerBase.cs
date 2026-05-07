@@ -42,6 +42,9 @@ public abstract class DomainHostInitializerBase<TUserInfo, TOptions>
     {
         var projectMetaContext 
             = OnRegisterInfrastructureServices(services, configuration, options);
+        if (projectMetaContext == null)
+            throw new DomainException(@"项目元数据上下文 ProjectMetaContext 不能为空：检查初始化构造器 OnRegisterInfrastructureServices() 返回值。");
+
         // 注册 IProjectMetaContext 供后续查询
         // 此时 Host 尚未创建，需要在 BindServiceProvider 中处理
         services.AddSingleton(projectMetaContext);

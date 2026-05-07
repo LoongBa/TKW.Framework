@@ -252,7 +252,7 @@ namespace xCodeGen.SourceGenerator
             return attributes.Select(attr =>
             {
                 var typeFullName = attr.AttributeClass?.ToDisplayString();
-                var name = attr.AttributeClass?.Name ?? string.Empty;
+                var name = attr.AttributeClass?.ToDisplayString(ShortTypeFormat) ?? string.Empty;
                 var props = GetAttributeDefaults(typeFullName);
 
                 foreach (var arg in attr.NamedArguments) props[arg.Key] = arg.Value.Value ?? string.Empty;
