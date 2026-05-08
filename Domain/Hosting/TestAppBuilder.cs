@@ -24,13 +24,8 @@ public class TestAppBuilder<TUserInfo, TInitializer, TOptions>(
             services.TryAddSingleton<ITestWriter, ConsoleTestWriter>();
             services.Replace(ServiceDescriptor.Singleton<ILoggerFactory, TestOutputLoggerFactory>());
         });
-
-        if (Builder is IHostApplicationBuilderAdapter hostAdapter)
-        {
-            var sp = hostAdapter.Build(); // 获取 Provider
-            // 自动化封装：自己调用扩展方法完成补偿，外面调用 Build 的人完全无感知
-            sp.UseTKWDomain<TUserInfo, TOptions>();
-        }
+        var sp = Builder.Services.BuildServiceProvider();
+        sp.UseTKWDomain<TUserInfo, TOptions>();
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
     }
 
