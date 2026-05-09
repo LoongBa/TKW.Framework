@@ -11,41 +11,87 @@
 
 # 领域数据地图 (Domain Map)
 
-> **公理声明**：本系统内所有标记为 `[DataService]` 的组件均自动具备底层标准能力。
-> 读写实体具备 `IEntityDAC` 标准 CRUD 能力；只读视图仅具备 `IEntityReadOnlyDAC` 查询能力。下文仅列出各业务扩展特有的方法。
+> **公理声明**：
+> 
+> 本系统内名称以`Dto`结尾的类，为对应`Entity`（视图或实体）的`DTO`；以`DataService`结尾的类，为对应`Entity`（视图或实体）的`数据服务`。
+> 
+> 可对实体进行`CURD`和 统计查询操作，对视图只能读取和统计查询，不能创建、更新和删除。
+> 
+> 所有标记为 `DataService` 的类均通过继承基类自动获得标准数据处理能力。`DataService` 是业务逻辑与底层数据库交互的**唯一入口**。
+> 
+> - **只读视图 DataService**：继承自`DomainReadOnlyDataServiceBase`，提供标准查询与统计能力。
+> 
+> - **读写实体 DataService**：继承自`DomainDataServiceBase`，在查询能力基础上，提供完整的`CRUD`原子操作。
 
-@if (dacMeta != null)
-{
-@:### 公共数据操作协议 (IEntityDAC)
-foreach (var m in dacMeta.Methods)
-{
-@:- **@(m.Name)**: @ToMd(m.Summary)
-}
-}
+## 0. 底层标准能力契约 (Standard Axioms)
+
+### A. DataService 标准公开操作方法 (Standard Public API)
+
+*由基类通过聚合 DAC 实现，Agent 可在任何地方直接调用。返回类型通常为实体/视图对应的 DTO。*
+
+| **方法分类**    | **公开方法签名 (以实体为例)**                                                                        | **功能描述**                                  |
+| ----------- | ----------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **主键查询**    | `Task<TDto> GetByIdAsync(long id, CancellationToken ct)`                                  | 根据 ID 获取 DTO，若不存在则抛出 `EntityNotFound` 异常。 |
+| **统计**      | `Task<long> CountAsync(Expression<Func<TEntity, bool>>? predicate, CancellationToken ct)` | 统计符合条件的记录总数。                              |
+| **列表查询**    | `Task<List<TDto>> SelectAsync(Expression<Func<TEntity, bool>>? predicate, ...)`           | 获取符合条件的 DTO 列表。                           |
+| **分页查询**    | `Task<PageResult<TDto>> SelectPageAsync(Expression<Func<TEntity, bool>>? predicate, ...)` | 获取分页数据。                                   |
+| **GraphQL** | `IQueryable<TEntity> GetGraphQLQueryable()`                                               | 获取支持远程筛选的查询根（已应用软删除过滤）。                   |
+
+### B. DataService 内部原子操作转发 (Internal Atomic Accessors)
+
+由代码生成器自动实现，仅限程序集内部（如 Controller 或自定义 Service 扩展）调用，操作对象和返回类型为实体/视图，而非 DTO。
+
+**Agent 在扩展业务逻辑时应优先使用这些方法。***
+
+| **方法分类**   | **内部方法签名 (泛型定义)**                                                                        | **说明**                                      |
+| ---------- | ---------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **查询根方法**  | `IQueryable<TEntity> EntityQuery`                                                        | 转发 `QueryForUser()`，**核心查询基础**，已应用软删除和用户过滤。 |
+| **单条操作**   | `Task<TEntity?> EntityGetAsync(Expression<Func<TEntity, bool>> predicate, ...)`          | 直接获取实体对象，若不存在返回 `null`。                     |
+| **列表操作**   | `Task<List<TEntity>> EntitySelectAsync(Expression<Func<TEntity, bool>>? predicate, ...)` | 直接获取实体列表。                                   |
+| **创建操作**   | `Task<TEntity> EntityCreateAsync(TEntity entity, ...)`                                   | **(仅实体)** 持久化新实体并返回。                        |
+| **更新操作**   | `Task EntityUpdateAsync(TEntity entity, ...)`                                            | **(仅实体)** 更新实体状态。                           |
+| **物理删除操作** | `Task<bool> EntityHardDeleteAsync(long id, ...)`                                         | **(仅实体)** 根据 ID 执行物理删除。                     |
+
+---
+
+> **开发者/Agent 必读**：
+> 
+> 1. **外部调用**：应始终优先使用 `GetBy...`、`Select...` 等返回 DTO 的公开方法。
+> 
+> 2. **内部扩展**：在 `Partial` 类中编写复杂业务逻辑（如对账、状态机流转）时，应使用 `EntityQuery` 组合 LINQ，或使用 `EntityUpdateAsync` 操作实体。
+> 
+> 3. **字段映射**：下文 DTO 映射表决定了公开方法返回的数据结构。
+> 
+> 4. 为保持文档简洁，下文仅列出各实体和对应 DTO 的数据结构、实体数据服务的扩展方法，不再重复列出 DataService 这些标准方法。
+
+---
 
 @* 直接使用基类提供的 Entities 属性，无需再次 Where 过滤 *@
 @foreach (var group in Model.Entities.GroupBy(m => m.SubDomain))
 {
-@:## 子域：@(group.Key)
+@:## 子域：@(string.IsNullOrEmpty(group.Key) ? Raw("默认") : group.Key)
     
     foreach (var entity in group)
     {
         var service = entity.Service;
-@:### 实体：@(entity.ClassName)
+        var isView = entity.Type == MetaType.View;
+@:---
+@:### @Raw(isView ? "视图" : "实体")：@(entity.ClassName)
 @:> @ToMdQuote(entity.Summary)
-        
-@:#### DTO @(entity.ClassName)Dto 字段映射
+@:#### DTO: @(entity.ClassName)Dto
+@:##### @Raw(isView ? "View" : "Entity")/Dto 字段映射
 @:| 属性名 | 类型 | 描述 |
 @:| :--- | :--- | :--- |
         foreach (var prop in entity.Properties)
         {
-@:| @(prop.Name) | `@(prop.TypeName)` | @ToMd(prop.Summary) |
+@:| @(prop.Name) | `@Raw(prop.TypeName)` | @ToMd(prop.Summary) |
         }
 
+@:#### 数据服务： @(entity.ClassName)DataService
         // 仅在真的有手写 Custom 方法时，才渲染扩展能力大纲
         if (service != null && service.Methods.Any(m => m.Origin == MethodOrigin.Custom))
         {
-@:#### 扩展数据能力 (Custom Methods)
+@:##### 扩展数据能力 (Custom Methods)
             var customMethods = service.Methods.Where(m => m.Origin == MethodOrigin.Custom);
             foreach (var m in customMethods)
             {

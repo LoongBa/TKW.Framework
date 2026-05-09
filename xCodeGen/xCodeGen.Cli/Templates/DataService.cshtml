@@ -48,7 +48,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using xCodeGen.Abstractions;
 using TKW.Framework.Domain;
 using TKW.Framework.Common.Entity;
@@ -175,7 +174,7 @@ namespace @(servicesNS);
         {
         @:    @(Raw(cond))
         }
-    @:    return await q.FirstOrDefaultAsync(ct);
+    @:    return await Dac.FirstOrDefaultAsync(q, ct);
     @:}
     @:
     @:public async Task<@(dtoName)> GetBy@(safeGroupName)Async(@(joinedParams), CancellationToken ct = default)
@@ -195,7 +194,7 @@ namespace @(servicesNS);
         @:    @(Raw(cond))
         }
     @:    q = orderBy != null ? orderBy(q) : q.OrderByDescending(x => x.@(pkName));
-    @:    return await q.FirstOrDefaultAsync(ct);
+    @:    return await Dac.FirstOrDefaultAsync(q, ct);
     @:}
     @:
     @:public async Task<@(dtoName)> GetFirstBy@(safeGroupName)Async(@(joinedParams)@(defComma)Func<IQueryable<@(entity)>, IQueryable<@(entity)>>? orderBy = null, CancellationToken ct = default)
@@ -213,7 +212,7 @@ namespace @(servicesNS);
         @:    @(Raw(cond))
         }
     @:    q = orderBy != null ? orderBy(q) : q.OrderByDescending(x => x.@(pkName));
-    @:    var list = await q.Skip(skip).Take(limit).ToListAsync(ct);
+    @:    var list = await Dac.ToListAsync(q.Skip(skip).Take(limit), ct);
     @:    return list.Select(@(dtoName).FromEntity).ToList();
     @:}
     @:
@@ -224,14 +223,14 @@ namespace @(servicesNS);
     @:    return new PageResult<@(dtoName)>(count, list, pageNumber, pageSize);
     @:}
     @:
-    @:public Task<long> CountBy@(safeGroupName)Async(@(joinedParams)@(defComma)CancellationToken ct = default)
+    @:public async Task<long> CountBy@(safeGroupName)Async(@(joinedParams)@(defComma)CancellationToken ct = default)
     @:{
     @:    var q = QueryForUser();
         foreach (var cond in conditions)
         {
         @:    @(Raw(cond))
         }
-    @:    return q.LongCountAsync(ct);
+    @:    return await Dac.CountAsync(q, ct);
     @:}
     }
 }

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using TKW.Framework.Common.Entity;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
@@ -34,7 +33,7 @@ public abstract class DomainReadOnlyDataServiceBase<TUserInfo, TEntity, TDto> : 
 
     protected TDto MapToDto(TEntity entity) => entity.ToDto<TDto>();
 
-    #region [ 查询拦截钩子 - 虚方法 ]
+    #region [ 查询拦截钩子 ]
     protected virtual void OnQueryFiltering(ref IQueryable<TEntity> query) { }
     protected virtual void OnGraphQLFiltering(ref IQueryable<TEntity> query) { }
     #endregion
@@ -54,11 +53,12 @@ public abstract class DomainReadOnlyDataServiceBase<TUserInfo, TEntity, TDto> : 
         return MapToDto(entity);
     }
 
-    public virtual Task<int> CountAsync(Expression<Func<TEntity, bool>>? predicate = null, CancellationToken ct = default)
+    public virtual async Task<long> CountAsync(Expression<Func<TEntity, bool>>? predicate = null, CancellationToken ct = default)
     {
         var q = QueryForUser();
         if (predicate != null) q = q.Where(predicate);
-        return q.CountAsync(ct);
+        // 使用 DAC 执行异步计数
+        return await Dac.CountAsync(q, ct);
     }
 
     public virtual async Task<List<TDto>> SelectAsync(
@@ -97,9 +97,11 @@ public abstract class DomainReadOnlyDataServiceBase<TUserInfo, TEntity, TDto> : 
         return q;
     }
 
-    protected internal virtual async Task<TEntity?> InternalGetAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken ct = default)
+    public virtual async Task<TEntity?> InternalGetAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken ct = default)
     {
-        var entity = await QueryForUser().Where(predicate).FirstOrDefaultAsync(ct);
+        var q = QueryForUser().Where(predicate);
+        // 使用 DAC 执行异步 FirstOrDefault
+        var entity = await Dac.FirstOrDefaultAsync(q, ct);
         if (entity != null) entity.IsFromPersistentSource = true;
         return entity;
     }
@@ -115,7 +117,8 @@ public abstract class DomainReadOnlyDataServiceBase<TUserInfo, TEntity, TDto> : 
         if (predicate != null) q = q.Where(predicate);
         q = orderBy != null ? orderBy(q) : q.OrderByDescending(x => x.Id);
 
-        var list = await q.Skip(safeSkip).Take(safeLimit).ToListAsync(ct);
+        // 使用 DAC 执行异步 List
+        var list = await Dac.ToListAsync(q.Skip(safeSkip).Take(safeLimit), ct);
         list.ForEach(e => e.IsFromPersistentSource = true);
         return list;
     }

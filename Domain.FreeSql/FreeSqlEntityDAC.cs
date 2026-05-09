@@ -1,4 +1,4 @@
-﻿using FreeSql; // 必须引入以支持扩展方法
+﻿using FreeSql;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.FreeSql;
@@ -21,7 +21,6 @@ public class FreeSqlEntityDAC<TEntity>(IFreeSql fsql) : IEntityDAC<TEntity>
         }
     }
 
-    /// <summary>将 ISelect`1 转换为 IQueryable`1 需要 FreeSql 的 Linq 扩展</summary>
     public IQueryable<TEntity> Query => Repo.Select.AsQueryable();
 
     public void AttachUow(object uow)
@@ -31,6 +30,25 @@ public class FreeSqlEntityDAC<TEntity>(IFreeSql fsql) : IEntityDAC<TEntity>
         else
             _nativeUow = uow as IUnitOfWork;
     }
+
+    #region [ 异步执行实现 ]
+
+    public async Task<TEntity?> FirstOrDefaultAsync(IQueryable<TEntity> query, CancellationToken ct = default)
+    {
+        return await query.RestoreToSelect().FirstAsync(ct);
+    }
+
+    public async Task<List<TEntity>> ToListAsync(IQueryable<TEntity> query, CancellationToken ct = default)
+    {
+        return await query.RestoreToSelect().ToListAsync(ct);
+    }
+
+    public Task<long> CountAsync(IQueryable<TEntity> query, CancellationToken ct = default)
+    {
+        return query.RestoreToSelect().CountAsync(ct);
+    }
+
+    #endregion
 
     public async Task<TEntity> InsertAsync(TEntity entity, CancellationToken ct = default)
     {

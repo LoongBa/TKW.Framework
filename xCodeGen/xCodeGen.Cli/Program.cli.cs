@@ -87,11 +87,14 @@ partial class Program
             typeof(IProjectMetaContext).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false })
                 ?? throw new InvalidOperationException("未发现元数据上下文。");
 
-        // 强制执行静态构造函数以初始化上下文单例
-        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(contextType.TypeHandle);
-        var projectMetaContext =
-            typeof(ProjectMetaContextBase).GetProperty("Instance")?.GetValue(null) as IProjectMetaContext
-            ?? throw new InvalidOperationException("元数据实例为空。");
+        // 2. 直接调用子类的静态工厂方法 GetOrCreateInstance
+        // 这会自动触发 Instance ??= new ProjectMetaContext() 逻辑
+        var factoryMethod = contextType.GetMethod("GetOrCreateInstance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                            ?? throw new InvalidOperationException($"{contextType.Name} 缺少 GetOrCreateInstance 方法。");
+
+        // 执行工厂方法并获取返回值
+        var projectMetaContext = factoryMethod.Invoke(null, null) as IProjectMetaContext
+                                 ?? throw new InvalidOperationException("无法获取元数据上下文实例。");
 
         var templateEngine = new RazorLightTemplateEngine(config.TemplatesPath, assembly.Location);
         var engine = EngineFactory.Create(config, templateEngine, new FileSystemWriter());
