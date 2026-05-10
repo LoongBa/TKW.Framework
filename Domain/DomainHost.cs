@@ -59,10 +59,12 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         if (Root != null) throw new InvalidOperationException("DomainHost 已重初始化");
 
         services.AddSingleton<StaticDomainInterceptor<TUserInfo>>();
-        services.AddSingleton(options);
+        // 同时注册为具体类和基类，引用同一个 options 实例
+        services.AddSingleton(options);               // 注册为 TOptions
+        services.AddSingleton<DomainOptions>(options); // 注册为 DomainOptions
 
         var initializer = new TDomainInitializer();
-        //将初始化器丢进 DI 容器，以后再也不用 new，也不用传泛型
+        // 将初始化器丢进 DI 容器，以后再也不用 new，也不用传泛型
         services.AddSingleton<DomainHostInitializerBase<TUserInfo, TOptions>>(initializer);
 
         var userHelper = initializer.InitializeDiContainer(services, configuration, options);

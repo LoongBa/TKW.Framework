@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System;
 using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Interfaces;
@@ -19,11 +20,18 @@ public static class DomainHostingExtensions
         where TSubBuilder : DomainAppBuilderBase<TSubBuilder, TOptions, TUserInfo>
         where TOptions : DomainOptions, new()
     {
-        // 1. 注册 Options 并启用验证
+        // 1. 注册并配置具体的派生类（作为 Single Source of Truth）
         var optionsBuilder = services.AddOptions<TOptions>().Configure(opt =>
         {
             opt.CopyValuesFrom(options);
         });
+        
+        // 2. 转发基类接口，利用协变性：底层组件可以直接注入 IOptions<DomainOptions>
+        services.AddSingleton<IOptions<DomainOptions>>(sp => sp.GetRequiredService<IOptions<TOptions>>());
+        services.AddSingleton<IOptionsMonitor<DomainOptions>>(sp => sp.GetRequiredService<IOptionsMonitor<TOptions>>());
+        services.AddSingleton<IOptionsSnapshot<DomainOptions>>(sp => sp.GetRequiredService<IOptionsSnapshot<TOptions>>());
+
+        // 3. 可选：启动时验证配置（默认开启）
         if (!options.SkipValidation)
         {
             optionsBuilder
@@ -31,10 +39,10 @@ public static class DomainHostingExtensions
                 .ValidateOnStart();
         }
 
-        // 2. 调用 DomainHost.Initialize (静态初始化)
+        // 4. 调用 DomainHost.Initialize (静态初始化)
         var host = DomainHost<TUserInfo>.Initialize<TInitializer, TOptions>(services, options, configuration);
 
-        // 3. 注册一个启动任务，用于在 ServiceProvider 构建后同步状态
+        // 5. 注册一个启动任务，用于在 ServiceProvider 构建后同步状态
         services.AddHostedService(sp =>
         {
             var initializer = new TInitializer();
@@ -42,7 +50,7 @@ public static class DomainHostingExtensions
             return new NullHostedService();
         });
 
-        // 4. 创建适配器并返回构建器
+        // 6. 创建适配器并返回构建器
         var adapter = new InternalDefaultAdapter(services, configuration);
         return builderFactory(adapter, options);
     }
