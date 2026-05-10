@@ -52,12 +52,12 @@ public static class DateTimeUtility
 
         public DateOnly ToDateOnly()
         {
-            return new DateOnly(date.Year, date.Month, date.Day);
+            return DateOnly.FromDateTime(date);
         }
 
         public TimeOnly ToTimeOnly()
         {
-            return new TimeOnly(date.Hour, date.Minute, date.Second, date.Millisecond);
+            return TimeOnly.FromDateTime(date);
         }
 
         /// <summary>

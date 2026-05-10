@@ -61,7 +61,7 @@ public class LocalAppBuilder<TUserInfo, TInitializer, TOptions>(
 
             // 注册本地会话管理器
             services.Replace(ServiceDescriptor.Singleton<ISessionManager<TUserInfo>>(sp =>
-                ActivatorUtilities.CreateInstance<LocalSessionManager<TUserInfo>>(sp, applicationName)));
+                ActivatorUtilities.CreateInstance<LocalSessionManager<TUserInfo>>(sp)));
         });
 
         return this;

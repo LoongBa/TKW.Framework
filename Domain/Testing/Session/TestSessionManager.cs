@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TKW.Framework.Domain.Interfaces;
@@ -9,11 +10,13 @@ namespace TKW.Framework.Domain.Testing.Session;
 /// <summary>
 /// 单元测试专用会话管理器：基于 AsyncLocal 实现，保证并发测试用例间的会话绝对隔离
 /// </summary>
-public class TestSessionManager<TUserInfo> : ISessionManager<TUserInfo>
+public class TestSessionManager<TUserInfo>(ILogger<TestSessionManager<TUserInfo>> logger) : ISessionManager<TUserInfo>
     where TUserInfo : class, IUserInfo, new()
 {
     // 核心：利用 AsyncLocal 保证每个测试线程（包含其子线程）拥有独立的 Session
     private readonly AsyncLocal<SessionInfo<TUserInfo>?> _CurrentSession = new();
+
+    // 增加日志
 
     public event SessionCreated<TUserInfo>? SessionCreated;
     public event SessionAbandon<TUserInfo>? SessionAbandon;
@@ -27,6 +30,7 @@ public class TestSessionManager<TUserInfo> : ISessionManager<TUserInfo>
         var session = new SessionInfo<TUserInfo>(sessionKey, null);
 
         _CurrentSession.Value = session;
+        logger.LogDebug("测试会话已创建: {Key}", sessionKey); // 状态追踪
         OnSessionCreated(session);
 
         return Task.FromResult(session);
