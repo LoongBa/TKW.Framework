@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
 using TKW.Framework.Common.Extensions;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Hosting;
@@ -25,6 +26,8 @@ public static class HostApplicationBuilderExtensions
         // 1. 读取配置文件并绑定
         var options = new TOptions();
         var section = configuration.GetSection(configSection.EnsureNotEmptyOrNull(nameof(configSection)));
+        if (!section.Exists())
+            throw new DomainException($"❌ 核心配置缺失: 找不到名为 '{configSection}' 的配置节，请检查 appsettings.json 或环境变量。");
         section.Bind(options);
 
         // 2. 执行用户自定义委托

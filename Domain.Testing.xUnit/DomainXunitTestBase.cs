@@ -13,8 +13,8 @@ public abstract class DomainXunitTestBase<TUserInfo, TFixture> : IAsyncLifetime
     protected readonly ITestOutputHelper Output;
 
     // 2. 改为 public 属性，private set
-    public DomainUser<TUserInfo> User { get; private set; }
-    private DomainSessionScope<TUserInfo> _Scope;
+    public DomainUser<TUserInfo>? User { get; private set; }
+    private DomainSessionScope<TUserInfo>? _Scope;
 
     protected DomainXunitTestBase(TFixture fixture, ITestOutputHelper output)
     {
@@ -22,7 +22,6 @@ public abstract class DomainXunitTestBase<TUserInfo, TFixture> : IAsyncLifetime
         XunitTestOutputBridge.Current = output;
         Output = output;
         TestLoggerFactory = new TestOutputLoggerFactory(new XunitTestWriter(output));
-        // ❌ 删掉这里的 .Result 强行获取代码
     }
 
     // 3. xUnit 会在构造函数执行完毕后，自动 await 这个方法
@@ -41,7 +40,7 @@ public abstract class DomainXunitTestBase<TUserInfo, TFixture> : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        await _Scope.DisposeAsync();
+        if (_Scope != null) await _Scope.DisposeAsync();
         // Fixture 的 Dispose 通常由 xUnit 的 Collection 机制自动管理，不需要在这里 Dispose Fixture
     }
 }
