@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using TKW.Framework.Common.Tools;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
@@ -22,11 +23,42 @@ public class WebAppBuilder<TUserInfo, TOptions> : DomainAppBuilderBase<WebAppBui
     {
         _PipelineActions = pipelineActions ?? [];
         builder.Services.AddSingleton<IStartupFilter>(new DomainPipelineFilter(_PipelineActions));
-
-        if (options.UseWebExceptionMiddleware)
-        {
+        // 1. 注册统一异常处理中间件
+        if (options.UseWebExceptionMiddleware) 
             _PipelineActions.Add(app => app.UseMiddleware<WebExceptionMiddleware>());
-        }
+
+        _PipelineActions.Add(app => app.Use(async (context, next) =>
+        {
+            var webOptions = context.RequestServices.GetRequiredService<IOptions<TOptions>>().Value;
+
+            // 1. 检查开关：如果关闭了自动重定向，则直接透传
+            if (!webOptions.AutoRedirectToSetup)
+            {
+                await next();
+                return;
+            }
+
+            var root = DomainHost<TUserInfo>.Root;
+            if (root?.SetupException != null)
+            {
+                var path = context.Request.Path;
+
+                // 2. 静态资源、Setup 页面与 API 路径放行
+                if (path.StartsWithSegments(webOptions.SetupPath, StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) // 放行 API
+                    || path.Value?.Contains(".") == true)
+                {
+                    await next();
+                    return;
+                }
+
+                // 3. 执行重定向
+                context.Response.Redirect(webOptions.SetupPath);
+                return;
+            }
+
+            await next();
+        }));
     }
 
     public SessionSetupBuilder NoSession()

@@ -9,7 +9,6 @@ public class MauiDomainBootstrapper<TUserInfo, TOptions> : IMauiInitializeServic
 {
     public void Initialize(IServiceProvider services)
     {
-        // 自动触发我们写好的扩展方法！
-        services.UseTKWDomain<TUserInfo, TOptions>();
+
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Threading.Tasks;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interception;
@@ -16,7 +17,7 @@ namespace TKW.Framework.Domain;
 /// <summary>
 /// 领域主机初始化基类：适配 IServiceCollection。
 /// </summary>
-public abstract class DomainHostInitializerBase<TUserInfo, TOptions> 
+public abstract class DomainHostInitializerBase<TUserInfo, TOptions>: IDomainSystemSetup
     where TUserInfo : class, IUserInfo, new()
     where TOptions : DomainOptions, new()
 {
@@ -64,25 +65,64 @@ public abstract class DomainHostInitializerBase<TUserInfo, TOptions>
         IConfiguration? configuration, TOptions options);
     protected abstract DomainUserHelperBase<TUserInfo> OnRegisterDomainServices(IServiceCollection services, IConfiguration? configuration);
 
+    protected virtual void OnServiceProviderBuilt(IServiceProvider sp) { }
+
     /// <summary>
     /// 核心回调：在 IServiceProvider 构建后同步状态。
     /// </summary>
-    public void ServiceProviderBuiltCallback(IServiceProvider sp)
+    public async Task ServiceProviderBuiltCallbackAsync(IServiceProvider sp)
     {
         var root = DomainHost<TUserInfo>.Root;
 
-        // 🌟 增强幂等保护：如果还没初始化，或者已经绑定过了，直接拦截！
-        // 这样可以彻底防止下方的 ConfigGlobalFilters 和 OnServiceProviderBuilt 被重复调用
+        // 幂等保护：如果还没初始化，或者已经绑定过了，直接拦截
+        // 防止下方的 ConfigGlobalFilters 和 OnServiceProviderBuilt 被重复调用
         if (root == null || root.IsBound) return;
-
-        this.Host = root;
-        Host.BindServiceProvider(sp);
-
+        // 1. 绑定核心宿主
+        Host = root;
+        root.BindServiceProvider(sp);
+        // 2. 基础过滤与框架初始化
         ConfigGlobalFilters(sp);
         OnServiceProviderBuilt(sp);
+        // 3. 执行自举与系统就绪检查
+        try
+        {
+            await OnEnsureSystemReadyAsync(sp);
+            // 🌟 自举成功，标记完成，解除业务封锁
+            root.IsBootstrapCompleted = true;
+        }
+        catch (SystemSetupRequiredException ex)
+        {
+            root.SetupException = ex;
+            // 注意：这里 IsBootstrapCompleted 依然是 false，
+            // 任何非 Setup 页面的业务调用都会被 EnsureReady() 拦截报错！
+            throw; // 必须往外抛，让 DomainMauiApplication 捕获
+        }
     }
 
-    protected virtual void OnServiceProviderBuilt(IServiceProvider sp) { }
+    protected abstract Task OnEnsureSystemReadyAsync(IServiceProvider sp);
+    /// <summary>由系统设置模块调用：当用户修改了系统设置后，重新验证系统就绪状态。</summary>
+    public async Task<bool> ValidateSystemReadinessAsync()
+    {
+        if (Host == null)
+            throw new DomainException("DomainHost 尚未绑定服务提供者。");
+        try
+        {
+            // 重新调用子类的业务就绪检查逻辑
+            await OnEnsureSystemReadyAsync(Host.ServiceProvider!);
+
+            // 如果没有抛出异常，说明一切就绪，清除异常状态
+            Host.SetupException = null;
+            Host.IsBootstrapCompleted = true;   // 将状态变更为 true
+            return true;
+        }
+        catch (SystemSetupRequiredException ex)
+        {
+            // 验证失败，更新异常信息（比如还有哪些项没填）
+            Host.SetupException = ex;
+            return false;
+        }
+    }
+
     internal void RegisterGeneratedServices(IServiceCollection services, IProjectMetaContext projectMetaContext)
     {
         // 自动注册领域服务：基于 SG 自动生成的注册方法（或返回列表，在这里完成注册）

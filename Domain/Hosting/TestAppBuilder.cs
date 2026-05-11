@@ -25,7 +25,8 @@ public class TestAppBuilder<TUserInfo, TInitializer, TOptions>(
             services.Replace(ServiceDescriptor.Singleton<ILoggerFactory, TestOutputLoggerFactory>());
         });
         var sp = Builder.Services.BuildServiceProvider();
-        sp.UseTKWDomain<TUserInfo, TOptions>();
+        // 必须阻塞等待，否则测试用例开始跑了，数据库还没建好
+        sp.UseTKWDomainAsync<TUserInfo, TOptions>().GetAwaiter().GetResult();
         return DomainHost<TUserInfo>.Root ?? throw new DomainException("DomainHost 初始化失败");
     }
 

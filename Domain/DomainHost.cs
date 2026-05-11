@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
@@ -21,6 +22,10 @@ namespace TKW.Framework.Domain;
 public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, new()
 {
     public bool IsBound => ServiceProvider != null;// 1. 幂等性防御
+
+    // 🌟 修改：将其封装为 internal set，防止表现层随意篡改
+    public bool IsBootstrapCompleted { get; internal set; }
+
     public static DomainHost<TUserInfo>? Root { get; private set; }
 
     /// <summary>
@@ -45,7 +50,9 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
     /// 领域会话管理器（内部属性，不再通过 sp 动态解析）
     /// </summary>
     internal ISessionManager<TUserInfo> SessionManager => _SessionManager
-            ?? throw new InvalidOperationException("DomainHost 尚未绑定 ServiceProvider。");
+            ?? throw new DomainException("DomainHost 尚未绑定 ServiceProvider。");
+
+    public SystemSetupRequiredException? SetupException { get; set; }
 
     #region [ 初始化与绑定 ]
 
@@ -56,17 +63,17 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
         where TDomainInitializer : DomainHostInitializerBase<TUserInfo, TOptions>, new()
         where TOptions : DomainOptions, new()
     {
-        if (Root != null) throw new InvalidOperationException("DomainHost 已重初始化");
+        if (Root != null) throw new DomainException("DomainHost 不能重复初始化");
 
         services.AddSingleton<StaticDomainInterceptor<TUserInfo>>();
         // 同时注册为具体类和基类，引用同一个 options 实例
-        services.AddSingleton(options);               // 注册为 TOptions
-        services.AddSingleton<DomainOptions>(options); // 注册为 DomainOptions
+        services.AddSingleton(options);
+        services.AddSingleton<DomainOptions>(options);
 
         var initializer = new TDomainInitializer();
         // 将初始化器丢进 DI 容器，以后再也不用 new，也不用传泛型
         services.AddSingleton<DomainHostInitializerBase<TUserInfo, TOptions>>(initializer);
-
+        services.AddSingleton<IDomainSystemSetup>(initializer); // 用于表现层 Setup 页面调用
         var userHelper = initializer.InitializeDiContainer(services, configuration, options);
         Root = new DomainHost<TUserInfo>(userHelper, options, configuration);
         userHelper.AttachHost(Root);
@@ -131,11 +138,24 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
 
     #region [ 执行上下文入口 ]
 
+    // 🌟 新增守卫方法：确保系统业务就绪，防范 MAUI 等生命周期错位调用
+    internal void EnsureReady()
+    {
+        if (!IsBound || !IsBootstrapCompleted)
+        {
+            throw new DomainInitializationException(
+                "🚨 领域环境尚未就绪或正处于引导状态！请确保自举阶段已彻底完成，或业务参数已在 Setup 初始化通过后再发起调用。");
+        }
+    }
+
     /// <summary>
     /// AOP 拦截上下文创建
     /// </summary>
     internal DomainContext<TUserInfo> NewDomainContext(InvocationContext invocation, IServiceProvider sp)
     {
+        // 🌟 添加守卫：任何通过 AOP 进来的领域调用，必须检查是否就绪
+        EnsureReady();
+
         var currentUser = ((DomainServiceBase<TUserInfo>)invocation.Target).User;
 
         // 确保拦截器内部的异步流解析正常
@@ -173,6 +193,7 @@ public sealed class DomainHost<TUserInfo> where TUserInfo : class, IUserInfo, ne
             throw;
         }
     }
+
     /// <summary>
     /// 开启一个业务作用域（重用已有的 ServiceProvider）。
     /// 适配：Web 中间件（传入 context.RequestServices）。

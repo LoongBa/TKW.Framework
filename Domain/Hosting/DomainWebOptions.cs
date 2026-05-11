@@ -18,4 +18,10 @@ public class DomainWebOptions: DomainOptions
     public bool SuppressRoutingWarning { get; set; } = false;
     public bool HasRoutingPhase { get; set; } = false;
     public WebSessionOptions WebSession { get; set; } = new();
+    /// <summary>系统初始化异常时的重定向路径，默认为 "/Setup"</summary>
+    /// <remarks>如果 AutoRedirectToSetup 为 true，则在发生未处理的初始化异常时，
+    /// 系统会自动重定向到此路径，以便用户可以访问设置界面进行修复。</remarks>
+    public string SetupPath { get; set; } = "/Setup";
+    /// <summary>是否在发生未处理的初始化异常时自动重定向到 SetupPath 指定的路径。默认为 true</summary>
+    public bool AutoRedirectToSetup { get; set; } = true;
 }
