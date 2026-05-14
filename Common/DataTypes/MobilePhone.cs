@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Text.RegularExpressions;
-using TKW.Framework.Tools;
+using TKW.Framework.Tools.Mapper;
 
 namespace TKW.Framework.DataTypes
 {

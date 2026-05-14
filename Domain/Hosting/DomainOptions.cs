@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using TKW.Framework.Tools;
+using TKW.Framework.Tools.IdGenerator;
+using TKW.Framework.Tools.Tags;
 
 namespace TKW.Framework.Domain.Hosting;
 

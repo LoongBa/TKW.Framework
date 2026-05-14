@@ -2,10 +2,10 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using System.Collections.Generic;
-using TKW.Framework.Tools;
 using TKW.Framework.Domain.Interception;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
+using TKW.Framework.Tools.Tags;
 
 namespace TKW.Framework.Domain.Hosting;
 
@@ -75,17 +75,35 @@ public abstract class DomainAppBuilderBase<TSubBuilder, TOptions, TUserInfo>(
     }
 
     /// <summary>
-    /// 使用标签服务并预加载规则
+    /// 使用标签服务并预加载规则（已更新为 V4 流水线架构）
     /// </summary>
+    /// <param name="tagRules">可选的初始规则集。若为 null，则默认读取 Options.TagRules</param>
     public TSubBuilder UseTagService(IEnumerable<TagRule>? tagRules = null)
     {
-        Builder.Services.AddSingleton<TagService>(_ =>
+        // 1. 注册核心组件
+        // 使用 TryAddSingleton 允许用户通过在调用 UseTagService 之前注册自定义 ITokenizer 来替换默认实现
+        Builder.Services.TryAddSingleton<ITokenizer, DefaultTokenizer>();
+
+        // 注册内置匹配器（使用 AddEnumerable 支持多个 ITagMatcher 共存）
+        Builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ITagMatcher, TokenExactMatcher>());
+
+        // 2. 注册流水线引擎
+        Builder.Services.TryAddSingleton<TagExtractionPipeline>();
+
+        // 3. 注册业务门面服务 TagService
+        Builder.Services.AddSingleton<TagService>(sp =>
         {
-            var tagService = new TagService();
+            // 从容器中解析已经组装好的流水线（包含分词器和所有匹配器）
+            var pipeline = sp.GetRequiredService<TagExtractionPipeline>();
+            var tagService = new TagService(pipeline);
+
+            // 规则装载优先级：显式参数 > Options 配置
             var effectiveRules = tagRules ?? Options.TagRules;
             tagService.LoadRules(effectiveRules);
+
             return tagService;
         });
+
         return (TSubBuilder)this;
     }
 }

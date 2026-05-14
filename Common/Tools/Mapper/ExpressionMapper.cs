@@ -9,7 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using TKW.Framework.Abstractions;
 
-namespace TKW.Framework.Tools;
+namespace TKW.Framework.Tools.Mapper;
 
 /// <summary>
 /// 缓存策略定义
