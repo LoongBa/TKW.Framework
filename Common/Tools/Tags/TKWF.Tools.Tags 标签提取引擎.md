@@ -1,6 +1,6 @@
 # TKWF.Tools.Tags 标签提取引擎技术规范
 
-**状态**: 核心基础设施 (Core Infrastructure) | **版本**: V4.1 | **框架**: .NET 10
+**状态**: 核心基础设施 (Core Infrastructure) | **版本**: V4.2 | **框架**: .NET 10
 
 **核心约束**: 零分配 (Zero-Allocation), Native AOT 兼容, 异步友好, 逻辑解耦
 
@@ -26,7 +26,7 @@
 
 - **输入级 (`ITokenizer`)**：分词坐标生成。采用流式回调，仅传递 `TokenText`（基于 `int` 偏移量的坐标），彻底避免字符串截取分配。
 
-- **处理级 (`ITagMatcher`)**：策略驱动匹配。内置支持 `TokenExact`（精确分词匹配）、`Contains`、`Regex` 等。
+- **处理级 (`ITagMatcher`)**：策略驱动匹配。根据规则的 `MatchMode` 路由任务。
 
 - **清洗级 (`ITagPipelinePostProcessor`)**：结果集后处理。负责根据 `Priority` 在 `ExclusionGroup`（互斥组）内进行择优过滤。
 
@@ -40,7 +40,7 @@
 
 - **无缝内存视图**：全量匹配逻辑基于 `ReadOnlySpan<char>` 执行，不产生 `Substring` 调用。
 
-- **强类型配置**：深度集成 `DomainOptions.TagRules`，利用 .NET 10 的 `FrozenDictionary`（若规则固定）实现极速路由。
+- **强类型配置**：深度集成 `DomainOptions.TagRules`，利用 .NET 10 的特性实现极速路由。
 
 ---
 
@@ -48,14 +48,19 @@
 
 ### 3.1 宿主集成 (Hosting)
 
-利用 `DomainAppBuilder` 扩展方法，引擎会自动关联 `DomainOptions` 中的 `TagRules` 配置。
+利用 `DomainAppBuilder` 扩展方法，引擎会自动关联 `DomainOptions` 中的 `TagRules` 配置，并支持高度灵活的流式组装。
 
 ```csharp
-// Program.cs 或模块入口
-builder.UseTagService(); // 默认从 options.TagRules 加载规则
+// 基础用法：使用默认分词器和内置的 5 种匹配器
+builder.UseTagService(); 
 
-// 或者手动传入外部规则
-builder.UseTagService(customRules);
+// 高级用法 A：使用自定义分词器 (如接入中文 NLP)
+builder.UseTagService<JiebaTokenizer>();
+
+// 高级用法 B：使用自定义分词器实例，并链式添加额外的专用匹配器
+builder.UseTagService(myTokenizerInstance)
+       .AddTagMatcher<AcAutomataMatcher>()  // 添加 AC 自动机匹配器
+       .AddTagMatcher<SemanticMatcher>();   // 添加 语义向量匹配器
 ```
 
 ### 3.2 业务调用 (Business Logic)
@@ -83,34 +88,32 @@ public class AnalysisService(TagService tagService)
 
 ## 四、 核心组件清单 (Component List)
 
-| **组件**                          | **职责**           | **默认实现**                            |
-| ------------------------------- | ---------------- | ----------------------------------- |
-| **`TagService`**                | 业务单例门面，持有并管理规则集。 | 内置                                  |
-| **`ITokenizer`**                | 执行文本拆分，生成坐标流。    | `DefaultTokenizer` (标点/空格)          |
-| **`ITagMatcher`**               | 具体的匹配算法实现。       | `TokenExactMatcher`, `RegexMatcher` |
-| **`ITagPipelinePostProcessor`** | 处理互斥逻辑和排序。       | `ExclusionGroupProcessor`           |
+| **组件**                          | **职责**           | **默认实现**                                                                                       |
+| ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| **`TagService`**                | 业务单例门面，持有并管理规则集。 | 内置                                                                                             |
+| **`ITokenizer`**                | 执行文本拆分，生成坐标流。    | `DefaultTokenizer` (标点/空格切分)                                                                   |
+| **`ITagMatcher`**               | 具体的匹配算法实现。       | `TokenExactMatcher`, `RegexMatcher`, `ContainsMatcher`, `StartsWithMatcher`, `EndsWithMatcher` |
+| **`ITagPipelinePostProcessor`** | 处理互斥逻辑和排序。       | `ExclusionGroupProcessor`                                                                      |
 
 ---
 
 ## 五、 扩展与维护规范 (Extension & Maintenance)
 
-### 1. 扩展新算法
+### 1. 扩展新算法 (添加 Matcher)
 
-如果后续有更复杂的算法需求（如高并发下的 AC 自动机实现），只需在此架构下增加一个新的 `Matcher` 实现即可。
-
-若需支持 **语义相似度打标** 或 **AC 自动机**：
+如果后续有更复杂的算法需求（如高并发下的 AC 自动机实现），只需在此架构下增加一个新的 `Matcher` 实现即可：
 
 1. 实现 `ITagMatcher` 接口。
 
-2. 通过 `services.TryAddEnumerable` 注册。流水线将自动根据 `MatchMode` 路由任务。
+2. 在构建时调用专用扩展方法注册：`builder.AddTagMatcher<MyCustomMatcher>()`。
 
-### 2. 接入第三方 NLP
+### 2. 接入第三方 NLP (替换 Tokenizer)
 
-若需接入 **Jieba** 或 **HanLP**：
+若需接入 **Jieba** 或 **HanLP** 等重型中文分词库：
 
-1. 实现 `ITokenizer`。
+1. 建立独立的扩展包项目，实现 `ITokenizer`。
 
-2. 在 `UseTagService()` 之前注入 DI，引擎将自动替换默认的简单分词器。
+2. 在宿主程序入口，直接调用泛型方法替换底层引擎：`builder.UseTagService<JiebaTokenizer>()`。
 
 ---
 
@@ -136,4 +139,4 @@ public class AnalysisService(TagService tagService)
 
 - **维护团队**: play / TKW Framework Team
 
-- **审批状态**: 定稿 (V4.1)
+- **审批状态**: 定稿 (V4.2)
