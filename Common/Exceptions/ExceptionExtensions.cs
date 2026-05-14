@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     /// <summary>
     /// 异常的扩展方法

@@ -1,5 +1,5 @@
-using TKW.Framework.Common.DataType;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.DataTypes;
+using TKW.Framework.Extensions;
 
 namespace TKW.Framework.Domain.Permission;
 

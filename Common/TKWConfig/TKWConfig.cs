@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.TKWConfig
+namespace TKW.Framework.TKWConfig
 {
     public class TkwConfig
     {

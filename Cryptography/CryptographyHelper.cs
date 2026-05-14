@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
 namespace TKW.Framework.Cryptography
 {

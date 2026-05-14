@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     /// <summary>
     /// 异常处理结果模型

@@ -5,7 +5,7 @@ using System.Reflection;
 
 //using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.Extensions;
+namespace TKW.Framework.Extensions;
 
 public static class ObjectExtensions
 {

@@ -1,5 +1,7 @@
 ﻿#nullable enable
-namespace TKW.Framework.Common.Tools;
+using TKW;
+
+namespace TKW.Framework.Tools.IdGenerator;
 
 /// <summary>
 /// 生成器接口，定义了生成 ID 的方法。

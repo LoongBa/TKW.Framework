@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Interception.Filters;

@@ -1,4 +1,4 @@
-﻿using TKW.Framework.Common.Extensions;
+﻿using TKW.Framework.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;

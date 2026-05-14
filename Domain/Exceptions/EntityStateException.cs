@@ -1,4 +1,4 @@
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
 namespace TKW.Framework.Domain.Exceptions;
 

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Enumerations;
+namespace TKW.Framework.Enumerations;
 
 /// <summary>
 /// 枚举类型的扩展方法。

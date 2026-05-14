@@ -1,4 +1,4 @@
-namespace TKW.Framework.Common.ExtensionProperty
+namespace TKW.Framework.ExtensionProperty
 {
     public interface IProperty<T>
         where T : IProperty<T>, new()

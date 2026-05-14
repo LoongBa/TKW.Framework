@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using TKW.Framework.Common.Enumerations;
+using TKW.Framework.Enumerations;
 
 namespace TKWF.Tools.ExcelTools;
 

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Dictionary
+namespace TKW.Framework.Dictionary
 {
     public class DictionaryItem
     {

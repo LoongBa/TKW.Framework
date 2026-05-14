@@ -1,6 +1,6 @@
 ﻿using System;
-using TKW.Framework.Common.Enumerations;
-using TKW.Framework.Common.Exceptions;
+using TKW.Framework.Enumerations;
+using TKW.Framework.Exceptions;
 
 namespace TKW.Framework.Domain.Session;
 

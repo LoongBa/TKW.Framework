@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace TKW.Framework.Common.Extensions;
+namespace TKW.Framework.Extensions;
 
 /// <summary>
 /// 数据验证工具类

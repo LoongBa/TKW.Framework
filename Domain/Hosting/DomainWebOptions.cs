@@ -1,4 +1,4 @@
-﻿using TKW.Framework.Common.Attributes;
+﻿using TKW.Framework.Attributes;
 using TKW.Framework.Domain.Session;
 
 namespace TKW.Framework.Domain.Hosting;

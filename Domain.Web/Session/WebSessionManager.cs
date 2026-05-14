@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Hybrid;
-using TKW.Framework.Common.Tools;
+using TKW.Framework.Tools.IdGenerator;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;

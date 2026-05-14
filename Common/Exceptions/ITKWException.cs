@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     public interface ITKWException
     {

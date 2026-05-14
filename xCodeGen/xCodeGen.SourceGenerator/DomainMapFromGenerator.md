@@ -15,7 +15,7 @@
 2. 确保目标类声明了 **`partial`** 关键字。
 
 ```csharp
-using TKW.Framework.Common.Attributes;
+using TKW.Framework.Attributes;
 
 // 1. 加上特性并声明 partial
 [DomainMapFrom(typeof(MerchantCreateDto))]

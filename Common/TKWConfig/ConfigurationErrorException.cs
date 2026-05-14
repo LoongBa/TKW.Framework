@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.TKWConfig
+namespace TKW.Framework.TKWConfig
 {
     /// <summary>
     /// Framework 操作配置文件时的异常

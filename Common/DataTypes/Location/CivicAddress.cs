@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.DataType.Location;
+namespace TKW.Framework.DataTypes.Location;
 
 public class CivicAddress
 {

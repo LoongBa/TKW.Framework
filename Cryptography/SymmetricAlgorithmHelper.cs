@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Security.Cryptography;
 using System.Text;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
 namespace TKW.Framework.Cryptography
 {

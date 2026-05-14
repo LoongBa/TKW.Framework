@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace TKW.Framework.Common.Dictionary
+namespace TKW.Framework.Dictionary
 {
     public class DictionarySet
     {

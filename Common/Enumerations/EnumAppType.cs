@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Runtime.Serialization;
 
-namespace TKW.Framework.Common.Enumerations;
+namespace TKW.Framework.Enumerations;
 
 /// <summary>
 /// App 类型

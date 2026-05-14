@@ -1,4 +1,4 @@
-﻿namespace TKW.Framework.Common.DataType.Location;
+﻿namespace TKW.Framework.DataTypes.Location;
 
 internal static class Sr
 {

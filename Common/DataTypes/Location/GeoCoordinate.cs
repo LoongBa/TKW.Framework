@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 
-namespace TKW.Framework.Common.DataType.Location;
+namespace TKW.Framework.DataTypes.Location;
 
 public class GeoCoordinate : IEquatable<GeoCoordinate>
 {

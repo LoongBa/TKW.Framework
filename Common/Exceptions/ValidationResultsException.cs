@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 
-namespace TKW.Framework.Common.Exceptions;
+namespace TKW.Framework.Exceptions;
 
 public class ValidationResultsException(IList<ValidationResult> results)
     : ValidationException(results.FirstOrDefault()?.ErrorMessage)

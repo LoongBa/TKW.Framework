@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Tools.IdGenerator;
 
 /// <summary>
 /// ID 生成器扩展方法：包含业务便捷方法与集合批量生成

@@ -1,6 +1,6 @@
-﻿using TKW.Framework.Common.Enumerations;
+﻿using TKW.Framework.Enumerations;
 
-namespace TKW.Framework.Common.DataType
+namespace TKW.Framework.DataTypes
 {
     /// <summary>
     /// App 用户信息

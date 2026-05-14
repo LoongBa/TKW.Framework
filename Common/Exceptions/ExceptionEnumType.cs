@@ -1,6 +1,6 @@
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     /// <summary>
     /// 异常所使用的枚举类型

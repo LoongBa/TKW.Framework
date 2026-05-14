@@ -10,9 +10,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>TKW.Framework.Common</AssemblyName>
-    <RootNamespace>TKW.Framework.Common</RootNamespace>
+    <AssemblyName>TKW.Framework</AssemblyName>
+    <RootNamespace>TKW.Framework</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <AssemblyTitle>TKW.Framework</AssemblyTitle>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,14 +23,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="DataType\Location\GeoLocationAccuracy.cs" />
-    <Compile Remove="DataType\Location\GeoLocationChangedEventArgs.cs" />
-    <Compile Remove="DataType\Location\GeoLocationProvider.cs" />
-    <Compile Remove="DataType\Location\GeoLocationProviderBase.cs" />
-    <Compile Remove="DataType\Location\GeoLocationStatus.cs" />
-    <Compile Remove="DataType\Location\GeoLocationStatusChangedEventArgs.cs" />
-    <Compile Remove="DataType\Location\ICivicAddressResolver.cs" />
-    <Compile Remove="DataType\Location\ResolveAddressCompletedEventArgs.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationAccuracy.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationChangedEventArgs.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationProvider.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationProviderBase.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationStatus.cs" />
+    <Compile Remove="DataTypes\Location\GeoLocationStatusChangedEventArgs.cs" />
+    <Compile Remove="DataTypes\Location\ICivicAddressResolver.cs" />
+    <Compile Remove="DataTypes\Location\ResolveAddressCompletedEventArgs.cs" />
     <Compile Remove="Extensions\QueryableExtensions.cs" />
   </ItemGroup>
 

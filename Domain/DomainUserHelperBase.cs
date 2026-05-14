@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
-using TKW.Framework.Common.Enumerations;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Enumerations;
+using TKW.Framework.Extensions;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;
 

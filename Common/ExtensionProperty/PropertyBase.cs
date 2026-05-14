@@ -1,8 +1,8 @@
 using System;
 using System.Text.Json.Serialization;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.ExtensionProperty
+namespace TKW.Framework.ExtensionProperty
 {
     public abstract class PropertyBase<T> : IProperty<T>
         where T : IProperty<T>, new()

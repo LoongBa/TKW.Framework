@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Tools;
 
 public enum TagMatchMode
 {

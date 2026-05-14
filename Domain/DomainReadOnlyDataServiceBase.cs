@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
-using TKW.Framework.Common.Entity;
+using TKW.Framework.Entity;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace TKW.Framework.Common.Enumerations;
+namespace TKW.Framework.Enumerations;
 
 /// <summary>
 /// 周期类型

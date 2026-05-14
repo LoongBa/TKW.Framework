@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace TKW.Framework.Common.Enumerations;
+namespace TKW.Framework.Enumerations;
 
 /// <summary>
 /// 泛型类型的枚举扩展方法。

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using TKW.Framework.Common.Tools;
+using TKW.Framework.Tools.IdGenerator;
 using TKW.Framework.Domain.Hosting;
 using TKW.Framework.Domain.Interfaces;
 using TKW.Framework.Domain.Session;

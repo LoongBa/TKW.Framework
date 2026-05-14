@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
 namespace TKW.Framework.Domain.Permission;
 

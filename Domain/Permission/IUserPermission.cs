@@ -1,5 +1,5 @@
 using System;
-using TKW.Framework.Common.DataType;
+using TKW.Framework.DataTypes;
 
 namespace TKW.Framework.Domain.Permission;
 

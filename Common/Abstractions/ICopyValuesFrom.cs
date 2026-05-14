@@ -1,4 +1,4 @@
-﻿namespace TKW.Framework.Common.Abstractions;
+﻿namespace TKW.Framework.Abstractions;
 
 /// <summary>
 /// 标识对象支持从源对象拷贝值（由 Source Generator 实现）

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.Attributes;
+namespace TKW.Framework.Attributes;
 
 /// <summary>
 /// 标记目标类自动生成高性能映射代码（支持 Source Generator）

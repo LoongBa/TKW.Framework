@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using TKW.Framework.Common.Enumerations;
+using TKW.Framework.Enumerations;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain;

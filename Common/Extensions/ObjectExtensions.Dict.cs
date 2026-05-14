@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace TKW.Framework.Common.Extensions;
+namespace TKW.Framework.Extensions;
 
 [AttributeUsage(AttributeTargets.Property)]
 public class FlattenIgnoreAttribute : Attribute { }

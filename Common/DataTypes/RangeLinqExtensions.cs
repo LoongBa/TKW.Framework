@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using TKW.Framework.Common.DataType.Time;
+using TKW.Framework.DataTypes.Time;
 
-namespace TKW.Framework.Common.DataType;
+namespace TKW.Framework.DataTypes;
 
 /// <summary>
 /// DateTimeRange/DateOnlyRange 批量区间操作扩展

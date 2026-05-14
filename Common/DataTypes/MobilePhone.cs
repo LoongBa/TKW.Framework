@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Text.RegularExpressions;
-using TKW.Framework.Common.Tools;
+using TKW.Framework.Tools;
 
-namespace TKW.Framework.Common.DataType
+namespace TKW.Framework.DataTypes
 {
     public class MobilePhone
     {

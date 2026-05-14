@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 
-namespace TKW.Framework.Common.Extensions;
+namespace TKW.Framework.Extensions;
 
 public static class StringEncodeExtensions
 {

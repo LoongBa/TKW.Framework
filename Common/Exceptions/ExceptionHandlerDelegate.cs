@@ -1,6 +1,6 @@
 using System;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     /// <summary>
     /// 处理异常并返回处理结果

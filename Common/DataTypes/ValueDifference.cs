@@ -1,8 +1,8 @@
 using System;
 using System.Text.Json.Serialization;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.DataType
+namespace TKW.Framework.DataTypes
 {
     public class ValueDifference
     {

@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 using TKW.Framework.Domain.Exceptions;
 using TKW.Framework.Domain.Interfaces;
 

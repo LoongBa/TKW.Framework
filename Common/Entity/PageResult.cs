@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace TKW.Framework.Common.Entity;
+namespace TKW.Framework.Entity;
 
 #region 通用分页结果模型
 /// <summary>

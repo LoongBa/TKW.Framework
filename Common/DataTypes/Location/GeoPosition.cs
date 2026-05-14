@@ -13,7 +13,7 @@
 
 using System;
 
-namespace TKW.Framework.Common.DataType.Location;
+namespace TKW.Framework.DataTypes.Location;
 
 public class GeoPosition<T>(DateTimeOffset timestamp, T position)
 {

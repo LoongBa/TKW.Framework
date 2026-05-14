@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TKW.Framework.Common.Exceptions
+namespace TKW.Framework.Exceptions
 {
     public enum ApplicationInitialFailedType
     {

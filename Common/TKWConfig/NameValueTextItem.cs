@@ -1,4 +1,4 @@
-namespace TKW.Framework.Common.TKWConfig
+namespace TKW.Framework.TKWConfig
 {
     public struct NameValueTextItem
     {

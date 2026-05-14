@@ -1,6 +1,6 @@
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.ExtensionProperty {
+namespace TKW.Framework.ExtensionProperty {
     public static class PropertyContainerExtensions
     {
         public static T ToProperty<T>(this string left)

@@ -2,8 +2,9 @@
 using System;
 using System.Security.Cryptography;
 using System.Threading;
+using TKW.Framework.Tools.IdGenerator;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Tools;
 
 public class DefaultIdGenerator : IIdGenerator
 {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TKW.Framework.Common.DataType
+namespace TKW.Framework.DataTypes
 {
     public struct Operator
     {

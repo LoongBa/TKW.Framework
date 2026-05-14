@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.ExtensionProperty {
+namespace TKW.Framework.ExtensionProperty {
     public class PropertyContainer<T>
         where T : IProperty<T>, new()
     {

@@ -1,5 +1,5 @@
 ﻿using System;
-using TKW.Framework.Common.Exceptions;
+using TKW.Framework.Exceptions;
 
 namespace TKW.Framework.Domain.Exceptions;
 

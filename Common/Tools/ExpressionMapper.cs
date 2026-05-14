@@ -7,9 +7,9 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using TKW.Framework.Common.Abstractions;
+using TKW.Framework.Abstractions;
 
-namespace TKW.Framework.Common.Tools;
+namespace TKW.Framework.Tools;
 
 /// <summary>
 /// 缓存策略定义

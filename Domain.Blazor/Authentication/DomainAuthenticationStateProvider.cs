@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.Logging;
-using TKW.Framework.Common.Extensions;
+using TKW.Framework.Extensions;
 using TKW.Framework.Domain.Interfaces;
 
 namespace TKW.Framework.Domain.Blazor.Authentication;

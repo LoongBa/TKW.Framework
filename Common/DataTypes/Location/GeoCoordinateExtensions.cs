@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace TKW.Framework.Common.DataType.Location;
+namespace TKW.Framework.DataTypes.Location;
 
 /// <summary>
 /// GeoCoordinate 常用地理扩展方法（距离、格式化、有效性、多边形/矩形判断、坐标系转换、面积、路径等）

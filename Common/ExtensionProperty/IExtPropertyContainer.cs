@@ -1,6 +1,6 @@
-﻿using TKW.Framework.Common.Extensions;
+﻿using TKW.Framework.Extensions;
 
-namespace TKW.Framework.Common.ExtensionProperty
+namespace TKW.Framework.ExtensionProperty
 {
     /// <summary>
     /// 扩展属性容器
