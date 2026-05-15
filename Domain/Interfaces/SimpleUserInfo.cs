@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using TKW.Framework.Enumerations;
-using TKW.Framework.Domain.Interfaces;
 
-namespace TKW.Framework.Domain;
+namespace TKW.Framework.Domain.Interfaces;
 
 public class SimpleUserInfo(string userIdString, string userName) : IUserInfo
 {

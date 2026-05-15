@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -27,6 +28,13 @@ public interface IEntityReadOnlyDAC<TEntity> where TEntity : class, IDomainEntit
 public interface IEntityDAC<TEntity> : IEntityReadOnlyDAC<TEntity> where TEntity : class, IDomainEntity, new()
 {
     Task<TEntity> InsertAsync(TEntity entity, CancellationToken ct = default);
-    Task UpdateAsync(TEntity entity, CancellationToken ct = default);
+    Task<List<TEntity>> InsertBatchAsync(IEnumerable<TEntity> entities, CancellationToken ct = default);
     Task<bool> DeleteAsync(TEntity entity, CancellationToken ct = default);
+    Task UpdateAsync(TEntity entity, CancellationToken ct = default);
+    Task UpdateBatchAsync(IEnumerable<TEntity> entities, CancellationToken ct = default);
+    /// <summary>指定列的批量更新（性能极佳，按需更新）</summary>
+    Task<int> UpdateColumnsBatchAsync(
+        IEnumerable<TEntity> entities,
+        System.Linq.Expressions.Expression<Func<TEntity, object>> columns,
+        CancellationToken ct = default);
 }

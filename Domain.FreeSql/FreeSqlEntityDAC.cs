@@ -50,14 +50,50 @@ public class FreeSqlEntityDAC<TEntity>(IFreeSql fsql) : IEntityDAC<TEntity>
 
     #endregion
 
+    public async Task<bool> DeleteAsync(TEntity entity, CancellationToken ct = default)
+        => await Repo.DeleteAsync(entity, ct) > 0;
+
     public async Task<TEntity> InsertAsync(TEntity entity, CancellationToken ct = default)
     {
         await Repo.InsertAsync(entity, ct);
         return entity;
     }
+    public async Task<List<TEntity>> InsertBatchAsync(IEnumerable<TEntity> entities, CancellationToken ct = default)
+    {
+        // 1. 尝试直接转换以避免分配，若失败则物化为 List（因为返回值要求是 List）
+        var entityList = entities as List<TEntity> ?? entities.ToList();
+
+        if (entityList.Count == 0) return entityList;
+
+        // 2. FreeSql 会自动处理 ID 回填到 entityList 的项中
+        await Repo.InsertAsync(entityList, ct);
+
+        return entityList;
+    }
 
     public Task UpdateAsync(TEntity entity, CancellationToken ct = default) => Repo.UpdateAsync(entity, ct);
 
-    public async Task<bool> DeleteAsync(TEntity entity, CancellationToken ct = default)
-        => await Repo.DeleteAsync(entity, ct) > 0;
+    public Task UpdateBatchAsync(IEnumerable<TEntity> entities, CancellationToken ct = default)
+    {
+        return Repo.UpdateAsync(entities, ct);
+    }
+
+    public Task<int> UpdateColumnsBatchAsync(
+        IEnumerable<TEntity> entities,
+        System.Linq.Expressions.Expression<Func<TEntity, object>> columns,
+        CancellationToken ct = default)
+    {
+        // 使用 IFreeSql 原生 API 进行指定列的批量更新
+        var update = fsql.Update<TEntity>()
+            .SetSource(entities)
+            .UpdateColumns(columns);
+
+        // 【关键】：必须手动挂载环境事务，否则此操作会游离于 UOW 之外
+        if (_nativeUow != null)
+        {
+            update.WithTransaction(_nativeUow.GetOrBeginTransaction());
+        }
+
+        return update.ExecuteAffrowsAsync(ct);
+    }
 }

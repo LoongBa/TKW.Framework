@@ -97,9 +97,24 @@ namespace @(servicesNS);
     internal Task<@entity> EntityCreateAsync(@entity entity, CancellationToken ct = default)
         => InternalCreateAsync(entity, ct);
 
+    /// <summary> 转发基类受保护的 InternalCreateBatchAsync (批量插入) </summary>
+    internal Task<@Raw("List<" + @entity+ ">")> EntityCreateBatchAsync(IEnumerable<@entity> entities, CancellationToken ct = default)
+        => InternalCreateBatchAsync(entities, ct);
+
     /// <summary> 转发基类受保护的 InternalUpdateAsync </summary>
     internal Task EntityUpdateAsync(@entity entity, CancellationToken ct = default)
         => InternalUpdateAsync(entity, ct);
+
+    /// <summary> 转发基类受保护的 InternalUpdateBatchAsync (全字段批量更新) </summary>
+    internal Task EntityUpdateBatchAsync(IEnumerable<@entity> entities, CancellationToken ct = default)
+        => InternalUpdateBatchAsync(entities, ct);
+
+    /// <summary> 转发基类受保护的 InternalUpdateColumnsBatchAsync (指定列批量更新) </summary>
+    internal Task<int> EntityUpdateColumnsBatchAsync(
+        IEnumerable<@entity> entities, 
+        Expression<@Raw("Func<" + @entity + ", object>")> columns, 
+        CancellationToken ct = default)
+        => InternalUpdateColumnsBatchAsync(entities, columns, ct);
 
     /// <summary> 转发基类受保护的 InternalHardDeleteAsync </summary>
     internal Task<bool> EntityHardDeleteAsync(long id, CancellationToken ct = default)

@@ -1,4 +1,5 @@
-﻿using xCodeGen.Abstractions;
+﻿using System;
+using xCodeGen.Abstractions;
 
 namespace TKW.Framework.Domain.Interfaces;
 
@@ -17,4 +18,12 @@ public interface IDomainEntity : ISupportPersistenceState
 public interface IEntitySoftDelete
 {
     bool IsDeleted { get; set; }
+}
+
+public interface IAuditEntity
+{
+    DateTime CreatedTime { get; set; }
+    string? CreatedBy { get; set; }
+    DateTime UpdatedTime { get; set; }
+    string? UpdatedBy { get; set; }
 }
