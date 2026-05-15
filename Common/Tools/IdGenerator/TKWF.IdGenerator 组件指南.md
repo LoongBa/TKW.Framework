@@ -54,9 +54,7 @@
 
 在你的 `Program.cs` 或 `Startup.cs` 中，根据当前部署环境的规模选择注入哪种生成器：
 
-C#
-
-```
+```csharp
 // 方案 A：适用于单体应用或小规模微服务（开箱即用）
 builder.Services.AddSingleton<IIdGenerator, DefaultIdGenerator>();
 
@@ -72,9 +70,7 @@ builder.Services.AddSingleton<IIdGenerator>(new DistributedIdGenerator(workerId)
 
 在业务 Service 中通过构造函数注入 `IIdGenerator` 即可使用：
 
-C#
-
-```
+```csharp
 public class OrderService
 {
     private readonly IIdGenerator _idGenerator;
@@ -97,9 +93,7 @@ public class OrderService
 
 利用 `IdGeneratorExtensions`，可以在处理列表或异步流时，优雅地为实体批量赋码：
 
-C#
-
-```
+```csharp
 // 1. 同步列表批量赋码 (直接返回新 List)
 var newOrders = unassignedOrders.ApplyIds(
     generator: _idGenerator,
@@ -126,9 +120,7 @@ await foreach (var item in dbStream.WithIdsAsync(_idGenerator, (x, id) => x.Trac
 如果未来业务要求一种完全不同格式的 ID（例如纯数字的分布式短码），**不要修改**现有的 `DefaultIdGenerator`。
 正确的做法是实现一个新的类：
 
-C#
-
-```
+```csharp
 public class NumericShortIdGenerator : IIdGenerator
 {
     public string NewId(int length = 32, string? prefix = null)
