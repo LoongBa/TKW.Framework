@@ -6,15 +6,30 @@ using System.Threading;
 namespace TKW.Framework.Tools.IdGenerator;
 
 /// <summary>
-/// 默认 ID 生成器 (轻量级)。
-/// 规则：[前缀] + [yyyyMMddHHmmss] + [毫秒序列(3位)] + [随机字符串]
-/// 适用：单体应用、小规模微服务。
+/// 分布式 ID 生成器 (强一致性)。
+/// 规则：[前缀] + [yyyyMMddHHmmss] + [WorkerId(2位)] + [毫秒序列(3位)] + [随机字符串]
+/// 适用：Kubernetes 多副本部署、要求绝对防止碰撞的核心业务流水号。
 /// </summary>
-public class DefaultIdGenerator : IIdGenerator
+public class DistributedIdGenerator : IIdGenerator
 {
     private long _LastTimestamp = -1L;
     private int _Sequence;
     private const string Alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+    // 工作节点标识
+    private readonly string _WorkerIdString;
+
+    /// <summary>
+    /// 实例化分布式 ID 生成器
+    /// </summary>
+    /// <param name="workerId">机器/工作节点 ID (0-99)，同一集群内不同实例必须分配不同的值</param>
+    public DistributedIdGenerator(int workerId)
+    {
+        if (workerId < 0 || workerId > 99)
+            throw new ArgumentOutOfRangeException(nameof(workerId), "WorkerId 必须在 0 到 99 之间");
+
+        _WorkerIdString = workerId.ToString("D2");
+    }
 
     public string NewId(int length = 32, string? prefix = null)
     {
@@ -26,7 +41,7 @@ public class DefaultIdGenerator : IIdGenerator
         {
             var last = Interlocked.Read(ref _LastTimestamp);
             if (timestamp < last)
-                throw new InvalidOperationException("时钟回拨异常");
+                throw new InvalidOperationException($"时钟回拨异常。当前时间: {timestamp}, 上次时间: {last}");
 
             if (timestamp == last)
             {
@@ -49,11 +64,12 @@ public class DefaultIdGenerator : IIdGenerator
         }
 
         var timePart = DateTime.Now.ToString("yyyyMMddHHmmss");
-        var baseId = $"{prefix}{timePart}{seq:D3}";
+
+        // 核心区别：拼装时加入 WorkerId
+        var baseId = $"{prefix}{timePart}{_WorkerIdString}{seq:D3}";
 
         if (baseId.Length >= length) return baseId[..length];
 
-        // 核心优化：使用 .NET 10 原生高性能方法替代旧的手写循环
         var randomLen = length - baseId.Length;
         return baseId + RandomNumberGenerator.GetString(Alphabet, randomLen);
     }

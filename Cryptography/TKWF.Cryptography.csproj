@@ -13,20 +13,12 @@
     <AssemblyName>TKW.Framework.Cryptography</AssemblyName>
     <RootNamespace>TKW.Framework.Cryptography</RootNamespace>
     <LangVersion>latest</LangVersion>
-  </PropertyGroup>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>  
 
   <ItemGroup>
     <Compile Remove="Tools\**" />
     <EmbeddedResource Remove="Tools\**" />
     <None Remove="Tools\**" />
   </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="12.1.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Common\TKWF.Common.csproj" />
-  </ItemGroup>
-
 </Project>
