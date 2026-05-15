@@ -32,7 +32,7 @@ public static class RangeLinqExtensions
         sorted.Sort();
         if (sorted.Count == 0) yield break;
         var current = sorted[0];
-        for (int i = 1; i < sorted.Count; i++)
+        for (var i = 1; i < sorted.Count; i++)
         {
             var union = current.Union(sorted[i]);
             if (union != null)
@@ -70,7 +70,7 @@ public static class RangeLinqExtensions
         sorted.Sort();
         if (sorted.Count == 0) yield break;
         var current = sorted[0];
-        for (int i = 1; i < sorted.Count; i++)
+        for (var i = 1; i < sorted.Count; i++)
         {
             var union = current.Union(sorted[i]);
             if (union != null)
