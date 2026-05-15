@@ -20,7 +20,19 @@ public interface IEntitySoftDelete
     bool IsDeleted { get; set; }
 }
 
-public interface IAuditEntity
+public interface IEntityEnableStatus
+{
+    bool IsEnabled { get; set; }
+}
+public interface IEntityVisibleStatus
+{
+    bool IsVisible { get; set; }
+}
+public interface IEntityTenant
+{
+    long TenantId { get; set; }
+}
+public interface IEntityAuditable
 {
     DateTime CreatedTime { get; set; }
     string? CreatedBy { get; set; }

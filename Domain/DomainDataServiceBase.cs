@@ -186,7 +186,7 @@ public abstract class DomainDataServiceBase<TUserInfo, TEntity, TDto>(
 
     private void HandleAuditOnCreate(TEntity entity)
     {
-        if (entity is IAuditEntity audit)
+        if (entity is IEntityAuditable audit)
         {
             var now = DateTime.Now;
             var userName = User.UserInfo?.UserName ?? "System";
@@ -199,7 +199,7 @@ public abstract class DomainDataServiceBase<TUserInfo, TEntity, TDto>(
 
     private void HandleAuditOnUpdate(TEntity entity)
     {
-        if (entity is IAuditEntity audit)
+        if (entity is IEntityAuditable audit)
         {
             audit.UpdatedTime = DateTime.Now;
             audit.UpdatedBy = User.UserInfo?.UserName ?? "System";
