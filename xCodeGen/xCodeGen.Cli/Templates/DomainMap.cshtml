@@ -49,7 +49,10 @@
 | **单条操作**   | `Task<TEntity?> EntityGetAsync(Expression<Func<TEntity, bool>> predicate, ...)`          | 直接获取实体对象，若不存在返回 `null`。                     |
 | **列表操作**   | `Task<List<TEntity>> EntitySelectAsync(Expression<Func<TEntity, bool>>? predicate, ...)` | 直接获取实体列表。                                   |
 | **创建操作**   | `Task<TEntity> EntityCreateAsync(TEntity entity, ...)`                                   | **(仅实体)** 持久化新实体并返回。                        |
-| **更新操作**   | `Task EntityUpdateAsync(TEntity entity, ...)`                                            | **(仅实体)** 更新实体状态。                           |
+| **批量创建操作**   | `Task<TEntity> EntityCreateBatchAsync(IEnumerable<CouponReconLog> entities, ...)`                                   | **(仅实体)** 持久化新实体并返回。                        |
+| **更新操作**   | `Task EntityUpdateAsync(TEntity entity, ...)`                                            | **(仅实体)** 更新实体数据。                           |
+| **批量更新操作**   | `Task EntityUpdateBatchAsync(IEnumerable<CouponReconLog> entities, ...)`              | **(仅实体)** 批量更新实体数据。                           |
+| **批量更新操作**   | `Task EntityUpdateBatchAsync(IEnumerable<CouponReconLog> entities, Expression<Func<CouponReconLog, object>> columns,...)`              | **(仅实体)** 批量更新实体的指定列。                           |
 | **物理删除操作** | `Task<bool> EntityHardDeleteAsync(long id, ...)`                                         | **(仅实体)** 根据 ID 执行物理删除。                     |
 
 ---
@@ -73,8 +76,8 @@
     
     foreach (var entity in group)
     {
-        var service = entity.Service;
         var isView = entity.Type == MetaType.View;
+        var service = Model.AllMetadatas.FirstOrDefault(s => s.ClassName == entity.ClassName + "DataService");
 @:---
 @:### @Raw(isView ? "视图" : "实体")：@(entity.ClassName)
 @:> @ToMdQuote(entity.Summary)
@@ -89,10 +92,10 @@
 
 @:#### 数据服务： @(entity.ClassName)DataService
         // 仅在真的有手写 Custom 方法时，才渲染扩展能力大纲
-        if (service != null && service.Methods.Any(m => m.Origin == MethodOrigin.Custom))
+        var customMethods = service?.Methods.Where(m => m.Origin == MethodOrigin.Custom && m.AccessModifier == "public");
+        if (service != null && customMethods != null && customMethods.Any())
         {
-@:##### 扩展数据能力 (Custom Methods)
-            var customMethods = service.Methods.Where(m => m.Origin == MethodOrigin.Custom);
+@:##### 非自动生成的业务方法 (Custom Methods)
             foreach (var m in customMethods)
             {
 @:- **@(m.Name)**: @ToMd(m.Summary) (源文件: @(m.SourceFile))
