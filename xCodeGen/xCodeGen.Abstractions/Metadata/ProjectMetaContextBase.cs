@@ -32,6 +32,7 @@ namespace xCodeGen.Abstractions.Metadata
         public IReadOnlyList<ClassMetadata> Entities => _allMetadatas.Where(m => m.Type == MetaType.Entity).ToList().AsReadOnly();
 
         public IReadOnlyList<ClassMetadata> Services => _allMetadatas.Where(m => m.Type == MetaType.Service).ToList().AsReadOnly();
+        public IReadOnlyList<ClassMetadata> DataServices => _allMetadatas.Where(m => m.Type == MetaType.DataService).ToList().AsReadOnly();
 
         public IReadOnlyList<ClassMetadata> Controllers => _allMetadatas.Where(m => m.Type == MetaType.Controller).ToList().AsReadOnly();
 
